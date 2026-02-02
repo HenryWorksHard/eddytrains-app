@@ -37,3 +37,9 @@ body {
     padding-bottom: calc(env(safe-area-inset-bottom) + 4rem);
   }
 }
+
+/* Safe area for notched phones */
+.safe-area-bottom {
+  padding-bottom: env(safe-area-inset-bottom, 0);
+}
+

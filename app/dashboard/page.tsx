@@ -19,14 +19,15 @@ export default async function DashboardPage() {
     .eq('id', user.id)
     .single()
 
-  // Get user's assigned programs
+  // Get user's assigned programs (using client_programs table)
   const { data: userPrograms } = await supabase
-    .from('user_programs')
+    .from('client_programs')
     .select(`
       *,
       programs (*)
     `)
-    .eq('user_id', user.id)
+    .eq('client_id', user.id)
+    .eq('is_active', true)
 
   // Get today's schedule
   const today = new Date().toLocaleDateString('en-US', { weekday: 'long' }).toLowerCase()
@@ -42,7 +43,7 @@ export default async function DashboardPage() {
   const firstName = profile?.full_name?.split(' ')[0] || user.email?.split('@')[0] || 'there'
 
   return (
-    <div className="min-h-screen bg-black pb-24">
+    <div className="min-h-screen bg-black pb-32">
       {/* Header - Industrial Minimal */}
       <header className="sticky top-0 bg-black/95 backdrop-blur-lg border-b border-zinc-800 z-40">
         <div className="px-6 py-4">
@@ -71,8 +72,10 @@ export default async function DashboardPage() {
                   className="bg-zinc-900 border-l-4 border-yellow-400 rounded-r-2xl p-5"
                 >
                   <div className="flex items-center gap-4">
-                    <div className="w-14 h-14 bg-yellow-400/20 rounded-xl flex items-center justify-center text-2xl">
-                      {schedule.programs?.emoji || '💪'}
+                    <div className="w-14 h-14 bg-yellow-400/20 rounded-xl flex items-center justify-center">
+                      <svg className="w-7 h-7 text-yellow-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
+                      </svg>
                     </div>
                     <div className="flex-1">
                       <h3 className="font-semibold text-white text-lg">{schedule.workout_name}</h3>
@@ -90,8 +93,7 @@ export default async function DashboardPage() {
             </div>
           ) : (
             <div className="bg-zinc-900 border border-zinc-800 rounded-2xl p-6 text-center">
-              <div className="text-4xl mb-3">🎉</div>
-              <p className="text-zinc-400">Rest day! Take it easy.</p>
+              <p className="text-zinc-400">Rest day. Take it easy.</p>
             </div>
           )}
         </section>
@@ -107,14 +109,16 @@ export default async function DashboardPage() {
           
           {userPrograms && userPrograms.length > 0 ? (
             <div className="grid gap-3">
-              {userPrograms.slice(0, 3).map((up: { program_id: string; programs?: { name?: string; description?: string; emoji?: string } }) => (
+              {userPrograms.slice(0, 3).map((up: { program_id: string; programs?: { name?: string; description?: string } }) => (
                 <Link
                   key={up.program_id}
                   href={`/programs/${up.program_id}`}
                   className="bg-zinc-900 border border-zinc-800 hover:border-yellow-400/50 rounded-2xl p-4 flex items-center gap-4 transition-colors"
                 >
-                  <div className="w-12 h-12 bg-zinc-800 rounded-xl flex items-center justify-center text-xl">
-                    {up.programs?.emoji || '🏋️'}
+                  <div className="w-12 h-12 bg-zinc-800 rounded-xl flex items-center justify-center">
+                    <svg className="w-6 h-6 text-zinc-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
+                    </svg>
                   </div>
                   <div className="flex-1 min-w-0">
                     <h3 className="font-medium text-white truncate">{up.programs?.name || 'Program'}</h3>
@@ -126,9 +130,8 @@ export default async function DashboardPage() {
             </div>
           ) : (
             <div className="bg-zinc-900 border border-zinc-800 rounded-2xl p-6 text-center">
-              <div className="text-4xl mb-3">📋</div>
               <p className="text-zinc-400">No programs assigned yet.</p>
-              <p className="text-zinc-500 text-sm mt-1">Contact your admin to get started!</p>
+              <p className="text-zinc-500 text-sm mt-1">Contact your coach to get started.</p>
             </div>
           )}
         </section>
