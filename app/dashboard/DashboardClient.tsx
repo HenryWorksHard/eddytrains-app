@@ -69,6 +69,8 @@ export default function DashboardClient({ firstName, workoutsByDay, programCount
   }
 
   const todayWorkout = workoutsByDay[todayDayOfWeek] || null
+  const tomorrowDayOfWeek = (todayDayOfWeek + 1) % 7
+  const tomorrowWorkout = workoutsByDay[tomorrowDayOfWeek] || null
 
   if (!mounted) {
     return <div className="px-6 py-6"><div className="h-32 bg-zinc-800 rounded-2xl animate-pulse" /></div>
@@ -168,6 +170,33 @@ export default function DashboardClient({ firstName, workoutsByDay, programCount
                 >
                   Start Workout →
                 </Link>
+              )}
+              
+              {/* Tomorrow's workout info - show when today is completed */}
+              {todayCompleted && (
+                <div className="border-t border-green-500/20 p-4">
+                  {tomorrowWorkout ? (
+                    <Link
+                      href={`/workout/${tomorrowWorkout.id}?clientProgramId=${tomorrowWorkout.clientProgramId}`}
+                      className="flex items-center justify-between"
+                    >
+                      <div>
+                        <p className="text-zinc-400 text-sm">Tomorrow</p>
+                        <p className="text-white font-medium">{tomorrowWorkout.name}</p>
+                      </div>
+                      <span className="text-yellow-400 font-medium">Preview →</span>
+                    </Link>
+                  ) : (
+                    <div className="flex items-center gap-3">
+                      <div className="w-8 h-8 bg-zinc-800 rounded-lg flex items-center justify-center">
+                        <svg className="w-4 h-4 text-zinc-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z" />
+                        </svg>
+                      </div>
+                      <p className="text-zinc-400 text-sm">Rest day tomorrow — enjoy your recovery!</p>
+                    </div>
+                  )}
+                </div>
               )}
             </div>
           ) : (
