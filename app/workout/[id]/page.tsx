@@ -247,7 +247,7 @@ export default async function WorkoutDetailPage({
   }
 
   return (
-    <div className="min-h-screen bg-black pb-44">
+    <div className="min-h-screen bg-black pb-24">
       {/* Header */}
       <header className="bg-gradient-to-b from-zinc-900 to-black border-b border-zinc-800">
         <div className="px-6 py-4">
@@ -346,9 +346,14 @@ export default async function WorkoutDetailPage({
             </p>
           </div>
         )}
+        
+        {/* Sentinel for scroll detection */}
+        {exercises.length > 0 && (
+          <div id="workout-end-sentinel" className="h-1" />
+        )}
       </main>
 
-      {/* Complete Workout Button */}
+      {/* Complete Workout Button - appears when scrolled to bottom */}
       {exercises.length > 0 && (
         <CompleteWorkoutButton 
           workoutId={workoutId}

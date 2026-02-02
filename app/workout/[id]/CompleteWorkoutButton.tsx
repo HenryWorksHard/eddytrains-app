@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 
 interface CompleteWorkoutButtonProps {
@@ -16,7 +16,24 @@ export default function CompleteWorkoutButton({
 }: CompleteWorkoutButtonProps) {
   const [isCompleted, setIsCompleted] = useState(initialCompleted)
   const [isLoading, setIsLoading] = useState(false)
+  const [isVisible, setIsVisible] = useState(false)
   const router = useRouter()
+
+  // Watch for scroll to bottom using Intersection Observer
+  useEffect(() => {
+    const sentinel = document.getElementById('workout-end-sentinel')
+    if (!sentinel) return
+
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        setIsVisible(entry.isIntersecting)
+      },
+      { threshold: 0.1 }
+    )
+
+    observer.observe(sentinel)
+    return () => observer.disconnect()
+  }, [])
 
   const handleComplete = async () => {
     if (isCompleted || isLoading) return
@@ -37,7 +54,6 @@ export default function CompleteWorkoutButton({
 
       if (response.ok) {
         setIsCompleted(true)
-        // Redirect to dashboard after short delay
         setTimeout(() => {
           router.push('/dashboard?completed=true')
         }, 1500)
@@ -63,11 +79,17 @@ export default function CompleteWorkoutButton({
   }
 
   return (
-    <div className="fixed bottom-20 left-4 right-4 z-40">
+    <div 
+      className={`fixed bottom-20 left-4 right-4 z-40 transition-all duration-300 ${
+        isVisible 
+          ? 'opacity-100 translate-y-0' 
+          : 'opacity-0 translate-y-4 pointer-events-none'
+      }`}
+    >
       <button
         onClick={handleComplete}
         disabled={isLoading}
-        className="w-full bg-yellow-400 hover:bg-yellow-500 disabled:bg-yellow-400/50 text-black py-4 px-6 rounded-2xl font-semibold transition-colors flex items-center justify-center gap-2"
+        className="w-full bg-yellow-400 hover:bg-yellow-500 disabled:bg-yellow-400/50 text-black py-4 px-6 rounded-2xl font-semibold transition-colors flex items-center justify-center gap-2 shadow-lg shadow-yellow-400/20"
       >
         {isLoading ? (
           <>
