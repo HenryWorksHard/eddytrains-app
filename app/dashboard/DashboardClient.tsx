@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import Link from 'next/link'
+import ProgressPictures from './ProgressPictures'
 
 interface Workout {
   id: string
@@ -220,6 +221,9 @@ export default function DashboardClient({ firstName, workoutsByDay, programCount
             </Link>
           </div>
         </section>
+
+        {/* Progress Pictures */}
+        <ProgressPictures />
       </main>
     </>
   )
