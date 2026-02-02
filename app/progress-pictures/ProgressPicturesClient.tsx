@@ -2,6 +2,7 @@
 
 import { useState, useRef } from 'react'
 import { createClient } from '../lib/supabase/client'
+import { compressImage } from '../lib/imageUtils'
 import Image from 'next/image'
 import Link from 'next/link'
 
@@ -32,12 +33,15 @@ export default function ProgressPicturesClient({ initialImages }: Props) {
       const { data: { user } } = await supabase.auth.getUser()
       if (!user) throw new Error('Not authenticated')
 
-      const fileExt = file.name.split('.').pop()
-      const fileName = `${user.id}/${Date.now()}.${fileExt}`
+      // Compress image for faster upload
+      const compressedBlob = await compressImage(file, 1200, 0.8)
+      const fileName = `${user.id}/${Date.now()}.jpg`
 
       const { error: uploadError } = await supabase.storage
         .from('progress-images')
-        .upload(fileName, file)
+        .upload(fileName, compressedBlob, {
+          contentType: 'image/jpeg'
+        })
 
       if (uploadError) throw uploadError
 
