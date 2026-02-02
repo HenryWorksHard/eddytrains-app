@@ -3,6 +3,7 @@ import { redirect, notFound } from 'next/navigation'
 import BottomNav from '../../components/BottomNav'
 import Link from 'next/link'
 import TutorialModal from './TutorialModal'
+import CompleteWorkoutButton from './CompleteWorkoutButton'
 
 interface ExerciseSet {
   set_number: number
@@ -95,6 +96,18 @@ export default async function WorkoutDetailPage({
   if (!user) {
     redirect('/login')
   }
+
+  // Check if workout is already completed today
+  const today = new Date().toISOString().split('T')[0]
+  const { data: todayCompletion } = await supabase
+    .from('workout_completions')
+    .select('id')
+    .eq('client_id', user.id)
+    .eq('workout_id', workoutId)
+    .eq('scheduled_date', today)
+    .single()
+  
+  const isCompletedToday = !!todayCompletion
 
   // Fetch user's 1RMs
   const { data: userOneRMs } = await supabase
@@ -334,6 +347,15 @@ export default async function WorkoutDetailPage({
           </div>
         )}
       </main>
+
+      {/* Complete Workout Button */}
+      {exercises.length > 0 && (
+        <CompleteWorkoutButton 
+          workoutId={workoutId}
+          clientProgramId={clientProgramId}
+          isCompleted={isCompletedToday}
+        />
+      )}
 
       <BottomNav />
     </div>
