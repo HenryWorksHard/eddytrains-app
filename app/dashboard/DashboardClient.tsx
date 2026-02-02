@@ -16,9 +16,10 @@ interface DashboardClientProps {
   firstName: string
   workoutsByDay: Record<number, Workout>
   programCount: number
+  todayCompleted?: boolean
 }
 
-export default function DashboardClient({ firstName, workoutsByDay, programCount }: DashboardClientProps) {
+export default function DashboardClient({ firstName, workoutsByDay, programCount, todayCompleted = false }: DashboardClientProps) {
   const [mounted, setMounted] = useState(false)
   const [greeting, setGreeting] = useState('Hello')
   const [todayDayOfWeek, setTodayDayOfWeek] = useState(new Date().getDay())
@@ -123,32 +124,52 @@ export default function DashboardClient({ firstName, workoutsByDay, programCount
           <h2 className="text-sm font-medium text-zinc-500 uppercase tracking-wider mb-3">Today&apos;s Workout</h2>
           
           {todayWorkout ? (
-            <div className="bg-zinc-900 border border-zinc-800 rounded-2xl overflow-hidden">
+            <div className={`rounded-2xl overflow-hidden transition-all ${
+              todayCompleted 
+                ? 'bg-green-500/10 border-2 border-green-500/50' 
+                : 'bg-zinc-900 border border-zinc-800'
+            }`}>
               {/* Workout Info */}
               <div className="p-5">
                 <div className="flex items-start gap-4">
-                  <div className="w-16 h-16 bg-yellow-400/10 rounded-2xl flex items-center justify-center">
-                    <svg className="w-8 h-8 text-yellow-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
-                    </svg>
+                  <div className={`w-16 h-16 rounded-2xl flex items-center justify-center ${
+                    todayCompleted ? 'bg-green-500/20' : 'bg-yellow-400/10'
+                  }`}>
+                    {todayCompleted ? (
+                      <svg className="w-8 h-8 text-green-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                      </svg>
+                    ) : (
+                      <svg className="w-8 h-8 text-yellow-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
+                      </svg>
+                    )}
                   </div>
                   <div className="flex-1">
                     <h3 className="text-xl font-bold text-white">{todayWorkout.name}</h3>
-                    <p className="text-yellow-400 text-sm mt-1">{todayWorkout.programName}</p>
+                    <p className={`text-sm mt-1 ${todayCompleted ? 'text-green-400' : 'text-yellow-400'}`}>
+                      {todayWorkout.programName}
+                    </p>
                     <p className="text-zinc-500 text-sm mt-2">
-                      {todayWorkout.exerciseCount} exercises
+                      {todayCompleted ? (
+                        <span className="text-green-400 font-medium">✓ Completed today</span>
+                      ) : (
+                        `${todayWorkout.exerciseCount} exercises`
+                      )}
                     </p>
                   </div>
                 </div>
               </div>
               
-              {/* Start Button */}
-              <Link
-                href={`/workout/${todayWorkout.id}?clientProgramId=${todayWorkout.clientProgramId}`}
-                className="block w-full bg-yellow-400 hover:bg-yellow-500 text-black font-bold py-4 text-center transition-colors"
-              >
-                Start Workout →
-              </Link>
+              {/* Start Button - only show if not completed */}
+              {!todayCompleted && (
+                <Link
+                  href={`/workout/${todayWorkout.id}?clientProgramId=${todayWorkout.clientProgramId}`}
+                  className="block w-full bg-yellow-400 hover:bg-yellow-500 text-black font-bold py-4 text-center transition-colors"
+                >
+                  Start Workout →
+                </Link>
+              )}
             </div>
           ) : (
             <div className="bg-zinc-900 border border-zinc-800 rounded-2xl p-8 text-center">

@@ -77,6 +77,24 @@ export default async function DashboardPage() {
     }
   }
 
+  // Check if today's workout is completed
+  const today = new Date().toISOString().split('T')[0]
+  const todayDayOfWeek = new Date().getDay()
+  const todayWorkout = workoutsByDay[todayDayOfWeek]
+  
+  let todayCompleted = false
+  if (todayWorkout) {
+    const { data: completion } = await supabase
+      .from('workout_completions')
+      .select('id')
+      .eq('client_id', user.id)
+      .eq('workout_id', todayWorkout.id)
+      .eq('scheduled_date', today)
+      .single()
+    
+    todayCompleted = !!completion
+  }
+
   const firstName = profile?.full_name?.split(' ')[0] || user.email?.split('@')[0] || 'there'
   const programCount = userPrograms?.length || 0
 
@@ -86,6 +104,7 @@ export default async function DashboardPage() {
         firstName={firstName}
         workoutsByDay={workoutsByDay}
         programCount={programCount}
+        todayCompleted={todayCompleted}
       />
       <BottomNav />
     </div>
