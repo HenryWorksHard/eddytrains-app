@@ -12,6 +12,7 @@ interface Profile {
   full_name: string | null
   email: string
   role: string | null
+  profile_picture_url: string | null
 }
 
 interface Client1RM {
@@ -47,7 +48,9 @@ export default function ProfilePage() {
   const [progressImages, setProgressImages] = useState<ProgressImage[]>([])
   const [uploadingImage, setUploadingImage] = useState(false)
   const [selectedImage, setSelectedImage] = useState<ProgressImage | null>(null)
+  const [uploadingPfp, setUploadingPfp] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
+  const pfpInputRef = useRef<HTMLInputElement>(null)
   const router = useRouter()
   const supabase = createClient()
 
@@ -71,6 +74,7 @@ export default function ProfilePage() {
         full_name: data?.full_name || null,
         email: user.email || '',
         role: data?.role || null,
+        profile_picture_url: data?.profile_picture_url || null,
       })
       
       // Load 1RMs
@@ -141,6 +145,49 @@ export default function ProfilePage() {
 
   const formatDate = (dateStr: string) => {
     return new Date(dateStr).toLocaleDateString(undefined, { day: 'numeric', month: 'short' })
+  }
+
+  const handlePfpUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file || !profile) return
+
+    setUploadingPfp(true)
+    try {
+      const compressedBlob = await compressImage(file, 400, 0.85)
+      const fileName = `${profile.id}/avatar.jpg`
+
+      // Delete old one first if exists
+      await supabase.storage.from('profile-pictures').remove([fileName])
+
+      const { error: uploadError } = await supabase.storage
+        .from('profile-pictures')
+        .upload(fileName, compressedBlob, { contentType: 'image/jpeg', upsert: true })
+
+      if (uploadError) throw uploadError
+
+      const { data: { publicUrl } } = supabase.storage
+        .from('profile-pictures')
+        .getPublicUrl(fileName)
+
+      // Add cache buster
+      const urlWithCacheBuster = `${publicUrl}?t=${Date.now()}`
+
+      // Update profile
+      const { error: updateError } = await supabase
+        .from('profiles')
+        .update({ profile_picture_url: urlWithCacheBuster })
+        .eq('id', profile.id)
+
+      if (updateError) throw updateError
+
+      setProfile(prev => prev ? { ...prev, profile_picture_url: urlWithCacheBuster } : null)
+    } catch (err) {
+      console.error('PFP upload failed:', err)
+      alert('Failed to upload. Please try again.')
+    } finally {
+      setUploadingPfp(false)
+      if (pfpInputRef.current) pfpInputRef.current.value = ''
+    }
   }
 
   const load1RMs = async (userId: string) => {
@@ -225,9 +272,45 @@ export default function ProfilePage() {
       {/* Header - Industrial Minimal */}
       <header className="bg-zinc-900 border-b border-zinc-800">
         <div className="px-6 py-8 text-center">
-          <div className="w-24 h-24 bg-zinc-800 rounded-full flex items-center justify-center text-4xl mx-auto mb-4">
-            👤
-          </div>
+          <input
+            ref={pfpInputRef}
+            type="file"
+            accept="image/*"
+            onChange={handlePfpUpload}
+            className="hidden"
+          />
+          <button
+            onClick={() => pfpInputRef.current?.click()}
+            disabled={uploadingPfp}
+            className="relative w-24 h-24 mx-auto mb-4 group"
+          >
+            {profile?.profile_picture_url ? (
+              <Image
+                src={profile.profile_picture_url}
+                alt="Profile"
+                fill
+                className="rounded-full object-cover"
+                sizes="96px"
+              />
+            ) : (
+              <div className="w-24 h-24 bg-zinc-800 rounded-full flex items-center justify-center text-4xl">
+                👤
+              </div>
+            )}
+            <div className="absolute inset-0 bg-black/50 rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+              {uploadingPfp ? (
+                <svg className="w-6 h-6 animate-spin text-white" fill="none" viewBox="0 0 24 24">
+                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+                </svg>
+              ) : (
+                <svg className="w-6 h-6 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" />
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 13a3 3 0 11-6 0 3 3 0 016 0z" />
+                </svg>
+              )}
+            </div>
+          </button>
           <h1 className="text-xl font-bold text-white">
             {profile?.full_name || 'User'}
           </h1>
