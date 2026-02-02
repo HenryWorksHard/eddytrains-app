@@ -12,9 +12,30 @@ interface Profile {
   role: string | null
 }
 
+interface Client1RM {
+  id?: string
+  exercise_name: string
+  weight_kg: number
+}
+
+// Common compound lifts for 1RM tracking
+const COMMON_LIFTS = [
+  'Squat',
+  'Bench Press',
+  'Deadlift',
+  'Overhead Press',
+  'Barbell Row',
+  'Front Squat',
+  'Romanian Deadlift',
+  'Incline Bench Press'
+]
+
 export default function ProfilePage() {
   const [profile, setProfile] = useState<Profile | null>(null)
   const [loading, setLoading] = useState(true)
+  const [client1RMs, setClient1RMs] = useState<Client1RM[]>([])
+  const [editing1RM, setEditing1RM] = useState(false)
+  const [saving1RM, setSaving1RM] = useState(false)
   const router = useRouter()
   const supabase = createClient()
 
@@ -39,11 +60,78 @@ export default function ProfilePage() {
         email: user.email || '',
         role: data?.role || null,
       })
+      
+      // Load 1RMs
+      await load1RMs(user.id)
+      
       setLoading(false)
     }
 
     loadProfile()
   }, [supabase, router])
+
+  const load1RMs = async (userId: string) => {
+    try {
+      const { data, error } = await supabase
+        .from('client_1rms')
+        .select('id, exercise_name, weight_kg')
+        .eq('client_id', userId)
+      
+      if (error) {
+        console.error('Failed to fetch 1RMs:', error)
+        setClient1RMs(COMMON_LIFTS.map(name => ({ exercise_name: name, weight_kg: 0 })))
+        return
+      }
+      
+      // Merge with common lifts
+      const existingMap = new Map((data || []).map(rm => [rm.exercise_name, rm]))
+      const merged = COMMON_LIFTS.map(name => 
+        existingMap.get(name) || { exercise_name: name, weight_kg: 0 }
+      )
+      setClient1RMs(merged)
+    } catch (err) {
+      console.error('Failed to fetch 1RMs:', err)
+      setClient1RMs(COMMON_LIFTS.map(name => ({ exercise_name: name, weight_kg: 0 })))
+    }
+  }
+
+  const save1RMs = async () => {
+    if (!profile) return
+    setSaving1RM(true)
+    
+    try {
+      const toSave = client1RMs.filter(rm => rm.weight_kg > 0)
+      
+      for (const rm of toSave) {
+        const { error } = await supabase
+          .from('client_1rms')
+          .upsert({
+            client_id: profile.id,
+            exercise_name: rm.exercise_name,
+            weight_kg: rm.weight_kg,
+            updated_at: new Date().toISOString()
+          }, {
+            onConflict: 'client_id,exercise_name'
+          })
+        
+        if (error) throw error
+      }
+      
+      setEditing1RM(false)
+      await load1RMs(profile.id)
+    } catch (err) {
+      console.error('Failed to save 1RMs:', err)
+      alert('Failed to save. Please try again.')
+    } finally {
+      setSaving1RM(false)
+    }
+  }
+
+  const update1RM = (exerciseName: string, weightKg: number) => {
+    setClient1RMs(prev => prev.map(rm => 
+      rm.exercise_name === exerciseName ? { ...rm, weight_kg: weightKg } : rm
+    ))
+  }
 
   const handleLogout = async () => {
     await supabase.auth.signOut()
@@ -88,6 +176,73 @@ export default function ProfilePage() {
               <p className="text-zinc-500 text-sm">Member since</p>
               <p className="text-white mt-1">2025</p>
             </div>
+          </div>
+        </section>
+
+        {/* 1RM Board Section */}
+        <section>
+          <div className="flex items-center justify-between mb-3">
+            <h2 className="text-sm font-medium text-zinc-500 uppercase tracking-wider">1RM Board</h2>
+            {editing1RM ? (
+              <div className="flex gap-2">
+                <button
+                  onClick={save1RMs}
+                  disabled={saving1RM}
+                  className="px-3 py-1 bg-yellow-400 hover:bg-yellow-500 text-black text-sm font-medium rounded-lg transition-colors disabled:opacity-50"
+                >
+                  {saving1RM ? '...' : 'Save'}
+                </button>
+                <button
+                  onClick={() => {
+                    setEditing1RM(false)
+                    if (profile) load1RMs(profile.id)
+                  }}
+                  className="px-3 py-1 bg-zinc-800 hover:bg-zinc-700 text-white text-sm rounded-lg transition-colors"
+                >
+                  Cancel
+                </button>
+              </div>
+            ) : (
+              <button
+                onClick={() => setEditing1RM(true)}
+                className="px-3 py-1 bg-zinc-800 hover:bg-zinc-700 text-white text-sm rounded-lg transition-colors"
+              >
+                Edit
+              </button>
+            )}
+          </div>
+          <p className="text-xs text-zinc-500 mb-3">
+            Enter your one-rep maxes for percentage-based weight calculations
+          </p>
+          <div className="grid grid-cols-2 gap-3">
+            {client1RMs.map((rm) => (
+              <div
+                key={rm.exercise_name}
+                className={`p-4 rounded-xl border ${
+                  rm.weight_kg > 0 
+                    ? 'bg-zinc-900 border-zinc-700' 
+                    : 'bg-zinc-900/50 border-zinc-800'
+                }`}
+              >
+                <p className="text-xs text-zinc-400 mb-2 truncate">{rm.exercise_name}</p>
+                {editing1RM ? (
+                  <div className="flex items-center gap-1">
+                    <input
+                      type="number"
+                      value={rm.weight_kg || ''}
+                      onChange={(e) => update1RM(rm.exercise_name, parseFloat(e.target.value) || 0)}
+                      placeholder="0"
+                      className="w-full px-2 py-1 bg-zinc-800 border border-zinc-700 rounded text-white text-lg font-bold focus:outline-none focus:ring-1 focus:ring-yellow-400"
+                    />
+                    <span className="text-zinc-500 text-sm">kg</span>
+                  </div>
+                ) : (
+                  <p className={`text-xl font-bold ${rm.weight_kg > 0 ? 'text-white' : 'text-zinc-600'}`}>
+                    {rm.weight_kg > 0 ? `${rm.weight_kg}kg` : '—'}
+                  </p>
+                )}
+              </div>
+            ))}
           </div>
         </section>
 

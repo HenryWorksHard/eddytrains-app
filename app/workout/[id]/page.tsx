@@ -12,7 +12,6 @@ interface ExerciseSet {
   rest_seconds?: number
   weight_type?: string
   notes?: string
-  // Flag to indicate if this is a custom value
   is_custom?: boolean
 }
 
@@ -24,6 +23,41 @@ interface WorkoutExercise {
   notes?: string
   superset_group?: string
   sets: ExerciseSet[]
+}
+
+interface Client1RM {
+  exercise_name: string
+  weight_kg: number
+}
+
+// Helper to match exercise names to 1RMs (handles variations)
+function find1RM(exerciseName: string, oneRMs: Client1RM[]): number | null {
+  const normalizedName = exerciseName.toLowerCase().trim()
+  
+  // Direct match
+  const direct = oneRMs.find(rm => rm.exercise_name.toLowerCase() === normalizedName)
+  if (direct && direct.weight_kg > 0) return direct.weight_kg
+  
+  // Partial matches for common exercises
+  const matchMap: Record<string, string[]> = {
+    'squat': ['squat', 'back squat', 'barbell squat'],
+    'bench press': ['bench', 'bench press', 'flat bench', 'barbell bench'],
+    'deadlift': ['deadlift', 'conventional deadlift', 'barbell deadlift'],
+    'overhead press': ['ohp', 'overhead press', 'shoulder press', 'military press', 'standing press'],
+    'barbell row': ['row', 'barbell row', 'bent over row', 'bb row'],
+    'front squat': ['front squat'],
+    'romanian deadlift': ['rdl', 'romanian deadlift', 'stiff leg deadlift'],
+    'incline bench press': ['incline bench', 'incline press', 'incline bench press'],
+  }
+  
+  for (const [key, aliases] of Object.entries(matchMap)) {
+    if (aliases.some(alias => normalizedName.includes(alias))) {
+      const rm = oneRMs.find(r => r.exercise_name.toLowerCase() === key)
+      if (rm && rm.weight_kg > 0) return rm.weight_kg
+    }
+  }
+  
+  return null
 }
 
 export default async function WorkoutDetailPage({ 
@@ -42,6 +76,14 @@ export default async function WorkoutDetailPage({
   if (!user) {
     redirect('/login')
   }
+
+  // Fetch user's 1RMs
+  const { data: userOneRMs } = await supabase
+    .from('client_1rms')
+    .select('exercise_name, weight_kg')
+    .eq('client_id', user.id)
+  
+  const oneRMs: Client1RM[] = userOneRMs || []
 
   // Fetch the workout with its exercises
   const { data: workout } = await supabase
@@ -92,7 +134,6 @@ export default async function WorkoutDetailPage({
       .eq('client_program_id', clientProgramId)
     
     if (clientExerciseSets) {
-      // Group by workout_exercise_id
       clientExerciseSets.forEach(set => {
         const key = set.workout_exercise_id
         if (!customSets[key]) customSets[key] = []
@@ -114,15 +155,12 @@ export default async function WorkoutDetailPage({
   const exercises: WorkoutExercise[] = ((workout.workout_exercises as unknown) as WorkoutExercise[] || [])
     .sort((a, b) => a.order_index - b.order_index)
     .map(exercise => {
-      // Check if we have custom sets for this exercise
       const exerciseCustomSets = customSets[exercise.id]
       
       let sets: ExerciseSet[]
       if (exerciseCustomSets && exerciseCustomSets.length > 0) {
-        // Use custom sets
         sets = exerciseCustomSets.sort((a, b) => a.set_number - b.set_number)
       } else {
-        // Fall back to default exercise sets
         sets = ((exercise as unknown as { exercise_sets: ExerciseSet[] }).exercise_sets || [])
           .sort((a: ExerciseSet, b: ExerciseSet) => a.set_number - b.set_number)
           .map((s: ExerciseSet) => ({
@@ -142,16 +180,31 @@ export default async function WorkoutDetailPage({
   const program = Array.isArray(programData) ? programData[0] : programData
   const daysOfWeek = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday']
 
-  const formatIntensity = (type: string, value: string) => {
+  // Format intensity with weight calculation
+  const formatIntensity = (type: string, value: string, exerciseName: string) => {
+    if (type === 'percentage') {
+      const percentage = parseFloat(value)
+      const oneRM = find1RM(exerciseName, oneRMs)
+      
+      if (oneRM && !isNaN(percentage)) {
+        const calculatedWeight = Math.round((oneRM * percentage / 100) * 2) / 2 // Round to nearest 0.5kg
+        return (
+          <span className="flex flex-col">
+            <span className="text-yellow-400">{value}%</span>
+            <span className="text-green-400 text-xs font-medium">{calculatedWeight}kg</span>
+          </span>
+        )
+      }
+      return <span className="text-yellow-400">{value}%</span>
+    }
+    
     switch (type) {
       case 'rir':
-        return `${value} RIR`
+        return <span className="text-yellow-400">{value} RIR</span>
       case 'rpe':
-        return `RPE ${value}`
-      case 'percentage':
-        return `${value}%`
+        return <span className="text-yellow-400">RPE {value}</span>
       default:
-        return value
+        return <span className="text-yellow-400">{value}</span>
     }
   }
 
@@ -229,8 +282,8 @@ export default async function WorkoutDetailPage({
                   >
                     <span className="text-zinc-400 font-mono">{set.set_number}</span>
                     <span className="text-white font-medium">{set.reps}</span>
-                    <span className="text-yellow-400 text-sm">
-                      {formatIntensity(set.intensity_type, set.intensity_value)}
+                    <span className="text-sm">
+                      {formatIntensity(set.intensity_type, set.intensity_value, exercise.exercise_name)}
                     </span>
                     <span className="text-zinc-400 text-sm">{set.rest_bracket || set.rest_seconds}s</span>
                   </div>
