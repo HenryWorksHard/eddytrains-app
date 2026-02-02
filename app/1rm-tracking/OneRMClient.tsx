@@ -59,16 +59,33 @@ export default function OneRMClient({ initialOneRMs }: Props) {
       const toSave = oneRMs.filter(rm => rm.weight_kg > 0)
       
       for (const rm of toSave) {
-        await supabase
+        // First check if exists
+        const { data: existing } = await supabase
           .from('client_1rms')
-          .upsert({
-            client_id: user.id,
-            exercise_name: rm.exercise_name,
-            weight_kg: rm.weight_kg,
-            updated_at: new Date().toISOString()
-          }, {
-            onConflict: 'client_id,exercise_name'
-          })
+          .select('id')
+          .eq('client_id', user.id)
+          .eq('exercise_name', rm.exercise_name)
+          .single()
+        
+        if (existing) {
+          const { error } = await supabase
+            .from('client_1rms')
+            .update({ weight_kg: rm.weight_kg, updated_at: new Date().toISOString() })
+            .eq('id', existing.id)
+          if (error) throw error
+        } else {
+          const { error } = await supabase
+            .from('client_1rms')
+            .insert({
+              client_id: user.id,
+              exercise_name: rm.exercise_name,
+              weight_kg: rm.weight_kg
+            })
+          if (error) {
+            console.error('Insert error:', error)
+            throw error
+          }
+        }
       }
 
       // Delete zeroed ones that had values before

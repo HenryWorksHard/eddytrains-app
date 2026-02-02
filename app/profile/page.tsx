@@ -239,18 +239,35 @@ export default function ProfilePage() {
       const toSave = client1RMs.filter(rm => rm.weight_kg > 0)
       
       for (const rm of toSave) {
-        const { error } = await supabase
+        // First try to update existing
+        const { data: existing } = await supabase
           .from('client_1rms')
-          .upsert({
-            client_id: profile.id,
-            exercise_name: rm.exercise_name,
-            weight_kg: rm.weight_kg,
-            updated_at: new Date().toISOString()
-          }, {
-            onConflict: 'client_id,exercise_name'
-          })
+          .select('id')
+          .eq('client_id', profile.id)
+          .eq('exercise_name', rm.exercise_name)
+          .single()
         
-        if (error) throw error
+        if (existing) {
+          // Update
+          const { error } = await supabase
+            .from('client_1rms')
+            .update({ weight_kg: rm.weight_kg, updated_at: new Date().toISOString() })
+            .eq('id', existing.id)
+          if (error) throw error
+        } else {
+          // Insert
+          const { error } = await supabase
+            .from('client_1rms')
+            .insert({
+              client_id: profile.id,
+              exercise_name: rm.exercise_name,
+              weight_kg: rm.weight_kg
+            })
+          if (error) {
+            console.error('Insert error:', error)
+            throw error
+          }
+        }
       }
       
       setEditing1RM(false)
