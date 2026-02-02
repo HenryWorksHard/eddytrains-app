@@ -202,22 +202,31 @@ export default function ProgressPicturesClient({ initialImages }: Props) {
         {images.length > 0 ? (
           <div className="grid grid-cols-3 gap-2">
             {images.map((img) => (
-              <button
-                key={img.id}
-                onClick={() => setSelectedImage(img)}
-                className="aspect-[3/4] relative rounded-xl overflow-hidden bg-zinc-800 hover:ring-2 hover:ring-yellow-400 transition-all"
-              >
-                <Image
-                  src={img.image_url}
-                  alt="Progress"
-                  fill
-                  className="object-cover"
-                  sizes="(max-width: 768px) 33vw, 150px"
-                />
-                <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/80 to-transparent p-2">
-                  <p className="text-xs text-zinc-300">{formatDate(img.created_at)}</p>
-                </div>
-              </button>
+              <div key={img.id} className="aspect-[3/4] relative rounded-xl overflow-hidden bg-zinc-800 group">
+                <button
+                  onClick={() => setSelectedImage(img)}
+                  className="absolute inset-0 hover:ring-2 hover:ring-yellow-400 transition-all"
+                >
+                  <Image
+                    src={img.image_url}
+                    alt="Progress"
+                    fill
+                    className="object-cover"
+                    sizes="(max-width: 768px) 33vw, 150px"
+                  />
+                  <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/80 to-transparent p-2">
+                    <p className="text-xs text-zinc-300">{formatDate(img.created_at)}</p>
+                  </div>
+                </button>
+                <button
+                  onClick={(e) => { e.stopPropagation(); deleteImage(img.id, img.image_url); }}
+                  className="absolute top-1 right-1 w-6 h-6 bg-red-500 rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity z-10"
+                >
+                  <svg className="w-4 h-4 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 12H4" />
+                  </svg>
+                </button>
+              </div>
             ))}
           </div>
         ) : (

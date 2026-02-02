@@ -147,6 +147,22 @@ export default function ProfilePage() {
     return new Date(dateStr).toLocaleDateString(undefined, { day: 'numeric', month: 'short' })
   }
 
+  const handleDeleteProgressImage = async (imageId: string, imageUrl: string) => {
+    if (!confirm('Delete this progress photo?')) return
+    
+    try {
+      const urlParts = imageUrl.split('/progress-images/')
+      if (urlParts[1]) {
+        await supabase.storage.from('progress-images').remove([urlParts[1]])
+      }
+      
+      await supabase.from('progress_images').delete().eq('id', imageId)
+      setProgressImages(prev => prev.filter(img => img.id !== imageId))
+    } catch (err) {
+      console.error('Delete failed:', err)
+    }
+  }
+
   const handlePfpUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
     if (!file || !profile) return
@@ -444,19 +460,28 @@ export default function ProfilePage() {
             {progressImages.length > 0 ? (
               <div className="grid grid-cols-4 gap-2">
                 {progressImages.map((img) => (
-                  <button
-                    key={img.id}
-                    onClick={() => setSelectedImage(img)}
-                    className="aspect-square relative rounded-lg overflow-hidden bg-zinc-800 hover:ring-2 hover:ring-yellow-400 transition-all"
-                  >
-                    <Image
-                      src={img.image_url}
-                      alt="Progress"
-                      fill
-                      className="object-cover"
-                      sizes="80px"
-                    />
-                  </button>
+                  <div key={img.id} className="aspect-square relative rounded-lg overflow-hidden bg-zinc-800 group">
+                    <button
+                      onClick={() => setSelectedImage(img)}
+                      className="absolute inset-0 hover:ring-2 hover:ring-yellow-400 transition-all"
+                    >
+                      <Image
+                        src={img.image_url}
+                        alt="Progress"
+                        fill
+                        className="object-cover"
+                        sizes="80px"
+                      />
+                    </button>
+                    <button
+                      onClick={(e) => { e.stopPropagation(); handleDeleteProgressImage(img.id, img.image_url); }}
+                      className="absolute top-0.5 right-0.5 w-5 h-5 bg-red-500 rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity z-10"
+                    >
+                      <svg className="w-3 h-3 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 12H4" />
+                      </svg>
+                    </button>
+                  </div>
                 ))}
               </div>
             ) : (
