@@ -30,12 +30,15 @@ export default async function SchedulePage() {
   }, {} as Record<string, typeof schedules>)
 
   return (
-    <div className="min-h-screen pb-24">
-      {/* Header */}
-      <header className="sticky top-0 bg-zinc-950/95 backdrop-blur-lg border-b border-zinc-800 z-40">
+    <div className="min-h-screen bg-black pb-24">
+      {/* Header - Industrial Minimal */}
+      <header className="sticky top-0 bg-black/95 backdrop-blur-lg border-b border-zinc-800 z-40">
         <div className="px-6 py-4">
-          <h1 className="text-xl font-bold text-white">Weekly Schedule</h1>
-          <p className="text-gray-400 text-sm mt-1">Your training week at a glance</p>
+          <div className="flex items-center gap-3">
+            <h1 className="text-xl font-bold text-white tracking-widest" style={{ fontFamily: 'Sora, sans-serif' }}>SCHEDULE</h1>
+            <div className="w-8 h-1 bg-yellow-400"></div>
+          </div>
+          <p className="text-zinc-500 text-sm mt-1">Your training week at a glance</p>
         </div>
       </header>
 
@@ -50,17 +53,17 @@ export default async function SchedulePage() {
                 key={day}
                 className={`rounded-2xl border ${
                   isToday 
-                    ? 'bg-gradient-to-r from-orange-500/10 to-orange-600/5 border-orange-500/30' 
+                    ? 'bg-gradient-to-r from-yellow-400/10 to-yellow-500/5 border-yellow-400/30' 
                     : 'bg-zinc-900 border-zinc-800'
                 }`}
               >
                 <div className="p-4">
                   <div className="flex items-center gap-3 mb-3">
-                    <h3 className={`font-semibold capitalize ${isToday ? 'text-orange-500' : 'text-white'}`}>
+                    <h3 className={`font-semibold capitalize ${isToday ? 'text-yellow-400' : 'text-white'}`}>
                       {day}
                     </h3>
                     {isToday && (
-                      <span className="px-2 py-0.5 bg-orange-500 text-white text-xs font-medium rounded-full">
+                      <span className="px-2 py-0.5 bg-yellow-400 text-white text-xs font-medium rounded-full">
                         Today
                       </span>
                     )}
@@ -76,7 +79,7 @@ export default async function SchedulePage() {
                           }`}
                         >
                           <div className={`w-10 h-10 rounded-lg flex items-center justify-center text-lg ${
-                            isToday ? 'bg-orange-500/20' : 'bg-zinc-700'
+                            isToday ? 'bg-yellow-400/20' : 'bg-zinc-700'
                           }`}>
                             {schedule.programs?.emoji || '💪'}
                           </div>

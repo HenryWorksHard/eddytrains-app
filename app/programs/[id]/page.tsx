@@ -48,7 +48,7 @@ export default async function ProgramDetailPage({ params }: { params: Promise<{ 
       {/* Header */}
       <header className="bg-gradient-to-b from-zinc-900 to-zinc-950 border-b border-zinc-800">
         <div className="px-6 py-4">
-          <Link href="/programs" className="text-orange-500 text-sm font-medium mb-2 inline-block">
+          <Link href="/programs" className="text-yellow-400 text-sm font-medium mb-2 inline-block">
             ← Back to Programs
           </Link>
         </div>
@@ -60,7 +60,7 @@ export default async function ProgramDetailPage({ params }: { params: Promise<{ 
             <div className="flex-1">
               <h1 className="text-2xl font-bold text-white">{program?.name || 'Program'}</h1>
               {program?.type && (
-                <span className="inline-block mt-2 px-3 py-1 bg-orange-500/10 text-orange-500 text-xs font-medium rounded-full">
+                <span className="inline-block mt-2 px-3 py-1 bg-yellow-400/10 text-yellow-400 text-xs font-medium rounded-full">
                   {program.type}
                 </span>
               )}
@@ -85,7 +85,7 @@ export default async function ProgramDetailPage({ params }: { params: Promise<{ 
                 >
                   <div className="flex items-center justify-between">
                     <div>
-                      <p className="text-orange-500 text-sm font-medium capitalize">
+                      <p className="text-yellow-400 text-sm font-medium capitalize">
                         {schedule.day_of_week}
                       </p>
                       <h3 className="text-white font-medium mt-1">{schedule.workout_name}</h3>

@@ -1,7 +1,7 @@
 {
-  "name": "EddyTrains",
-  "short_name": "EddyTrains",
-  "description": "Your personalized fitness programs",
+  "name": "CMPD",
+  "short_name": "CMPD",
+  "description": "Your CMPD client portal",
   "start_url": "/dashboard",
   "display": "standalone",
   "background_color": "#0a0a0a",

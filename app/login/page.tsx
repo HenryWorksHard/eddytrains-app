@@ -33,36 +33,36 @@ export default function LoginPage() {
   }
 
   return (
-    <div className="min-h-screen flex flex-col items-center justify-center px-6">
+    <div className="min-h-screen bg-black flex flex-col items-center justify-center px-6">
       <div className="w-full max-w-sm">
-        {/* Logo */}
+        {/* Logo - Industrial Minimal */}
         <div className="text-center mb-10">
-          <div className="text-5xl mb-3">🛼</div>
-          <h1 className="text-3xl font-bold text-white">EddyTrains</h1>
-          <p className="text-gray-400 mt-2">Welcome back</p>
+          <h1 className="text-5xl font-bold text-white tracking-widest" style={{ fontFamily: 'Sora, sans-serif' }}>CMPD</h1>
+          <div className="w-12 h-1 bg-yellow-400 mx-auto mt-3 mb-4"></div>
+          <p className="text-zinc-500">Welcome back</p>
         </div>
 
         {/* Login Form */}
         <form onSubmit={handleLogin} className="space-y-4">
           <div>
-            <label className="block text-sm text-gray-400 mb-2">Email</label>
+            <label className="block text-sm text-zinc-500 mb-2">Email</label>
             <input
               type="email"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
-              className="w-full px-4 py-3 bg-zinc-900 border border-zinc-800 rounded-xl text-white placeholder-gray-500 focus:outline-none focus:border-orange-500 transition-colors"
+              className="w-full px-4 py-3 bg-zinc-900 border border-zinc-800 rounded-xl text-white placeholder-zinc-600 focus:outline-none focus:border-yellow-400 transition-colors"
               placeholder="you@example.com"
               required
             />
           </div>
 
           <div>
-            <label className="block text-sm text-gray-400 mb-2">Password</label>
+            <label className="block text-sm text-zinc-500 mb-2">Password</label>
             <input
               type="password"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
-              className="w-full px-4 py-3 bg-zinc-900 border border-zinc-800 rounded-xl text-white placeholder-gray-500 focus:outline-none focus:border-orange-500 transition-colors"
+              className="w-full px-4 py-3 bg-zinc-900 border border-zinc-800 rounded-xl text-white placeholder-zinc-600 focus:outline-none focus:border-yellow-400 transition-colors"
               placeholder="••••••••"
               required
             />
@@ -77,14 +77,23 @@ export default function LoginPage() {
           <button
             type="submit"
             disabled={loading}
-            className="w-full py-3 bg-orange-500 hover:bg-orange-600 disabled:bg-orange-500/50 text-white font-semibold rounded-xl transition-colors mt-6"
+            className="w-full py-3 bg-yellow-400 hover:bg-yellow-300 disabled:bg-yellow-400/50 text-black font-bold uppercase tracking-wider rounded-xl transition-colors mt-6"
           >
             {loading ? 'Signing in...' : 'Sign In'}
           </button>
         </form>
 
-        <p className="text-center text-gray-500 text-sm mt-8">
-          Contact your coach if you need access
+        <div className="text-center mt-6">
+          <a
+            href="/reset-password"
+            className="text-zinc-400 hover:text-yellow-400 text-sm transition-colors"
+          >
+            Forgot your password?
+          </a>
+        </div>
+
+        <p className="text-center text-zinc-600 text-sm mt-4">
+          Contact your admin if you need access
         </p>
       </div>
     </div>
