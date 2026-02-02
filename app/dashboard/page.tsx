@@ -109,22 +109,19 @@ export default async function DashboardPage() {
           
           {userPrograms && userPrograms.length > 0 ? (
             <div className="grid gap-3">
-              {userPrograms.slice(0, 3).map((up: { program_id: string; programs?: { name?: string; description?: string } }) => (
+              {userPrograms.slice(0, 3).map((up: { program_id: string; programs?: { name?: string } }) => (
                 <Link
                   key={up.program_id}
                   href={`/programs/${up.program_id}`}
-                  className="bg-zinc-900 border border-zinc-800 hover:border-yellow-400/50 rounded-2xl p-4 flex items-center gap-4 transition-colors"
+                  className="bg-zinc-900 border border-zinc-800 hover:border-yellow-400/50 rounded-2xl p-4 flex items-center gap-3 transition-colors"
                 >
-                  <div className="w-12 h-12 bg-zinc-800 rounded-xl flex items-center justify-center">
-                    <svg className="w-6 h-6 text-zinc-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <div className="w-10 h-10 bg-zinc-800 rounded-lg flex items-center justify-center flex-shrink-0">
+                    <svg className="w-5 h-5 text-zinc-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
                     </svg>
                   </div>
-                  <div className="flex-1 min-w-0">
-                    <h3 className="font-medium text-white truncate">{up.programs?.name || 'Program'}</h3>
-                    <p className="text-zinc-500 text-sm truncate">{up.programs?.description || ''}</p>
-                  </div>
-                  <span className="text-zinc-600">→</span>
+                  <h3 className="font-medium text-white flex-1 truncate">{up.programs?.name || 'Program'}</h3>
+                  <span className="text-zinc-600 flex-shrink-0">→</span>
                 </Link>
               ))}
             </div>
