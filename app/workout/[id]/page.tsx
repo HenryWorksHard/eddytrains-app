@@ -2,6 +2,7 @@ import { createClient } from '../../lib/supabase/server'
 import { redirect, notFound } from 'next/navigation'
 import BottomNav from '../../components/BottomNav'
 import Link from 'next/link'
+import TutorialModal from './TutorialModal'
 
 interface ExerciseSet {
   set_number: number
@@ -23,6 +24,8 @@ interface WorkoutExercise {
   notes?: string
   superset_group?: string
   sets: ExerciseSet[]
+  tutorial_url?: string
+  tutorial_steps?: string[]
 }
 
 interface Client1RM {
@@ -30,20 +33,18 @@ interface Client1RM {
   weight_kg: number
 }
 
-// Helper to match exercise names to 1RMs (handles variations)
+// Helper to match exercise names to 1RMs
 function find1RM(exerciseName: string, oneRMs: Client1RM[]): number | null {
   const normalizedName = exerciseName.toLowerCase().trim()
   
-  // Direct match
   const direct = oneRMs.find(rm => rm.exercise_name.toLowerCase() === normalizedName)
   if (direct && direct.weight_kg > 0) return direct.weight_kg
   
-  // Partial matches for common exercises
   const matchMap: Record<string, string[]> = {
     'squat': ['squat', 'back squat', 'barbell squat'],
     'bench press': ['bench', 'bench press', 'flat bench', 'barbell bench'],
     'deadlift': ['deadlift', 'conventional deadlift', 'barbell deadlift'],
-    'overhead press': ['ohp', 'overhead press', 'shoulder press', 'military press', 'standing press'],
+    'overhead press': ['ohp', 'overhead press', 'shoulder press', 'military press'],
     'barbell row': ['row', 'barbell row', 'bent over row', 'bb row'],
     'front squat': ['front squat'],
     'romanian deadlift': ['rdl', 'romanian deadlift', 'stiff leg deadlift'],
@@ -58,6 +59,24 @@ function find1RM(exerciseName: string, oneRMs: Client1RM[]): number | null {
   }
   
   return null
+}
+
+// Summarize sets into a single display
+function summarizeSets(sets: ExerciseSet[]) {
+  if (sets.length === 0) return { setCount: 0, reps: '-', intensity: '-', intensityType: '' }
+  
+  const setCount = sets.length
+  
+  // Get unique rep values
+  const repValues = [...new Set(sets.map(s => s.reps))]
+  const reps = repValues.length === 1 ? repValues[0] : `${sets[0].reps}`
+  
+  // Get intensity (assume all same type)
+  const intensityType = sets[0].intensity_type
+  const intensityValues = [...new Set(sets.map(s => s.intensity_value))]
+  const intensity = intensityValues.length === 1 ? intensityValues[0] : intensityValues.join('-')
+  
+  return { setCount, reps, intensity, intensityType }
 }
 
 export default async function WorkoutDetailPage({ 
@@ -124,6 +143,19 @@ export default async function WorkoutDetailPage({
     notFound()
   }
 
+  // Try to fetch exercise tutorials from exercises table
+  const exerciseNames = ((workout.workout_exercises as unknown) as { exercise_name: string }[] || [])
+    .map(e => e.exercise_name)
+  
+  const { data: exerciseData } = await supabase
+    .from('exercises')
+    .select('name, tutorial_url, tutorial_steps')
+    .in('name', exerciseNames)
+  
+  const tutorialMap = new Map(
+    (exerciseData || []).map(e => [e.name.toLowerCase(), { url: e.tutorial_url, steps: e.tutorial_steps }])
+  )
+
   // If we have a clientProgramId, fetch custom exercise sets
   let customSets: Record<string, ExerciseSet[]> = {}
   
@@ -151,11 +183,12 @@ export default async function WorkoutDetailPage({
     }
   }
 
-  // Merge exercises with custom sets
+  // Merge exercises with custom sets and tutorials
   const exercises: WorkoutExercise[] = ((workout.workout_exercises as unknown) as WorkoutExercise[] || [])
     .sort((a, b) => a.order_index - b.order_index)
     .map(exercise => {
       const exerciseCustomSets = customSets[exercise.id]
+      const tutorial = tutorialMap.get(exercise.exercise_name.toLowerCase())
       
       let sets: ExerciseSet[]
       if (exerciseCustomSets && exerciseCustomSets.length > 0) {
@@ -172,40 +205,32 @@ export default async function WorkoutDetailPage({
       
       return {
         ...exercise,
-        sets
+        sets,
+        tutorial_url: tutorial?.url,
+        tutorial_steps: tutorial?.steps
       }
     })
 
   const programData = workout.programs as { id: string; name: string; emoji?: string }[] | { id: string; name: string; emoji?: string } | null
   const program = Array.isArray(programData) ? programData[0] : programData
-  const daysOfWeek = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday']
 
-  // Format intensity with weight calculation
-  const formatIntensity = (type: string, value: string, exerciseName: string) => {
-    if (type === 'percentage') {
-      const percentage = parseFloat(value)
-      const oneRM = find1RM(exerciseName, oneRMs)
-      
-      if (oneRM && !isNaN(percentage)) {
-        const calculatedWeight = Math.round((oneRM * percentage / 100) * 2) / 2 // Round to nearest 0.5kg
-        return (
-          <span className="flex flex-col">
-            <span className="text-yellow-400">{value}%</span>
-            <span className="text-green-400 text-xs font-medium">{calculatedWeight}kg</span>
-          </span>
-        )
-      }
-      return <span className="text-yellow-400">{value}%</span>
-    }
-    
+  // Format intensity display
+  const formatIntensity = (type: string, value: string) => {
     switch (type) {
-      case 'rir':
-        return <span className="text-yellow-400">{value} RIR</span>
-      case 'rpe':
-        return <span className="text-yellow-400">RPE {value}</span>
-      default:
-        return <span className="text-yellow-400">{value}</span>
+      case 'rir': return `${value} RIR`
+      case 'rpe': return `RPE ${value}`
+      case 'percentage': return `${value}%`
+      default: return value
     }
+  }
+
+  // Calculate weight from percentage
+  const calculateWeight = (type: string, value: string, exerciseName: string) => {
+    if (type !== 'percentage') return null
+    const percentage = parseFloat(value)
+    const oneRM = find1RM(exerciseName, oneRMs)
+    if (!oneRM || isNaN(percentage)) return null
+    return Math.round((oneRM * percentage / 100) * 2) / 2 // Round to 0.5kg
   }
 
   return (
@@ -213,8 +238,8 @@ export default async function WorkoutDetailPage({
       {/* Header */}
       <header className="bg-gradient-to-b from-zinc-900 to-black border-b border-zinc-800">
         <div className="px-6 py-4">
-          <Link href="/programs" className="text-yellow-400 text-sm font-medium mb-2 inline-block">
-            ← Back to Program
+          <Link href="/dashboard" className="text-yellow-400 text-sm font-medium mb-2 inline-block">
+            ← Back
           </Link>
         </div>
         <div className="px-6 pb-6">
@@ -224,80 +249,94 @@ export default async function WorkoutDetailPage({
             </div>
             <div className="flex-1">
               <h1 className="text-2xl font-bold text-white">{workout.name}</h1>
-              {workout.day_of_week !== null && (
-                <span className="inline-block mt-2 px-3 py-1 bg-yellow-400/10 text-yellow-400 text-xs font-medium rounded-full">
-                  {daysOfWeek[workout.day_of_week]}
-                </span>
-              )}
+              <p className="text-zinc-400 text-sm mt-1">{program?.name}</p>
+              <p className="text-zinc-500 text-sm mt-2">{exercises.length} exercises</p>
             </div>
           </div>
-          {workout.notes && (
-            <p className="text-zinc-400 mt-4 text-sm">{workout.notes}</p>
-          )}
         </div>
       </header>
 
-      <main className="px-6 py-6 space-y-4">
+      <main className="px-6 py-6 space-y-3">
         {exercises.length > 0 ? (
-          exercises.map((exercise, idx) => (
-            <div 
-              key={exercise.id}
-              className="bg-zinc-900 border border-zinc-800 rounded-2xl overflow-hidden"
-            >
-              {/* Exercise Header */}
-              <div className="p-4 border-b border-zinc-800/50">
-                <div className="flex items-center gap-3">
-                  <span className="w-8 h-8 rounded-lg bg-yellow-400/10 text-yellow-400 flex items-center justify-center font-bold text-sm">
+          exercises.map((exercise, idx) => {
+            const summary = summarizeSets(exercise.sets)
+            const calculatedWeight = calculateWeight(
+              summary.intensityType, 
+              summary.intensity, 
+              exercise.exercise_name
+            )
+            const hasTutorial = exercise.tutorial_url || (exercise.tutorial_steps && exercise.tutorial_steps.length > 0)
+            
+            return (
+              <div 
+                key={exercise.id}
+                className="bg-zinc-900 border border-zinc-800 rounded-2xl p-4"
+              >
+                <div className="flex items-start gap-3">
+                  {/* Exercise Number */}
+                  <span className="w-8 h-8 rounded-lg bg-yellow-400/10 text-yellow-400 flex items-center justify-center font-bold text-sm flex-shrink-0">
                     {idx + 1}
                   </span>
-                  <div className="flex-1">
-                    <h3 className="font-semibold text-white">{exercise.exercise_name}</h3>
-                    {exercise.superset_group && (
-                      <span className="text-xs text-zinc-500">Superset {exercise.superset_group}</span>
+                  
+                  {/* Exercise Info */}
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2">
+                      <h3 className="font-semibold text-white truncate">{exercise.exercise_name}</h3>
+                      {exercise.superset_group && (
+                        <span className="px-2 py-0.5 bg-purple-500/20 text-purple-400 text-xs rounded">
+                          SS{exercise.superset_group}
+                        </span>
+                      )}
+                    </div>
+                    
+                    {/* Set Summary */}
+                    <div className="flex items-center gap-3 mt-2 text-sm">
+                      <span className="text-white font-medium">
+                        {summary.setCount} sets × {summary.reps}
+                      </span>
+                      <span className="text-zinc-600">|</span>
+                      <span className="text-yellow-400">
+                        {formatIntensity(summary.intensityType, summary.intensity)}
+                      </span>
+                      {calculatedWeight && (
+                        <>
+                          <span className="text-zinc-600">|</span>
+                          <span className="text-green-400 font-medium">
+                            {calculatedWeight}kg
+                          </span>
+                        </>
+                      )}
+                    </div>
+                    
+                    {/* Notes */}
+                    {exercise.notes && (
+                      <p className="text-zinc-500 text-xs mt-2">{exercise.notes}</p>
                     )}
                   </div>
-                  {exercise.sets.some(s => s.is_custom) && (
-                    <span className="px-2 py-0.5 bg-yellow-400/20 text-yellow-400 text-xs rounded-full">
-                      Custom
-                    </span>
+                  
+                  {/* Tutorial Button */}
+                  {hasTutorial ? (
+                    <TutorialModal
+                      exerciseName={exercise.exercise_name}
+                      videoUrl={exercise.tutorial_url}
+                      steps={exercise.tutorial_steps}
+                    />
+                  ) : (
+                    <button 
+                      className="w-10 h-10 rounded-xl bg-zinc-800 flex items-center justify-center text-zinc-600 cursor-not-allowed"
+                      disabled
+                      title="No tutorial available"
+                    >
+                      <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z" />
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                      </svg>
+                    </button>
                   )}
                 </div>
               </div>
-
-              {/* Sets Table */}
-              <div className="divide-y divide-zinc-800/50">
-                {/* Header Row */}
-                <div className="grid grid-cols-4 px-4 py-2 text-xs text-zinc-500 uppercase">
-                  <span>Set</span>
-                  <span>Reps</span>
-                  <span>Intensity</span>
-                  <span>Rest</span>
-                </div>
-                
-                {/* Set Rows */}
-                {exercise.sets.map((set, setIdx) => (
-                  <div 
-                    key={setIdx}
-                    className="grid grid-cols-4 px-4 py-3 items-center"
-                  >
-                    <span className="text-zinc-400 font-mono">{set.set_number}</span>
-                    <span className="text-white font-medium">{set.reps}</span>
-                    <span className="text-sm">
-                      {formatIntensity(set.intensity_type, set.intensity_value, exercise.exercise_name)}
-                    </span>
-                    <span className="text-zinc-400 text-sm">{set.rest_bracket || set.rest_seconds}s</span>
-                  </div>
-                ))}
-              </div>
-
-              {/* Exercise Notes */}
-              {exercise.notes && (
-                <div className="px-4 py-3 bg-zinc-800/30 border-t border-zinc-800/50">
-                  <p className="text-zinc-400 text-sm">{exercise.notes}</p>
-                </div>
-              )}
-            </div>
-          ))
+            )
+          })
         ) : (
           <div className="bg-zinc-900 border border-zinc-800 rounded-2xl p-8 text-center">
             <div className="text-4xl mb-4">📋</div>
