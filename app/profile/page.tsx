@@ -236,6 +236,13 @@ export default function ProfilePage() {
     setSaving1RM(true)
     
     try {
+      // Get the authenticated user's ID directly
+      const { data: { user } } = await supabase.auth.getUser()
+      if (!user) {
+        alert('Please log in again')
+        return
+      }
+      
       const toSave = client1RMs.filter(rm => rm.weight_kg > 0)
       
       for (const rm of toSave) {
@@ -243,7 +250,7 @@ export default function ProfilePage() {
         const { data: existing } = await supabase
           .from('client_1rms')
           .select('id')
-          .eq('client_id', profile.id)
+          .eq('client_id', user.id)
           .eq('exercise_name', rm.exercise_name)
           .single()
         
@@ -253,13 +260,16 @@ export default function ProfilePage() {
             .from('client_1rms')
             .update({ weight_kg: rm.weight_kg, updated_at: new Date().toISOString() })
             .eq('id', existing.id)
-          if (error) throw error
+          if (error) {
+            console.error('Update error:', error)
+            throw error
+          }
         } else {
           // Insert
           const { error } = await supabase
             .from('client_1rms')
             .insert({
-              client_id: profile.id,
+              client_id: user.id,
               exercise_name: rm.exercise_name,
               weight_kg: rm.weight_kg
             })
@@ -271,7 +281,7 @@ export default function ProfilePage() {
       }
       
       setEditing1RM(false)
-      await load1RMs(profile.id)
+      await load1RMs(user.id)
     } catch (err) {
       console.error('Failed to save 1RMs:', err)
       alert('Failed to save. Please try again.')
