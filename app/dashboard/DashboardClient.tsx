@@ -2,7 +2,6 @@
 
 import { useEffect, useState } from 'react'
 import Link from 'next/link'
-import ProgressPictures from './ProgressPictures'
 
 interface Workout {
   id: string
@@ -243,8 +242,38 @@ export default function DashboardClient({ firstName, workoutsByDay, programCount
           </div>
         </section>
 
-        {/* Progress Pictures */}
-        <ProgressPictures />
+        {/* Progress Tracker */}
+        <section>
+          <h2 className="text-sm font-medium text-zinc-500 uppercase tracking-wider mb-3">Progress Tracker</h2>
+          <div className="grid grid-cols-2 gap-3">
+            <Link
+              href="/progress-pictures"
+              className="bg-zinc-900 border border-zinc-800 hover:border-zinc-700 rounded-2xl p-4 flex flex-col items-center text-center transition-colors"
+            >
+              <div className="w-12 h-12 bg-purple-500/10 rounded-xl flex items-center justify-center mb-3">
+                <svg className="w-6 h-6 text-purple-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" />
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 13a3 3 0 11-6 0 3 3 0 016 0z" />
+                </svg>
+              </div>
+              <span className="text-white font-medium">Progress Pictures</span>
+              <span className="text-zinc-500 text-xs mt-1">Track transformation</span>
+            </Link>
+            
+            <Link
+              href="/1rm-tracking"
+              className="bg-zinc-900 border border-zinc-800 hover:border-zinc-700 rounded-2xl p-4 flex flex-col items-center text-center transition-colors"
+            >
+              <div className="w-12 h-12 bg-orange-500/10 rounded-xl flex items-center justify-center mb-3">
+                <svg className="w-6 h-6 text-orange-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+                </svg>
+              </div>
+              <span className="text-white font-medium">1RM Tracking</span>
+              <span className="text-zinc-500 text-xs mt-1">One-rep maxes</span>
+            </Link>
+          </div>
+        </section>
       </main>
     </>
   )
