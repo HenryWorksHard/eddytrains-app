@@ -247,7 +247,7 @@ export default async function WorkoutDetailPage({
   }
 
   return (
-    <div className="min-h-screen bg-black pb-24">
+    <div className="min-h-screen bg-black pb-44">
       {/* Header */}
       <header className="bg-gradient-to-b from-zinc-900 to-black border-b border-zinc-800">
         <div className="px-6 py-4">
