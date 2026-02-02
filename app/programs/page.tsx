@@ -3,6 +3,13 @@ import { redirect } from 'next/navigation'
 import BottomNav from '../components/BottomNav'
 import Link from 'next/link'
 
+interface ProgramWorkout {
+  id: string
+  name: string
+  day_of_week: number | null
+  order_index: number
+}
+
 export default async function ProgramsPage() {
   const supabase = await createClient()
   
@@ -13,6 +20,7 @@ export default async function ProgramsPage() {
   }
 
   const today = new Date().toISOString().split('T')[0]
+  const daysOfWeek = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
 
   // Get user's CURRENT program only (where today is between start_date and end_date)
   const { data: currentProgram } = await supabase
@@ -28,8 +36,20 @@ export default async function ProgramsPage() {
     .limit(1)
     .single()
 
+  // Fetch program workouts if we have a current program
+  let programWorkouts: ProgramWorkout[] = []
+  if (currentProgram?.program_id) {
+    const { data: workouts } = await supabase
+      .from('program_workouts')
+      .select('id, name, day_of_week, order_index')
+      .eq('program_id', currentProgram.program_id)
+      .order('order_index')
+    
+    programWorkouts = workouts || []
+  }
+
   // Fallback: check old user_programs table if no client_programs found
-  let fallbackPrograms: any[] = []
+  let fallbackPrograms: { program_id: string; programs?: { name?: string; description?: string; emoji?: string; type?: string } }[] = []
   if (!currentProgram) {
     const { data: userPrograms } = await supabase
       .from('user_programs')
@@ -82,10 +102,7 @@ export default async function ProgramsPage() {
         {currentProgram ? (
           <div className="space-y-6">
             {/* Current Program Card */}
-            <Link
-              href={`/programs/${currentProgram.program_id}`}
-              className="block bg-zinc-900 border border-yellow-400/30 rounded-2xl p-6 transition-colors hover:border-yellow-400/50"
-            >
+            <div className="bg-zinc-900 border border-yellow-400/30 rounded-2xl p-6">
               <div className="flex items-center gap-2 mb-4">
                 <span className="px-2 py-1 bg-yellow-400 text-black text-xs font-bold rounded">
                   ACTIVE
@@ -103,9 +120,11 @@ export default async function ProgramsPage() {
                 </div>
                 <div className="flex-1 min-w-0">
                   <h3 className="font-semibold text-white text-xl">{currentProgram.program?.name || 'Program'}</h3>
+                  {currentProgram.phase_name && (
+                    <p className="text-yellow-400/80 text-sm mt-1">{currentProgram.phase_name}</p>
+                  )}
                   <p className="text-zinc-400 text-sm mt-1 line-clamp-2">{currentProgram.program?.description || ''}</p>
                 </div>
-                <span className="text-yellow-400 text-2xl">→</span>
               </div>
 
               {/* Progress Bar */}
@@ -129,7 +148,34 @@ export default async function ProgramsPage() {
                   </p>
                 </div>
               )}
-            </Link>
+            </div>
+
+            {/* Workouts List */}
+            {programWorkouts.length > 0 && (
+              <div className="space-y-3">
+                <h4 className="text-zinc-400 text-sm font-medium uppercase tracking-wider px-1">Workouts</h4>
+                {programWorkouts.map((workout, idx) => (
+                  <Link
+                    key={workout.id}
+                    href={`/workout/${workout.id}?clientProgramId=${currentProgram.id}`}
+                    className="block bg-zinc-900 border border-zinc-800 hover:border-yellow-400/50 rounded-xl p-4 transition-colors"
+                  >
+                    <div className="flex items-center gap-4">
+                      <div className="w-10 h-10 rounded-lg bg-yellow-400/10 flex items-center justify-center">
+                        <span className="text-yellow-400 font-bold text-sm">{idx + 1}</span>
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-white font-medium">{workout.name}</p>
+                        {workout.day_of_week !== null && (
+                          <p className="text-zinc-500 text-sm">{daysOfWeek[workout.day_of_week]}</p>
+                        )}
+                      </div>
+                      <span className="text-yellow-400">→</span>
+                    </div>
+                  </Link>
+                ))}
+              </div>
+            )}
 
             {/* Program Details */}
             <div className="bg-zinc-900/50 border border-zinc-800 rounded-xl p-4">
@@ -163,7 +209,7 @@ export default async function ProgramsPage() {
         ) : fallbackPrograms.length > 0 ? (
           // Fallback to old user_programs if no scheduled programs
           <div className="space-y-4">
-            {fallbackPrograms.map((up: { program_id: string; programs?: { name?: string; description?: string; emoji?: string; type?: string } }) => (
+            {fallbackPrograms.map((up) => (
               <Link
                 key={up.program_id}
                 href={`/programs/${up.program_id}`}

@@ -19,26 +19,49 @@ export default async function DashboardPage() {
     .eq('id', user.id)
     .single()
 
-  // Get user's assigned programs (using client_programs table)
+  // Get user's assigned programs with workouts (using client_programs table)
   const { data: userPrograms } = await supabase
     .from('client_programs')
     .select(`
       *,
-      programs (*)
+      programs (
+        id,
+        name,
+        description,
+        program_workouts (
+          id,
+          name,
+          day_of_week,
+          order_index
+        )
+      )
     `)
     .eq('client_id', user.id)
     .eq('is_active', true)
 
-  // Get today's schedule
-  const today = new Date().toLocaleDateString('en-US', { weekday: 'long' }).toLowerCase()
-  const { data: todaySchedule } = await supabase
-    .from('schedules')
-    .select(`
-      *,
-      programs (name, emoji)
-    `)
-    .eq('user_id', user.id)
-    .eq('day_of_week', today)
+  // Get today's day of week (0 = Sunday, 1 = Monday, etc.)
+  const todayDayOfWeek = new Date().getDay()
+  
+  // Find today's workouts from assigned programs
+  const todayWorkouts: { id: string; name: string; programName: string; programId: string }[] = []
+  
+  if (userPrograms) {
+    for (const up of userPrograms) {
+      const program = up.programs as { id: string; name: string; program_workouts?: { id: string; name: string; day_of_week: number | null }[] }
+      if (program?.program_workouts) {
+        for (const workout of program.program_workouts) {
+          if (workout.day_of_week === todayDayOfWeek) {
+            todayWorkouts.push({
+              id: workout.id,
+              name: workout.name,
+              programName: program.name,
+              programId: program.id
+            })
+          }
+        }
+      }
+    }
+  }
 
   const firstName = profile?.full_name?.split(' ')[0] || user.email?.split('@')[0] || 'there'
 
@@ -64,12 +87,13 @@ export default async function DashboardPage() {
         {/* Today's Workout */}
         <section>
           <h2 className="text-lg font-semibold text-white mb-4">Today&apos;s Workout</h2>
-          {todaySchedule && todaySchedule.length > 0 ? (
+          {todayWorkouts.length > 0 ? (
             <div className="space-y-3">
-              {todaySchedule.map((schedule: { id: string; workout_name: string; programs?: { emoji?: string; name?: string } }) => (
-                <div 
-                  key={schedule.id}
-                  className="bg-zinc-900 border-l-4 border-yellow-400 rounded-r-2xl p-5"
+              {todayWorkouts.map((workout) => (
+                <Link 
+                  key={workout.id}
+                  href={`/programs/${workout.programId}`}
+                  className="block bg-zinc-900 border-l-4 border-yellow-400 rounded-r-2xl p-5"
                 >
                   <div className="flex items-center gap-4">
                     <div className="w-14 h-14 bg-yellow-400/20 rounded-xl flex items-center justify-center">
@@ -78,17 +102,12 @@ export default async function DashboardPage() {
                       </svg>
                     </div>
                     <div className="flex-1">
-                      <h3 className="font-semibold text-white text-lg">{schedule.workout_name}</h3>
-                      <p className="text-yellow-400 text-sm">{schedule.programs?.name || 'Workout'}</p>
+                      <h3 className="font-semibold text-white text-lg">{workout.name}</h3>
+                      <p className="text-yellow-400 text-sm">{workout.programName}</p>
                     </div>
-                    <Link 
-                      href={`/schedule`}
-                      className="px-4 py-2 bg-yellow-400 hover:bg-yellow-300 text-black text-sm font-bold uppercase tracking-wider rounded-lg transition-colors"
-                    >
-                      View
-                    </Link>
+                    <span className="text-zinc-600">→</span>
                   </div>
-                </div>
+                </Link>
               ))}
             </div>
           ) : (
@@ -145,7 +164,7 @@ export default async function DashboardPage() {
             </div>
             <div className="bg-zinc-900 border border-zinc-800 rounded-2xl p-4 text-center">
               <div className="text-2xl font-bold text-white">
-                {todaySchedule?.length || 0}
+                {todayWorkouts.length}
               </div>
               <p className="text-zinc-500 text-sm mt-1">Today&apos;s Sessions</p>
             </div>
