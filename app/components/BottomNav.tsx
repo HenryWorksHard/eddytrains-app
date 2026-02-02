@@ -27,9 +27,16 @@ const ProfileIcon = ({ className }: { className?: string }) => (
   </svg>
 )
 
+const NutritionIcon = ({ className }: { className?: string }) => (
+  <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+    <path strokeLinecap="round" strokeLinejoin="round" d="M4 6h16M4 12h16m-7 6h7" />
+  </svg>
+)
+
 const navItems = [
   { href: '/dashboard', label: 'Home', Icon: HomeIcon },
   { href: '/programs', label: 'Programs', Icon: ProgramsIcon },
+  { href: '/nutrition', label: 'Nutrition', Icon: NutritionIcon },
   { href: '/schedule', label: 'Schedule', Icon: ScheduleIcon },
   { href: '/profile', label: 'Profile', Icon: ProfileIcon },
 ]
