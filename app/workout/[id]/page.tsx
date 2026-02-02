@@ -138,7 +138,8 @@ export default async function WorkoutDetailPage({
       }
     })
 
-  const program = workout.programs as { id: string; name: string; emoji?: string } | null
+  const programData = workout.programs as { id: string; name: string; emoji?: string }[] | { id: string; name: string; emoji?: string } | null
+  const program = Array.isArray(programData) ? programData[0] : programData
   const daysOfWeek = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday']
 
   const formatIntensity = (type: string, value: string) => {
