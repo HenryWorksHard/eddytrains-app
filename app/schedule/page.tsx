@@ -81,7 +81,7 @@ export default async function SchedulePage() {
                           <div className={`w-10 h-10 rounded-lg flex items-center justify-center text-lg ${
                             isToday ? 'bg-yellow-400/20' : 'bg-zinc-700'
                           }`}>
-                            {schedule.programs?.emoji || '💪'}
+                            
                           </div>
                           <div className="flex-1 min-w-0">
                             <p className="text-white font-medium truncate">{schedule.workout_name}</p>

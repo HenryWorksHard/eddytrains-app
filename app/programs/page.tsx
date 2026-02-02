@@ -116,7 +116,7 @@ export default async function ProgramsPage() {
 
               <div className="flex items-start gap-4">
                 <div className="w-16 h-16 bg-yellow-400/10 rounded-xl flex items-center justify-center text-3xl shrink-0">
-                  {currentProgram.program?.emoji || '🏋️'}
+                  
                 </div>
                 <div className="flex-1 min-w-0">
                   <h3 className="font-semibold text-white text-xl">{currentProgram.program?.name || 'Program'}</h3>
@@ -217,7 +217,7 @@ export default async function ProgramsPage() {
               >
                 <div className="flex items-start gap-4">
                   <div className="w-16 h-16 bg-zinc-800 rounded-xl flex items-center justify-center text-3xl shrink-0">
-                    {up.programs?.emoji || '🏋️'}
+                    
                   </div>
                   <div className="flex-1 min-w-0">
                     <h3 className="font-semibold text-white text-lg">{up.programs?.name || 'Program'}</h3>

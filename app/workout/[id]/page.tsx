@@ -245,7 +245,7 @@ export default async function WorkoutDetailPage({
         <div className="px-6 pb-6">
           <div className="flex items-start gap-4">
             <div className="w-16 h-16 bg-zinc-800 rounded-2xl flex items-center justify-center text-3xl">
-              {program?.emoji || '💪'}
+              
             </div>
             <div className="flex-1">
               <h1 className="text-2xl font-bold text-white">{workout.name}</h1>

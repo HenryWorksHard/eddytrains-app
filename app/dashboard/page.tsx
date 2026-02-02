@@ -120,7 +120,7 @@ export default async function DashboardPage() {
           {/* Today Banner */}
           <div className="bg-zinc-800/50 rounded-xl px-4 py-3 flex items-center gap-3">
             <div className="w-10 h-10 bg-yellow-400/20 rounded-lg flex items-center justify-center">
-              <span className="text-yellow-400 text-lg">📅</span>
+              
             </div>
             <div>
               <p className="text-white font-medium">{daysOfWeek[todayDayOfWeek]}</p>
@@ -143,7 +143,7 @@ export default async function DashboardPage() {
               <div className="p-5">
                 <div className="flex items-start gap-4">
                   <div className="w-16 h-16 bg-yellow-400/10 rounded-2xl flex items-center justify-center text-3xl">
-                    {todayWorkout.programEmoji || '💪'}
+                    
                   </div>
                   <div className="flex-1">
                     <h3 className="text-xl font-bold text-white">{todayWorkout.name}</h3>
@@ -205,7 +205,7 @@ export default async function DashboardPage() {
               className="bg-zinc-900 border border-zinc-800 hover:border-zinc-700 rounded-2xl p-4 flex flex-col items-center text-center transition-colors"
             >
               <div className="w-12 h-12 bg-zinc-800 rounded-xl flex items-center justify-center mb-3">
-                <span className="text-2xl">🍎</span>
+                
               </div>
               <span className="text-white font-medium">Nutrition</span>
               <span className="text-zinc-500 text-xs mt-1">Meal plan</span>

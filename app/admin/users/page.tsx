@@ -68,7 +68,7 @@ export default function AdminUsersPage() {
       setResult({
         success: true,
         message: data.emailSent 
-          ? '✅ User created and welcome email sent!' 
+          ? 'User created and welcome email sent!' 
           : '⚠️ User created but email failed. Share the password manually:',
         tempPassword: data.emailSent ? undefined : data.tempPassword
       })
