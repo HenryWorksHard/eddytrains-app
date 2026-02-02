@@ -1,0 +1,156 @@
+import { createClient } from '../lib/supabase/server'
+import { redirect } from 'next/navigation'
+import BottomNav from '../components/BottomNav'
+import Link from 'next/link'
+
+export default async function DashboardPage() {
+  const supabase = await createClient()
+  
+  const { data: { user } } = await supabase.auth.getUser()
+  
+  if (!user) {
+    redirect('/login')
+  }
+
+  // Get user profile
+  const { data: profile } = await supabase
+    .from('profiles')
+    .select('*')
+    .eq('id', user.id)
+    .single()
+
+  // Get user's assigned programs
+  const { data: userPrograms } = await supabase
+    .from('user_programs')
+    .select(`
+      *,
+      programs (*)
+    `)
+    .eq('user_id', user.id)
+
+  // Get today's schedule
+  const today = new Date().toLocaleDateString('en-US', { weekday: 'long' }).toLowerCase()
+  const { data: todaySchedule } = await supabase
+    .from('schedules')
+    .select(`
+      *,
+      programs (name, emoji)
+    `)
+    .eq('user_id', user.id)
+    .eq('day_of_week', today)
+
+  const firstName = profile?.full_name?.split(' ')[0] || user.email?.split('@')[0] || 'there'
+
+  return (
+    <div className="min-h-screen pb-24">
+      {/* Header */}
+      <header className="sticky top-0 bg-zinc-950/95 backdrop-blur-lg border-b border-zinc-800 z-40">
+        <div className="px-6 py-4">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-gray-400 text-sm">Welcome back,</p>
+              <h1 className="text-xl font-bold text-white">{firstName} 👋</h1>
+            </div>
+            <div className="text-3xl">🛼</div>
+          </div>
+        </div>
+      </header>
+
+      <main className="px-6 py-6 space-y-8">
+        {/* Today's Workout */}
+        <section>
+          <h2 className="text-lg font-semibold text-white mb-4">Today&apos;s Workout</h2>
+          {todaySchedule && todaySchedule.length > 0 ? (
+            <div className="space-y-3">
+              {todaySchedule.map((schedule: { id: string; workout_name: string; programs?: { emoji?: string; name?: string } }) => (
+                <div 
+                  key={schedule.id}
+                  className="bg-gradient-to-r from-orange-500/20 to-orange-600/10 border border-orange-500/30 rounded-2xl p-5"
+                >
+                  <div className="flex items-center gap-4">
+                    <div className="w-14 h-14 bg-orange-500/20 rounded-xl flex items-center justify-center text-2xl">
+                      {schedule.programs?.emoji || '💪'}
+                    </div>
+                    <div className="flex-1">
+                      <h3 className="font-semibold text-white text-lg">{schedule.workout_name}</h3>
+                      <p className="text-orange-400 text-sm">{schedule.programs?.name || 'Workout'}</p>
+                    </div>
+                    <Link 
+                      href={`/schedule`}
+                      className="px-4 py-2 bg-orange-500 hover:bg-orange-600 text-white text-sm font-medium rounded-xl transition-colors"
+                    >
+                      View
+                    </Link>
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div className="bg-zinc-900 border border-zinc-800 rounded-2xl p-6 text-center">
+              <div className="text-4xl mb-3">🎉</div>
+              <p className="text-gray-400">Rest day! Take it easy.</p>
+            </div>
+          )}
+        </section>
+
+        {/* My Programs */}
+        <section>
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="text-lg font-semibold text-white">My Programs</h2>
+            <Link href="/programs" className="text-orange-500 text-sm font-medium">
+              See all →
+            </Link>
+          </div>
+          
+          {userPrograms && userPrograms.length > 0 ? (
+            <div className="grid gap-3">
+              {userPrograms.slice(0, 3).map((up: { program_id: string; programs?: { name?: string; description?: string; emoji?: string } }) => (
+                <Link
+                  key={up.program_id}
+                  href={`/programs/${up.program_id}`}
+                  className="bg-zinc-900 border border-zinc-800 hover:border-zinc-700 rounded-2xl p-4 flex items-center gap-4 transition-colors"
+                >
+                  <div className="w-12 h-12 bg-zinc-800 rounded-xl flex items-center justify-center text-xl">
+                    {up.programs?.emoji || '🏋️'}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <h3 className="font-medium text-white truncate">{up.programs?.name || 'Program'}</h3>
+                    <p className="text-gray-500 text-sm truncate">{up.programs?.description || ''}</p>
+                  </div>
+                  <span className="text-gray-600">→</span>
+                </Link>
+              ))}
+            </div>
+          ) : (
+            <div className="bg-zinc-900 border border-zinc-800 rounded-2xl p-6 text-center">
+              <div className="text-4xl mb-3">📋</div>
+              <p className="text-gray-400">No programs assigned yet.</p>
+              <p className="text-gray-500 text-sm mt-1">Contact your coach to get started!</p>
+            </div>
+          )}
+        </section>
+
+        {/* Quick Stats */}
+        <section>
+          <h2 className="text-lg font-semibold text-white mb-4">This Week</h2>
+          <div className="grid grid-cols-2 gap-3">
+            <div className="bg-zinc-900 border border-zinc-800 rounded-2xl p-4 text-center">
+              <div className="text-2xl font-bold text-orange-500">
+                {userPrograms?.length || 0}
+              </div>
+              <p className="text-gray-500 text-sm mt-1">Active Programs</p>
+            </div>
+            <div className="bg-zinc-900 border border-zinc-800 rounded-2xl p-4 text-center">
+              <div className="text-2xl font-bold text-green-500">
+                {todaySchedule?.length || 0}
+              </div>
+              <p className="text-gray-500 text-sm mt-1">Today&apos;s Sessions</p>
+            </div>
+          </div>
+        </section>
+      </main>
+
+      <BottomNav />
+    </div>
+  )
+}
