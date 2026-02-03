@@ -40,7 +40,9 @@ export default function CompleteWorkoutButton({
     
     setIsLoading(true)
     try {
-      const today = new Date().toISOString().split('T')[0]
+      // Format date in local timezone (not UTC)
+      const now = new Date()
+      const today = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`
       
       const response = await fetch('/api/workouts/complete', {
         method: 'POST',
