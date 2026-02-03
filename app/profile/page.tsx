@@ -245,38 +245,23 @@ export default function ProfilePage() {
       
       const toSave = client1RMs.filter(rm => rm.weight_kg > 0)
       
+      // Use upsert for clean insert-or-update in one query
+      // Requires unique constraint on (client_id, exercise_name)
       for (const rm of toSave) {
-        // First try to update existing
-        const { data: existing } = await supabase
+        const { error } = await supabase
           .from('client_1rms')
-          .select('id')
-          .eq('client_id', user.id)
-          .eq('exercise_name', rm.exercise_name)
-          .single()
+          .upsert({
+            client_id: user.id,
+            exercise_name: rm.exercise_name,
+            weight_kg: rm.weight_kg,
+            updated_at: new Date().toISOString()
+          }, { 
+            onConflict: 'client_id,exercise_name' 
+          })
         
-        if (existing) {
-          // Update
-          const { error } = await supabase
-            .from('client_1rms')
-            .update({ weight_kg: rm.weight_kg, updated_at: new Date().toISOString() })
-            .eq('id', existing.id)
-          if (error) {
-            console.error('Update error:', error)
-            throw error
-          }
-        } else {
-          // Insert
-          const { error } = await supabase
-            .from('client_1rms')
-            .insert({
-              client_id: user.id,
-              exercise_name: rm.exercise_name,
-              weight_kg: rm.weight_kg
-            })
-          if (error) {
-            console.error('Insert error:', error)
-            throw error
-          }
+        if (error) {
+          console.error('Upsert error:', error)
+          throw error
         }
       }
       
