@@ -2,6 +2,7 @@ import { createClient } from '../lib/supabase/server'
 import { redirect } from 'next/navigation'
 import BottomNav from '../components/BottomNav'
 import ScheduleClient from './ScheduleClient'
+import { COMPLETION_LOOKBACK_DAYS } from '../lib/constants'
 
 export default async function SchedulePage() {
   const supabase = await createClient()
@@ -34,15 +35,15 @@ export default async function SchedulePage() {
     .eq('client_id', user.id)
     .eq('is_active', true)
 
-  // Get workout completions for the last 60 days
-  const sixtyDaysAgo = new Date()
-  sixtyDaysAgo.setDate(sixtyDaysAgo.getDate() - 60)
+  // Get workout completions for the lookback period
+  const lookbackDate = new Date()
+  lookbackDate.setDate(lookbackDate.getDate() - COMPLETION_LOOKBACK_DAYS)
   
   const { data: completions } = await supabase
     .from('workout_completions')
     .select('workout_id, scheduled_date, completed_at')
     .eq('client_id', user.id)
-    .gte('scheduled_date', sixtyDaysAgo.toISOString().split('T')[0])
+    .gte('scheduled_date', lookbackDate.toISOString().split('T')[0])
 
   // Build schedule data
   interface WorkoutSchedule {
