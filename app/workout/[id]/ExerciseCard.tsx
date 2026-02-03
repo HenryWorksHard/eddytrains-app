@@ -94,45 +94,25 @@ export default function ExerciseCard({
         className="p-4 cursor-pointer"
         onClick={() => setExpanded(!expanded)}
       >
-        <div className="flex items-start gap-3">
+        {/* Top Row: Number + Name + Actions */}
+        <div className="flex items-center gap-3">
           {/* Exercise Number */}
           <span className="w-8 h-8 rounded-lg bg-yellow-400/10 text-yellow-400 flex items-center justify-center font-bold text-sm flex-shrink-0">
             {index + 1}
           </span>
           
-          {/* Exercise Info */}
-          <div className="flex-1 min-w-0">
-            <div className="flex items-center gap-2">
-              <h3 className="font-semibold text-white truncate">{exerciseName}</h3>
-              {supersetGroup && (
-                <span className="px-2 py-0.5 bg-purple-500/20 text-purple-400 text-xs rounded">
-                  SS{supersetGroup}
-                </span>
-              )}
-            </div>
-            
-            {/* Set Summary */}
-            <div className="flex items-center gap-3 mt-2 text-sm">
-              <span className="text-white font-medium">
-                {sets.length} sets × {sets[0]?.reps || '-'}
+          {/* Exercise Name */}
+          <div className="flex-1 min-w-0 flex items-center gap-2">
+            <h3 className="font-semibold text-white truncate">{exerciseName}</h3>
+            {supersetGroup && (
+              <span className="px-2 py-0.5 bg-purple-500/20 text-purple-400 text-xs rounded flex-shrink-0">
+                SS{supersetGroup}
               </span>
-              <span className="text-zinc-600">|</span>
-              <span className="text-yellow-400">
-                {intensitySummary}
-              </span>
-              {calculatedWeight && (
-                <>
-                  <span className="text-zinc-600">|</span>
-                  <span className="text-green-400 font-medium">
-                    {calculatedWeight}kg
-                  </span>
-                </>
-              )}
-            </div>
+            )}
           </div>
           
-          {/* Tutorial + Expand */}
-          <div className="flex items-center gap-2" onClick={e => e.stopPropagation()}>
+          {/* Tutorial Icon Button */}
+          <div onClick={e => e.stopPropagation()}>
             <TutorialModal
               exerciseName={exerciseName}
               videoUrl={tutorialUrl}
@@ -140,9 +120,29 @@ export default function ExerciseCard({
             />
           </div>
           
-          <button className="p-2 text-zinc-500 hover:text-white transition-colors">
+          {/* Expand Arrow */}
+          <button className="p-1 text-zinc-500 hover:text-white transition-colors flex-shrink-0">
             {expanded ? <ChevronUp className="w-5 h-5" /> : <ChevronDown className="w-5 h-5" />}
           </button>
+        </div>
+        
+        {/* Bottom Row: Sets × Reps | Intensity | Weight */}
+        <div className="flex items-center gap-2 mt-2 ml-11 text-sm flex-wrap">
+          <span className="text-white font-medium">
+            {sets.length} sets × {sets[0]?.reps || '-'}
+          </span>
+          <span className="text-zinc-600">|</span>
+          <span className="text-yellow-400">
+            {intensitySummary}
+          </span>
+          {calculatedWeight && (
+            <>
+              <span className="text-zinc-600">|</span>
+              <span className="text-green-400 font-medium">
+                {calculatedWeight}kg
+              </span>
+            </>
+          )}
         </div>
         
         {notes && !expanded && (
