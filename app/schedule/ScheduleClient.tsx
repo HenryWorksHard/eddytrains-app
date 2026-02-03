@@ -267,16 +267,15 @@ export default function ScheduleClient({ scheduleByDay, completionsByDate }: Sch
                   <div
                     key={date.toISOString()}
                     className={`aspect-square rounded-lg flex flex-col items-center justify-center text-sm transition-all ${
-                      isToday 
-                        ? 'bg-yellow-400 text-black font-bold' 
-                        : hasWorkout
-                          ? getStatusColor(status)
-                          : 'text-zinc-600'
-                    } ${hasWorkout ? 'border' : ''}`}
+                      hasWorkout
+                        ? getStatusColor(status)
+                        : 'text-zinc-600'
+                    } ${hasWorkout ? 'border' : ''} ${isToday ? 'font-bold' : ''}`}
                   >
-                    <span>{date.getDate()}</span>
-                    {hasWorkout && !isToday && (
-                      <div className={`w-1.5 h-1.5 rounded-full mt-0.5 ${getStatusDot(status)}`} />
+                    <span className={isToday && !hasWorkout ? 'text-white' : ''}>{date.getDate()}</span>
+                    {/* Today indicator dot - only on today's date */}
+                    {isToday && (
+                      <div className="w-1.5 h-1.5 rounded-full mt-0.5 bg-white" />
                     )}
                   </div>
                 )
@@ -296,6 +295,10 @@ export default function ScheduleClient({ scheduleByDay, completionsByDate }: Sch
               <div className="flex items-center gap-1.5">
                 <div className="w-2.5 h-2.5 rounded-full bg-yellow-500" />
                 <span className="text-zinc-400 text-xs">Upcoming</span>
+              </div>
+              <div className="flex items-center gap-1.5">
+                <div className="w-2.5 h-2.5 rounded-full bg-white" />
+                <span className="text-zinc-400 text-xs">Today</span>
               </div>
             </div>
           </div>
