@@ -8,11 +8,12 @@ interface WorkoutSchedule {
   workoutId: string
   workoutName: string
   programName: string
+  programCategory: string
   clientProgramId: string
 }
 
 interface ScheduleClientProps {
-  scheduleByDay: Record<number, WorkoutSchedule>
+  scheduleByDay: Record<number, WorkoutSchedule[]>
   completionsByDate: Record<string, string>
 }
 
@@ -42,9 +43,9 @@ export default function ScheduleClient({ scheduleByDay, completionsByDate }: Sch
   const getDateStatus = (date: Date): 'completed' | 'skipped' | 'upcoming' | 'rest' => {
     const dateStr = formatDateLocal(date)
     const dayOfWeek = date.getDay()
-    const hasWorkout = scheduleByDay[dayOfWeek]
+    const workouts = scheduleByDay[dayOfWeek] || []
     
-    if (!hasWorkout) return 'rest'
+    if (workouts.length === 0) return 'rest'
     
     const todayStart = new Date(today)
     todayStart.setHours(0, 0, 0, 0)
@@ -60,6 +61,17 @@ export default function ScheduleClient({ scheduleByDay, completionsByDate }: Sch
     }
     
     return 'upcoming'
+  }
+
+  // Get category color
+  const getCategoryColor = (category: string) => {
+    switch (category) {
+      case 'strength': return 'bg-blue-500'
+      case 'cardio': return 'bg-green-500'
+      case 'hyrox': return 'bg-orange-500'
+      case 'hybrid': return 'bg-purple-500'
+      default: return 'bg-yellow-500'
+    }
   }
 
   // Get week dates starting from current week's Sunday
@@ -145,14 +157,15 @@ export default function ScheduleClient({ scheduleByDay, completionsByDate }: Sch
             {weekDates.map((date, idx) => {
               const isToday = date.toDateString() === today.toDateString()
               const dayOfWeek = date.getDay()
-              const workout = scheduleByDay[dayOfWeek]
+              const workouts = scheduleByDay[dayOfWeek] || []
+              const hasWorkouts = workouts.length > 0
               const status = getDateStatus(date)
               
               return (
                 <div 
                   key={idx}
                   className={`rounded-xl border p-4 transition-all ${
-                    workout
+                    hasWorkouts
                       ? status === 'completed' 
                         ? 'bg-green-500/5 border-green-500/20'
                         : status === 'skipped'
@@ -161,11 +174,11 @@ export default function ScheduleClient({ scheduleByDay, completionsByDate }: Sch
                       : 'bg-zinc-900 border-zinc-800'
                   }`}
                 >
-                  <div className="flex items-center justify-between">
+                  <div className="flex items-start justify-between">
                     <div className="flex items-center gap-3">
                       {/* Today indicator - white dot (only today gets a dot) */}
                       {isToday && (
-                        <div className="w-3 h-3 rounded-full bg-white" />
+                        <div className="w-3 h-3 rounded-full bg-white mt-1" />
                       )}
                       <div>
                         <div className="flex items-center gap-2">
@@ -184,10 +197,17 @@ export default function ScheduleClient({ scheduleByDay, completionsByDate }: Sch
                       </div>
                     </div>
                     
-                    {workout ? (
-                      <div className="text-right">
-                        <p className="text-white font-medium">{workout.workoutName}</p>
-                        <p className="text-zinc-500 text-sm">{workout.programName}</p>
+                    {hasWorkouts ? (
+                      <div className="text-right space-y-2">
+                        {workouts.map((workout, wIdx) => (
+                          <div key={workout.workoutId} className={wIdx > 0 ? 'pt-2 border-t border-zinc-700/50' : ''}>
+                            <div className="flex items-center justify-end gap-2">
+                              <div className={`w-2 h-2 rounded-full ${getCategoryColor(workout.programCategory)}`} />
+                              <p className="text-white font-medium">{workout.workoutName}</p>
+                            </div>
+                            <p className="text-zinc-500 text-sm">{workout.programName}</p>
+                          </div>
+                        ))}
                         {status === 'completed' && (
                           <span className="text-green-400 text-xs">Completed</span>
                         )}
@@ -200,14 +220,23 @@ export default function ScheduleClient({ scheduleByDay, completionsByDate }: Sch
                     )}
                   </div>
                   
-                  {/* Start workout button for today */}
-                  {isToday && workout && status === 'upcoming' && (
-                    <Link
-                      href={`/workout/${workout.workoutId}?clientProgramId=${workout.clientProgramId}`}
-                      className="mt-3 block w-full bg-yellow-400 hover:bg-yellow-500 text-black font-bold py-3 rounded-lg text-center transition-colors"
-                    >
-                      Start Workout →
-                    </Link>
+                  {/* Start workout buttons for today */}
+                  {isToday && hasWorkouts && status === 'upcoming' && (
+                    <div className="mt-3 space-y-2">
+                      {workouts.map((workout) => (
+                        <Link
+                          key={workout.workoutId}
+                          href={`/workout/${workout.workoutId}?clientProgramId=${workout.clientProgramId}`}
+                          className="flex items-center justify-between bg-yellow-400 hover:bg-yellow-500 text-black font-bold py-3 px-4 rounded-lg transition-colors"
+                        >
+                          <div className="flex items-center gap-2">
+                            <div className={`w-2 h-2 rounded-full ${getCategoryColor(workout.programCategory)}`} />
+                            <span>{workout.workoutName}</span>
+                          </div>
+                          <span>→</span>
+                        </Link>
+                      ))}
+                    </div>
                   )}
                 </div>
               )
@@ -261,18 +290,27 @@ export default function ScheduleClient({ scheduleByDay, completionsByDate }: Sch
                 
                 const isToday = date.toDateString() === today.toDateString()
                 const status = getDateStatus(date)
-                const hasWorkout = scheduleByDay[date.getDay()]
+                const workouts = scheduleByDay[date.getDay()] || []
+                const hasWorkouts = workouts.length > 0
                 
                 return (
                   <div
                     key={date.toISOString()}
                     className={`aspect-square rounded-lg flex flex-col items-center justify-center text-sm transition-all ${
-                      hasWorkout
+                      hasWorkouts
                         ? getStatusColor(status)
                         : 'text-zinc-600'
-                    } ${hasWorkout ? 'border' : ''} ${isToday ? 'font-bold' : ''}`}
+                    } ${hasWorkouts ? 'border' : ''} ${isToday ? 'font-bold' : ''}`}
                   >
-                    <span className={isToday && !hasWorkout ? 'text-white' : ''}>{date.getDate()}</span>
+                    <span className={isToday && !hasWorkouts ? 'text-white' : ''}>{date.getDate()}</span>
+                    {/* Multiple workout indicator dots */}
+                    {hasWorkouts && workouts.length > 1 && (
+                      <div className="flex gap-0.5 mt-0.5">
+                        {workouts.slice(0, 3).map((w, i) => (
+                          <div key={i} className={`w-1 h-1 rounded-full ${getCategoryColor(w.programCategory)}`} />
+                        ))}
+                      </div>
+                    )}
                     {/* Today indicator dot - only on today's date */}
                     {isToday && (
                       <div className="w-1.5 h-1.5 rounded-full mt-0.5 bg-white" />

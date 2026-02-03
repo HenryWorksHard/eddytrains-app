@@ -13,7 +13,7 @@ export default async function SchedulePage() {
     redirect('/login')
   }
 
-  // Get user's active program with workouts
+  // Get user's active programs with workouts (supports multiple programs)
   const { data: clientPrograms } = await supabase
     .from('client_programs')
     .select(`
@@ -24,6 +24,7 @@ export default async function SchedulePage() {
       programs (
         id,
         name,
+        category,
         program_workouts (
           id,
           name,
@@ -55,16 +56,22 @@ export default async function SchedulePage() {
   
   const { data: completions } = await completionsQuery
 
-  // Build schedule data
+  // Build schedule data - supports multiple workouts per day
   interface WorkoutSchedule {
     dayOfWeek: number
     workoutId: string
     workoutName: string
     programName: string
+    programCategory: string
     clientProgramId: string
   }
 
-  const scheduleByDay: Record<number, WorkoutSchedule> = {}
+  const scheduleByDay: Record<number, WorkoutSchedule[]> = {}
+  
+  // Initialize all days with empty arrays
+  for (let i = 0; i < 7; i++) {
+    scheduleByDay[i] = []
+  }
   
   if (clientPrograms) {
     for (const cp of clientPrograms) {
@@ -72,19 +79,21 @@ export default async function SchedulePage() {
       const program = (Array.isArray(programData) ? programData[0] : programData) as {
         id: string
         name: string
+        category?: string
         program_workouts?: { id: string; name: string; day_of_week: number | null }[]
       } | null
       
       if (program?.program_workouts) {
         for (const workout of program.program_workouts) {
           if (workout.day_of_week !== null) {
-            scheduleByDay[workout.day_of_week] = {
+            scheduleByDay[workout.day_of_week].push({
               dayOfWeek: workout.day_of_week,
               workoutId: workout.id,
               workoutName: workout.name,
               programName: program.name,
+              programCategory: program.category || 'strength',
               clientProgramId: cp.id
-            }
+            })
           }
         }
       }
