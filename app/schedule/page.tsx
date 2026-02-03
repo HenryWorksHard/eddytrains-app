@@ -16,7 +16,8 @@ export default async function SchedulePage() {
     redirect('/login')
   }
 
-  // Get user's active programs with workouts (supports multiple programs)
+  // Get user's active AND future programs with workouts
+  const today = new Date().toISOString().split('T')[0]
   const { data: clientPrograms } = await supabase
     .from('client_programs')
     .select(`
@@ -24,6 +25,8 @@ export default async function SchedulePage() {
       program_id,
       start_date,
       end_date,
+      is_active,
+      phase_name,
       programs (
         id,
         name,
@@ -37,7 +40,8 @@ export default async function SchedulePage() {
       )
     `)
     .eq('client_id', user.id)
-    .eq('is_active', true)
+    .or(`is_active.eq.true,start_date.gt.${today}`)
+    .order('start_date', { ascending: true })
 
   // Get active client program IDs
   const activeClientProgramIds = clientPrograms?.map(cp => cp.id) || []
@@ -103,17 +107,39 @@ export default async function SchedulePage() {
     }
   }
 
-  // Format completions for client
-  const completionsByDate: Record<string, string> = {}
+  // Format completions for client - supports multiple completions per date
+  // Key format: "date:workoutId:clientProgramId" to track each workout separately
+  const completedWorkouts: Record<string, boolean> = {}
   completions?.forEach(c => {
-    completionsByDate[c.scheduled_date] = c.workout_id
+    const key = `${c.scheduled_date}:${c.workout_id}:${c.client_program_id}`
+    completedWorkouts[key] = true
+  })
+
+  // Separate current/active programs from future programs
+  const activePrograms = clientPrograms?.filter(cp => cp.is_active) || []
+  const futurePrograms = clientPrograms?.filter(cp => !cp.is_active && cp.start_date > today) || []
+
+  // Format future programs for display
+  const upcomingPrograms = futurePrograms.map(cp => {
+    const programData = cp.programs as any
+    const program = Array.isArray(programData) ? programData[0] : programData
+    return {
+      id: cp.id,
+      programId: cp.program_id,
+      programName: program?.name || 'Unknown',
+      programCategory: program?.category || 'strength',
+      startDate: cp.start_date,
+      endDate: cp.end_date,
+      phaseName: cp.phase_name,
+    }
   })
 
   return (
     <div className="min-h-screen bg-black pb-24">
       <ScheduleClient 
         scheduleByDay={scheduleByDay}
-        completionsByDate={completionsByDate}
+        completedWorkouts={completedWorkouts}
+        upcomingPrograms={upcomingPrograms}
       />
       <BottomNav />
     </div>
