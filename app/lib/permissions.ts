@@ -5,6 +5,7 @@ export interface UserPermissions {
   can_access_strength: boolean
   can_access_cardio: boolean
   can_access_hyrox: boolean
+  can_access_hybrid: boolean
   can_access_nutrition: boolean
   role: string
 }
@@ -21,7 +22,7 @@ export async function getUserPermissions(): Promise<UserPermissions | null> {
   
   const { data: profile } = await supabase
     .from('profiles')
-    .select('role, can_access_strength, can_access_cardio, can_access_hyrox, can_access_nutrition')
+    .select('role, can_access_strength, can_access_cardio, can_access_hyrox, can_access_hybrid, can_access_nutrition')
     .eq('id', user.id)
     .single()
   
@@ -32,6 +33,7 @@ export async function getUserPermissions(): Promise<UserPermissions | null> {
     can_access_strength: profile.can_access_strength ?? false,
     can_access_cardio: profile.can_access_cardio ?? false,
     can_access_hyrox: profile.can_access_hyrox ?? false,
+    can_access_hybrid: profile.can_access_hybrid ?? false,
     can_access_nutrition: profile.can_access_nutrition ?? false,
   }
 }

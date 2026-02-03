@@ -21,6 +21,7 @@ export interface Profile {
   can_access_strength: boolean
   can_access_cardio: boolean
   can_access_hyrox: boolean
+  can_access_hybrid: boolean
   can_access_nutrition: boolean
   // Timestamps
   created_at: string
@@ -48,7 +49,7 @@ export interface Program {
   id: string
   name: string
   description: string | null
-  category: 'strength' | 'cardio' | 'hyrox'
+  category: 'strength' | 'cardio' | 'hyrox' | 'hybrid'
   difficulty: 'beginner' | 'intermediate' | 'advanced'
   is_active: boolean
   created_at: string
