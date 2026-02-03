@@ -152,28 +152,32 @@ export default function ScheduleClient({ scheduleByDay, completionsByDate }: Sch
                 <div 
                   key={idx}
                   className={`rounded-xl border p-4 transition-all ${
-                    isToday 
-                      ? 'bg-yellow-400/10 border-yellow-400/30' 
-                      : status === 'completed' 
+                    workout
+                      ? status === 'completed' 
                         ? 'bg-green-500/5 border-green-500/20'
                         : status === 'skipped'
                           ? 'bg-red-500/5 border-red-500/20'
-                          : 'bg-zinc-900 border-zinc-800'
+                          : 'bg-yellow-500/5 border-yellow-500/20'
+                      : 'bg-zinc-900 border-zinc-800'
                   }`}
                 >
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-3">
-                      {/* Status indicator */}
-                      {workout && (
+                      {/* Today indicator - white dot */}
+                      {isToday && (
+                        <div className="w-3 h-3 rounded-full bg-white" />
+                      )}
+                      {/* Status indicator for non-today workout days */}
+                      {workout && !isToday && (
                         <div className={`w-3 h-3 rounded-full ${getStatusDot(status)}`} />
                       )}
                       <div>
                         <div className="flex items-center gap-2">
-                          <span className={`font-semibold ${isToday ? 'text-yellow-400' : 'text-white'}`}>
+                          <span className={`font-semibold text-white`}>
                             {fullDayNames[dayOfWeek]}
                           </span>
                           {isToday && (
-                            <span className="px-2 py-0.5 bg-yellow-400 text-black text-xs font-bold rounded-full">
+                            <span className="px-2 py-0.5 bg-white text-black text-xs font-bold rounded-full">
                               TODAY
                             </span>
                           )}
