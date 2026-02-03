@@ -286,7 +286,9 @@ export default async function WorkoutDetailPage({
           />
         ) : (
           <div className="bg-zinc-900 border border-zinc-800 rounded-2xl p-8 text-center">
-            <div className="text-4xl mb-4">📋</div>
+            <div className="w-16 h-16 bg-zinc-800 rounded-full flex items-center justify-center mx-auto mb-4">
+              <span className="text-2xl font-bold text-zinc-600">?</span>
+            </div>
             <h3 className="text-white font-semibold mb-2">No Exercises Yet</h3>
             <p className="text-zinc-400 text-sm">
               Your coach will add exercises to this workout soon.

@@ -85,8 +85,8 @@ export default async function AdminDashboardPage() {
               className="flex items-center justify-between bg-zinc-900 border border-zinc-800 hover:border-yellow-400/50 rounded-2xl p-5 transition-colors"
             >
               <div className="flex items-center gap-4">
-                <div className="w-12 h-12 bg-zinc-800 rounded-xl flex items-center justify-center text-xl">
-                  📋
+                <div className="w-12 h-12 bg-zinc-800 rounded-xl flex items-center justify-center text-sm font-bold text-yellow-400">
+                  PRG
                 </div>
                 <div>
                   <h3 className="font-semibold text-white">Programs</h3>

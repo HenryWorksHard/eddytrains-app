@@ -262,7 +262,9 @@ export default async function ProgramsPage() {
           </div>
         ) : (
           <div className="bg-zinc-900 border border-zinc-800 rounded-2xl p-8 text-center">
-            <div className="text-5xl mb-4">📋</div>
+            <div className="w-16 h-16 bg-zinc-800 rounded-full flex items-center justify-center mx-auto mb-4">
+              <span className="text-2xl font-bold text-zinc-600">?</span>
+            </div>
             <h3 className="text-white font-semibold text-lg mb-2">No Active Program</h3>
             <p className="text-zinc-400">
               Your coach will assign your next program soon.

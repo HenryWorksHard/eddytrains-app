@@ -35,9 +35,9 @@ function WorkoutRatingModal({
   const [notes, setNotes] = useState('')
   
   const difficultyOptions: { value: Difficulty; label: string; emoji: string }[] = [
-    { value: 'too_easy', label: 'Too Easy', emoji: '😎' },
-    { value: 'just_right', label: 'Just Right', emoji: '💪' },
-    { value: 'too_hard', label: 'Too Hard', emoji: '😤' },
+    { value: 'too_easy', label: 'Too Easy', emoji: '-' },
+    { value: 'just_right', label: 'Just Right', emoji: '=' },
+    { value: 'too_hard', label: 'Too Hard', emoji: '+' },
   ]
   
   const handleSubmit = () => {
@@ -49,7 +49,11 @@ function WorkoutRatingModal({
       <div className="bg-zinc-900 border border-zinc-700 rounded-3xl w-full max-w-md overflow-hidden">
         {/* Header */}
         <div className="p-6 text-center border-b border-zinc-800">
-          <div className="text-5xl mb-3">🎉</div>
+          <div className="w-16 h-16 bg-green-500/20 rounded-full flex items-center justify-center mx-auto mb-3">
+            <svg className="w-8 h-8 text-green-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+            </svg>
+          </div>
           <h2 className="text-2xl font-bold text-white">Workout Complete!</h2>
           <p className="text-zinc-400 text-sm mt-2">How did it go?</p>
         </div>
