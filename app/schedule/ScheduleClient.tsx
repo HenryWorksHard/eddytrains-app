@@ -163,13 +163,9 @@ export default function ScheduleClient({ scheduleByDay, completionsByDate }: Sch
                 >
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-3">
-                      {/* Today indicator - white dot */}
+                      {/* Today indicator - white dot (only today gets a dot) */}
                       {isToday && (
                         <div className="w-3 h-3 rounded-full bg-white" />
-                      )}
-                      {/* Status indicator for non-today workout days */}
-                      {workout && !isToday && (
-                        <div className={`w-3 h-3 rounded-full ${getStatusDot(status)}`} />
                       )}
                       <div>
                         <div className="flex items-center gap-2">
