@@ -124,7 +124,7 @@ function SwapExerciseModal({
 }: {
   exerciseName: string
   muscleGroup: string
-  onSelect: (name: string, isCustom: boolean) => void
+  onSelect: (name: string, isCustom: boolean, customExerciseId?: string) => void
   onClose: () => void
   clientId: string
 }) {
@@ -171,13 +171,13 @@ function SwapExerciseModal({
       .insert({
         client_id: clientId,
         name: customName.trim(),
-        muscle_group: muscleGroup
+        category: muscleGroup
       })
       .select('id')
       .single()
     
     if (!error) {
-      onSelect(customName.trim(), true)
+      onSelect(customName.trim(), true, data?.id)
     }
   }
   
@@ -247,7 +247,7 @@ function SwapExerciseModal({
                   {customExercises.map((ex) => (
                     <button
                       key={ex.id}
-                      onClick={() => onSelect(ex.name, true)}
+                      onClick={() => onSelect(ex.name, true, ex.id)}
                       className="w-full text-left px-4 py-3 bg-zinc-800/50 hover:bg-zinc-800 rounded-xl text-white transition-colors flex items-center gap-2"
                     >
                       <span className="text-yellow-400">★</span>
@@ -361,18 +361,18 @@ export default function ExerciseCard({
     }
   }
 
-  const handleExerciseSwap = async (newExerciseName: string, isCustom: boolean) => {
+  const handleExerciseSwap = async (newExerciseName: string, isCustom: boolean, customExerciseId?: string) => {
     if (!clientId) return
     
-    // Log substitution
+    // Log substitution (workout_log_id will be null - can be linked later if needed)
     await supabase
       .from('exercise_substitutions')
       .insert({
-        client_id: clientId,
-        workout_exercise_id: workoutExerciseId || exerciseId,
+        original_exercise_id: workoutExerciseId || null,
         original_exercise_name: exerciseName,
         substituted_exercise_name: newExerciseName,
-        is_custom: isCustom
+        is_custom: isCustom,
+        custom_exercise_id: customExerciseId || null
       })
     
     setCurrentExerciseName(newExerciseName)
