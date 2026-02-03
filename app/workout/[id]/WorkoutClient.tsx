@@ -38,6 +38,12 @@ interface PreviousSetLog {
   reps_completed: number
 }
 
+interface SwappedExercise {
+  exerciseId: string
+  newName: string
+  isCustom: boolean
+}
+
 interface WorkoutClientProps {
   workoutId: string
   exercises: WorkoutExercise[]
@@ -96,6 +102,7 @@ export default function WorkoutClient({ workoutId, exercises, oneRMs, clientProg
   const [previousLogs, setPreviousLogs] = useState<Map<string, PreviousSetLog[]>>(new Map())
   const [saving, setSaving] = useState(false)
   const [workoutLogId, setWorkoutLogId] = useState<string | null>(null)
+  const [swappedExercises, setSwappedExercises] = useState<Map<string, SwappedExercise>>(new Map())
   const supabase = createClient()
 
   // Load previous logs for each exercise
@@ -152,6 +159,15 @@ export default function WorkoutClient({ workoutId, exercises, oneRMs, clientProg
     
     // Auto-save with debounce
     debouncedSave()
+  }, [])
+
+  // Handle exercise swap
+  const handleExerciseSwap = useCallback((exerciseId: string, newExerciseName: string, isCustom: boolean) => {
+    setSwappedExercises(prev => {
+      const updated = new Map(prev)
+      updated.set(exerciseId, { exerciseId, newName: newExerciseName, isCustom })
+      return updated
+    })
   }, [])
 
   // Debounced save function
@@ -220,10 +236,18 @@ export default function WorkoutClient({ workoutId, exercises, oneRMs, clientProg
     }
   }
 
+  // Get display name for exercise (swapped or original)
+  const getExerciseDisplayName = (exercise: WorkoutExercise) => {
+    const swapped = swappedExercises.get(exercise.id)
+    return swapped ? swapped.newName : exercise.exercise_name
+  }
+
   return (
     <div className="space-y-3">
       {exercises.map((exercise, idx) => {
-        const oneRM = find1RM(exercise.exercise_name, oneRMs)
+        // Use swapped exercise name for 1RM lookup if available
+        const displayName = getExerciseDisplayName(exercise)
+        const oneRM = find1RM(displayName, oneRMs)
         const intensityType = exercise.sets[0]?.intensity_type || 'rir'
         const intensityValue = exercise.sets[0]?.intensity_value || '2'
         const calculatedWeight = calculateWeight(intensityType, intensityValue, oneRM)
@@ -244,6 +268,8 @@ export default function WorkoutClient({ workoutId, exercises, oneRMs, clientProg
             calculatedWeight={calculatedWeight}
             previousLogs={prevLogs}
             onLogUpdate={handleLogUpdate}
+            onExerciseSwap={handleExerciseSwap}
+            workoutExerciseId={exercise.id}
           />
         )
       })}
