@@ -97,15 +97,21 @@ export default async function WorkoutDetailPage({
     redirect('/login')
   }
 
-  // Check if workout is already completed today
+  // Check if workout is already completed today for this specific program assignment
   const today = new Date().toISOString().split('T')[0]
-  const { data: todayCompletion } = await supabase
+  let completionQuery = supabase
     .from('workout_completions')
     .select('id')
     .eq('client_id', user.id)
     .eq('workout_id', workoutId)
     .eq('scheduled_date', today)
-    .single()
+  
+  // If we have a clientProgramId, only check completions for this assignment
+  if (clientProgramId) {
+    completionQuery = completionQuery.eq('client_program_id', clientProgramId)
+  }
+  
+  const { data: todayCompletion } = await completionQuery.single()
   
   const isCompletedToday = !!todayCompletion
 

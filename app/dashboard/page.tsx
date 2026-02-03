@@ -84,13 +84,19 @@ export default async function DashboardPage() {
   
   let todayCompleted = false
   if (todayWorkout) {
-    const { data: completion } = await supabase
+    let completionQuery = supabase
       .from('workout_completions')
       .select('id')
       .eq('client_id', user.id)
       .eq('workout_id', todayWorkout.id)
       .eq('scheduled_date', today)
-      .single()
+    
+    // Filter by current program assignment
+    if (todayWorkout.clientProgramId) {
+      completionQuery = completionQuery.eq('client_program_id', todayWorkout.clientProgramId)
+    }
+    
+    const { data: completion } = await completionQuery.single()
     
     todayCompleted = !!completion
   }
