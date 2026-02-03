@@ -573,7 +573,7 @@ export default function ProfilePage() {
               <span className="text-zinc-600">→</span>
             </a>
             <a 
-              href="https://instagram.com/compound"
+              href="https://www.instagram.com/eddytrains/"
               target="_blank"
               rel="noopener noreferrer"
               className="flex items-center justify-between px-4 py-4 hover:bg-zinc-800/50 transition-colors"
