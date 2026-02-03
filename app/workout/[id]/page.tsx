@@ -239,6 +239,7 @@ export default async function WorkoutDetailPage({
       case 'rir': return `${value} RIR`
       case 'rpe': return `RPE ${value}`
       case 'percentage': return `${value}%`
+      case 'failure': return 'To Failure'
       default: return value
     }
   }

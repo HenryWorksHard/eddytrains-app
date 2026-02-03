@@ -145,6 +145,7 @@ export default async function ProgramDetailPage({ params }: { params: Promise<{ 
                 {set.intensity_type === 'percentage' ? `${set.intensity_value}%` : 
                  set.intensity_type === 'rir' ? `${set.intensity_value} RIR` :
                  set.intensity_type === 'rpe' ? `RPE ${set.intensity_value}` : 
+                 set.intensity_type === 'failure' ? 'To Failure' :
                  set.intensity_value}
               </span>
               {set.rest_bracket && (

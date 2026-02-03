@@ -389,6 +389,7 @@ export default function ExerciseCard({
       case 'rir': return `${value} RIR`
       case 'rpe': return `RPE ${value}`
       case 'percentage': return `${value}%`
+      case 'failure': return 'To Failure'
       default: return value
     }
   }
