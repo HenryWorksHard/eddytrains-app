@@ -2,8 +2,8 @@ import { createClient } from '../../lib/supabase/server'
 import { redirect, notFound } from 'next/navigation'
 import BottomNav from '../../components/BottomNav'
 import Link from 'next/link'
-import TutorialModal from './TutorialModal'
 import CompleteWorkoutButton from './CompleteWorkoutButton'
+import WorkoutClient from './WorkoutClient'
 
 interface ExerciseSet {
   set_number: number
@@ -269,74 +269,14 @@ export default async function WorkoutDetailPage({
         </div>
       </header>
 
-      <main className="px-6 py-6 space-y-3">
+      <main className="px-6 py-6">
         {exercises.length > 0 ? (
-          exercises.map((exercise, idx) => {
-            const summary = summarizeSets(exercise.sets)
-            const calculatedWeight = calculateWeight(
-              summary.intensityType, 
-              summary.intensity, 
-              exercise.exercise_name
-            )
-            const hasTutorial = exercise.tutorial_url || (exercise.tutorial_steps && exercise.tutorial_steps.length > 0)
-            
-            return (
-              <div 
-                key={exercise.id}
-                className="bg-zinc-900 border border-zinc-800 rounded-2xl p-4"
-              >
-                <div className="flex items-start gap-3">
-                  {/* Exercise Number */}
-                  <span className="w-8 h-8 rounded-lg bg-yellow-400/10 text-yellow-400 flex items-center justify-center font-bold text-sm flex-shrink-0">
-                    {idx + 1}
-                  </span>
-                  
-                  {/* Exercise Info */}
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2">
-                      <h3 className="font-semibold text-white truncate">{exercise.exercise_name}</h3>
-                      {exercise.superset_group && (
-                        <span className="px-2 py-0.5 bg-purple-500/20 text-purple-400 text-xs rounded">
-                          SS{exercise.superset_group}
-                        </span>
-                      )}
-                    </div>
-                    
-                    {/* Set Summary */}
-                    <div className="flex items-center gap-3 mt-2 text-sm">
-                      <span className="text-white font-medium">
-                        {summary.setCount} sets × {summary.reps}
-                      </span>
-                      <span className="text-zinc-600">|</span>
-                      <span className="text-yellow-400">
-                        {formatIntensity(summary.intensityType, summary.intensity)}
-                      </span>
-                      {calculatedWeight && (
-                        <>
-                          <span className="text-zinc-600">|</span>
-                          <span className="text-green-400 font-medium">
-                            {calculatedWeight}kg
-                          </span>
-                        </>
-                      )}
-                    </div>
-                    
-                    {/* Notes */}
-                    {exercise.notes && (
-                      <p className="text-zinc-500 text-xs mt-2">{exercise.notes}</p>
-                    )}
-                  </div>
-                  
-                  {/* Tutorial Button */}
-                  <TutorialModal
-                    exerciseName={exercise.exercise_name}
-                    videoUrl={exercise.tutorial_url}
-                    steps={exercise.tutorial_steps}
-                  />
-                </div>
-              </div>
-            )
-          })
+          <WorkoutClient
+            workoutId={workoutId}
+            exercises={exercises}
+            oneRMs={oneRMs}
+            clientProgramId={clientProgramId}
+          />
         ) : (
           <div className="bg-zinc-900 border border-zinc-800 rounded-2xl p-8 text-center">
             <div className="text-4xl mb-4">📋</div>
