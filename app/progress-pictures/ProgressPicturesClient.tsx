@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useRef } from 'react'
+import { useState, useRef, useEffect, useCallback } from 'react'
 import { createClient } from '../lib/supabase/client'
 import { compressImage } from '../lib/imageUtils'
 import Image from 'next/image'
@@ -17,12 +17,112 @@ interface Props {
   initialImages: ProgressImage[]
 }
 
+const STORY_DURATION = 15000 // 15 seconds
+
 export default function ProgressPicturesClient({ initialImages }: Props) {
   const [images, setImages] = useState<ProgressImage[]>(initialImages)
   const [uploading, setUploading] = useState(false)
-  const [selectedImage, setSelectedImage] = useState<ProgressImage | null>(null)
+  const [storyIndex, setStoryIndex] = useState<number | null>(null)
+  const [progress, setProgress] = useState(0)
+  const [isPaused, setIsPaused] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
+  const timerRef = useRef<NodeJS.Timeout | null>(null)
+  const startTimeRef = useRef<number>(0)
+  const pausedAtRef = useRef<number>(0)
   const supabase = createClient()
+
+  // Story navigation
+  const openStory = (index: number) => {
+    setStoryIndex(index)
+    setProgress(0)
+    startTimeRef.current = Date.now()
+  }
+
+  const closeStory = useCallback(() => {
+    setStoryIndex(null)
+    setProgress(0)
+    setIsPaused(false)
+    if (timerRef.current) {
+      clearInterval(timerRef.current)
+      timerRef.current = null
+    }
+  }, [])
+
+  const nextStory = useCallback(() => {
+    if (storyIndex !== null && storyIndex < images.length - 1) {
+      setStoryIndex(storyIndex + 1)
+      setProgress(0)
+      startTimeRef.current = Date.now()
+    } else {
+      closeStory()
+    }
+  }, [storyIndex, images.length, closeStory])
+
+  const prevStory = useCallback(() => {
+    if (storyIndex !== null && storyIndex > 0) {
+      setStoryIndex(storyIndex - 1)
+      setProgress(0)
+      startTimeRef.current = Date.now()
+    } else if (storyIndex === 0) {
+      // Restart current story
+      setProgress(0)
+      startTimeRef.current = Date.now()
+    }
+  }, [storyIndex])
+
+  // Handle pause/resume on hold
+  const handleTouchStart = () => {
+    setIsPaused(true)
+    pausedAtRef.current = progress
+  }
+
+  const handleTouchEnd = () => {
+    setIsPaused(false)
+    startTimeRef.current = Date.now() - (pausedAtRef.current * STORY_DURATION / 100)
+  }
+
+  // Timer effect
+  useEffect(() => {
+    if (storyIndex === null) return
+
+    const animate = () => {
+      if (!isPaused) {
+        const elapsed = Date.now() - startTimeRef.current
+        const newProgress = Math.min((elapsed / STORY_DURATION) * 100, 100)
+        setProgress(newProgress)
+        
+        if (newProgress >= 100) {
+          nextStory()
+        }
+      }
+    }
+
+    timerRef.current = setInterval(animate, 50)
+    startTimeRef.current = Date.now()
+
+    return () => {
+      if (timerRef.current) {
+        clearInterval(timerRef.current)
+      }
+    }
+  }, [storyIndex, isPaused, nextStory])
+
+  // Handle keyboard navigation
+  useEffect(() => {
+    if (storyIndex === null) return
+
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'ArrowRight') nextStory()
+      else if (e.key === 'ArrowLeft') prevStory()
+      else if (e.key === 'Escape') closeStory()
+    }
+
+    window.addEventListener('keydown', handleKeyDown)
+    return () => window.removeEventListener('keydown', handleKeyDown)
+  }, [storyIndex, nextStory, prevStory, closeStory])
+
+  // Legacy selectedImage for delete (we'll use storyIndex for viewing)
+  const selectedImage = storyIndex !== null ? images[storyIndex] : null
 
   const handleUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
@@ -89,7 +189,6 @@ export default function ProgressPicturesClient({ initialImages }: Props) {
         .eq('id', imageId)
 
       setImages(prev => prev.filter(img => img.id !== imageId))
-      setSelectedImage(null)
     } catch (err) {
       console.error('Delete failed:', err)
     }
@@ -201,10 +300,10 @@ export default function ProgressPicturesClient({ initialImages }: Props) {
         {/* Image Grid */}
         {images.length > 0 ? (
           <div className="grid grid-cols-3 gap-2">
-            {images.map((img) => (
+            {images.map((img, index) => (
               <div key={img.id} className="aspect-[3/4] relative rounded-xl overflow-hidden bg-zinc-800 group">
                 <button
-                  onClick={() => setSelectedImage(img)}
+                  onClick={() => openStory(index)}
                   className="absolute inset-0 hover:ring-2 hover:ring-yellow-400 transition-all"
                 >
                   <Image
@@ -242,40 +341,94 @@ export default function ProgressPicturesClient({ initialImages }: Props) {
         )}
       </main>
 
-      {/* Full Image Modal */}
-      {selectedImage && (
-        <div 
-          className="fixed inset-0 bg-black/90 z-50 flex items-center justify-center p-4"
-          onClick={() => setSelectedImage(null)}
-        >
-          <div 
-            className="relative max-w-lg w-full"
-            onClick={e => e.stopPropagation()}
-          >
-            <button
-              onClick={() => setSelectedImage(null)}
-              className="absolute -top-12 right-0 p-2 text-white/70 hover:text-white"
-            >
-              <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-              </svg>
-            </button>
-            
-            <div className="relative aspect-[3/4] rounded-2xl overflow-hidden bg-zinc-900">
-              <Image
-                src={selectedImage.image_url}
-                alt="Progress"
-                fill
-                className="object-contain"
-                sizes="(max-width: 768px) 100vw, 500px"
-              />
+      {/* Story Viewer Modal */}
+      {storyIndex !== null && selectedImage && (
+        <div className="fixed inset-0 bg-black z-50 flex flex-col">
+          {/* Progress Bars */}
+          <div className="absolute top-0 left-0 right-0 z-20 px-2 pt-3 pb-2 bg-gradient-to-b from-black/60 to-transparent">
+            <div className="flex gap-1">
+              {images.map((_, index) => (
+                <div 
+                  key={index}
+                  className="flex-1 h-[3px] bg-white/30 rounded-full overflow-hidden"
+                >
+                  <div 
+                    className="h-full bg-white rounded-full transition-none"
+                    style={{ 
+                      width: index < storyIndex ? '100%' : 
+                             index === storyIndex ? `${progress}%` : '0%'
+                    }}
+                  />
+                </div>
+              ))}
             </div>
             
-            <div className="mt-4 flex items-center justify-between">
-              <p className="text-white font-medium">{formatDate(selectedImage.created_at)}</p>
+            {/* Header with date and close */}
+            <div className="flex items-center justify-between mt-3 px-2">
+              <div className="flex items-center gap-2">
+                <div className="w-8 h-8 bg-yellow-400/20 rounded-full flex items-center justify-center">
+                  <span className="text-yellow-400 text-xs font-bold">
+                    {storyIndex + 1}/{images.length}
+                  </span>
+                </div>
+                <p className="text-white text-sm font-medium">{formatDate(selectedImage.created_at)}</p>
+              </div>
               <button
-                onClick={() => deleteImage(selectedImage.id, selectedImage.image_url)}
-                className="flex items-center gap-1.5 px-3 py-1.5 bg-red-500/10 hover:bg-red-500/20 text-red-400 rounded-lg text-sm transition-colors"
+                onClick={closeStory}
+                className="p-2 text-white/80 hover:text-white"
+              >
+                <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+          </div>
+
+          {/* Story Image */}
+          <div 
+            className="flex-1 relative"
+            onMouseDown={handleTouchStart}
+            onMouseUp={handleTouchEnd}
+            onTouchStart={handleTouchStart}
+            onTouchEnd={handleTouchEnd}
+          >
+            <Image
+              src={selectedImage.image_url}
+              alt="Progress"
+              fill
+              className="object-contain"
+              sizes="100vw"
+              priority
+            />
+
+            {/* Tap zones for prev/next */}
+            <button
+              onClick={prevStory}
+              className="absolute left-0 top-0 bottom-0 w-1/3 z-10"
+              aria-label="Previous"
+            />
+            <button
+              onClick={nextStory}
+              className="absolute right-0 top-0 bottom-0 w-1/3 z-10"
+              aria-label="Next"
+            />
+          </div>
+
+          {/* Bottom actions */}
+          <div className="absolute bottom-0 left-0 right-0 z-20 px-4 pb-8 pt-4 bg-gradient-to-t from-black/60 to-transparent">
+            <div className="flex items-center justify-center">
+              <button
+                onClick={() => {
+                  if (selectedImage) {
+                    deleteImage(selectedImage.id, selectedImage.image_url)
+                    if (images.length <= 1) {
+                      closeStory()
+                    } else if (storyIndex >= images.length - 1) {
+                      setStoryIndex(Math.max(0, storyIndex - 1))
+                    }
+                  }
+                }}
+                className="flex items-center gap-1.5 px-4 py-2 bg-red-500/20 hover:bg-red-500/30 text-red-400 rounded-full text-sm transition-colors"
               >
                 <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
@@ -284,6 +437,17 @@ export default function ProgressPicturesClient({ initialImages }: Props) {
               </button>
             </div>
           </div>
+
+          {/* Paused indicator */}
+          {isPaused && (
+            <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+              <div className="w-16 h-16 bg-black/30 rounded-full flex items-center justify-center">
+                <svg className="w-8 h-8 text-white" fill="currentColor" viewBox="0 0 24 24">
+                  <path d="M6 4h4v16H6V4zm8 0h4v16h-4V4z" />
+                </svg>
+              </div>
+            </div>
+          )}
         </div>
       )}
     </>
