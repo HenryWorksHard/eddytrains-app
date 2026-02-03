@@ -4,6 +4,9 @@ import BottomNav from '../components/BottomNav'
 import ScheduleClient from './ScheduleClient'
 import { COMPLETION_LOOKBACK_DAYS } from '../lib/constants'
 
+// Force dynamic rendering - no caching
+export const dynamic = 'force-dynamic'
+
 export default async function SchedulePage() {
   const supabase = await createClient()
   

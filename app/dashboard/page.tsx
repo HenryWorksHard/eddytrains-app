@@ -4,6 +4,9 @@ import BottomNav from '../components/BottomNav'
 import Link from 'next/link'
 import DashboardClient from './DashboardClient'
 
+// Force dynamic rendering - no caching
+export const dynamic = 'force-dynamic'
+
 export default async function DashboardPage() {
   const supabase = await createClient()
   

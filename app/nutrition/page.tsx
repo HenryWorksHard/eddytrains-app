@@ -3,6 +3,9 @@ import { redirect } from 'next/navigation'
 import BottomNav from '../components/BottomNav'
 import Link from 'next/link'
 
+// Force dynamic rendering - no caching
+export const dynamic = 'force-dynamic'
+
 export default async function NutritionPage() {
   const supabase = await createClient()
   

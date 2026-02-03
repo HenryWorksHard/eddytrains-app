@@ -4,6 +4,9 @@ import { getUserPermissions, hasAccess } from '../lib/permissions'
 import BottomNav from '../components/BottomNav'
 import Link from 'next/link'
 
+// Force dynamic rendering - no caching
+export const dynamic = 'force-dynamic'
+
 interface ProgramWorkout {
   id: string
   name: string
