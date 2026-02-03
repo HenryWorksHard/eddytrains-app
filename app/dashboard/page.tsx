@@ -32,6 +32,7 @@ export default async function DashboardPage() {
       programs (
         id,
         name,
+        category,
         program_workouts (
           id,
           name,
@@ -47,8 +48,13 @@ export default async function DashboardPage() {
     .eq('client_id', user.id)
     .eq('is_active', true)
 
-  // Transform programs data for client component
-  const workoutsByDay: Record<number, { id: string; name: string; programName: string; clientProgramId: string; exerciseCount: number }> = {}
+  // Transform programs data for client component - supports multiple workouts per day
+  const workoutsByDay: Record<number, { id: string; name: string; programName: string; programCategory: string; clientProgramId: string; exerciseCount: number }[]> = {}
+  
+  // Initialize all days with empty arrays
+  for (let i = 0; i < 7; i++) {
+    workoutsByDay[i] = []
+  }
   
   if (userPrograms) {
     for (const up of userPrograms) {
@@ -56,6 +62,7 @@ export default async function DashboardPage() {
       const program = (Array.isArray(programData) ? programData[0] : programData) as { 
         id: string
         name: string
+        category?: string
         program_workouts?: { 
           id: string
           name: string
@@ -67,42 +74,42 @@ export default async function DashboardPage() {
       if (program?.program_workouts) {
         for (const workout of program.program_workouts) {
           if (workout.day_of_week !== null) {
-            workoutsByDay[workout.day_of_week] = {
+            workoutsByDay[workout.day_of_week].push({
               id: workout.id,
               name: workout.name,
               programName: program.name,
+              programCategory: program.category || 'strength',
               clientProgramId: up.id,
               exerciseCount: workout.workout_exercises?.length || 0
-            }
+            })
           }
         }
       }
     }
   }
 
-  // Check if today's workout is completed
+  // Check which of today's workouts are completed
   const today = new Date().toISOString().split('T')[0]
   const todayDayOfWeek = new Date().getDay()
-  const todayWorkout = workoutsByDay[todayDayOfWeek]
+  const todayWorkouts = workoutsByDay[todayDayOfWeek] || []
   
-  let todayCompleted = false
-  if (todayWorkout) {
-    let completionQuery = supabase
+  // Get completions for today
+  const completedWorkoutIds: Set<string> = new Set()
+  if (todayWorkouts.length > 0) {
+    const { data: completions } = await supabase
       .from('workout_completions')
-      .select('id')
+      .select('workout_id, client_program_id')
       .eq('client_id', user.id)
-      .eq('workout_id', todayWorkout.id)
       .eq('scheduled_date', today)
     
-    // Filter by current program assignment
-    if (todayWorkout.clientProgramId) {
-      completionQuery = completionQuery.eq('client_program_id', todayWorkout.clientProgramId)
-    }
-    
-    const { data: completion } = await completionQuery.single()
-    
-    todayCompleted = !!completion
+    completions?.forEach(c => {
+      // Create a unique key for workout+program combo
+      completedWorkoutIds.add(`${c.workout_id}:${c.client_program_id}`)
+    })
   }
+  
+  // Convert to serializable format
+  const completedWorkoutsArray = Array.from(completedWorkoutIds)
 
   const firstName = profile?.full_name?.split(' ')[0] || user.email?.split('@')[0] || 'there'
   const programCount = userPrograms?.length || 0
@@ -113,7 +120,7 @@ export default async function DashboardPage() {
         firstName={firstName}
         workoutsByDay={workoutsByDay}
         programCount={programCount}
-        todayCompleted={todayCompleted}
+        completedWorkouts={completedWorkoutsArray}
       />
       <BottomNav />
     </div>

@@ -7,18 +7,20 @@ interface Workout {
   id: string
   name: string
   programName: string
+  programCategory: string
   clientProgramId: string
   exerciseCount: number
 }
 
 interface DashboardClientProps {
   firstName: string
-  workoutsByDay: Record<number, Workout>
+  workoutsByDay: Record<number, Workout[]>
   programCount: number
-  todayCompleted?: boolean
+  completedWorkouts: string[] // Array of "workoutId:clientProgramId" strings
 }
 
-export default function DashboardClient({ firstName, workoutsByDay, programCount, todayCompleted = false }: DashboardClientProps) {
+export default function DashboardClient({ firstName, workoutsByDay, programCount, completedWorkouts }: DashboardClientProps) {
+  const completedSet = new Set(completedWorkouts)
   const [mounted, setMounted] = useState(false)
   const [greeting, setGreeting] = useState('Hello')
   const [todayDayOfWeek, setTodayDayOfWeek] = useState(new Date().getDay())
@@ -68,9 +70,27 @@ export default function DashboardClient({ firstName, workoutsByDay, programCount
     }
   }
 
-  const todayWorkout = workoutsByDay[todayDayOfWeek] || null
+  const todayWorkouts = workoutsByDay[todayDayOfWeek] || []
   const tomorrowDayOfWeek = (todayDayOfWeek + 1) % 7
-  const tomorrowWorkout = workoutsByDay[tomorrowDayOfWeek] || null
+  const tomorrowWorkouts = workoutsByDay[tomorrowDayOfWeek] || []
+  
+  // Check if a workout is completed
+  const isWorkoutCompleted = (workout: Workout) => {
+    return completedSet.has(`${workout.id}:${workout.clientProgramId}`)
+  }
+  
+  // Get category color
+  const getCategoryColor = (category: string) => {
+    switch (category) {
+      case 'strength': return 'bg-blue-500/20 text-blue-400 border-blue-500/30'
+      case 'cardio': return 'bg-green-500/20 text-green-400 border-green-500/30'
+      case 'hyrox': return 'bg-orange-500/20 text-orange-400 border-orange-500/30'
+      case 'hybrid': return 'bg-purple-500/20 text-purple-400 border-purple-500/30'
+      default: return 'bg-yellow-400/20 text-yellow-400 border-yellow-400/30'
+    }
+  }
+  
+  const allTodayCompleted = todayWorkouts.length > 0 && todayWorkouts.every(w => isWorkoutCompleted(w))
 
   if (!mounted) {
     return <div className="px-6 py-6"><div className="h-32 bg-zinc-800 rounded-2xl animate-pulse" /></div>
@@ -120,82 +140,78 @@ export default function DashboardClient({ firstName, workoutsByDay, programCount
       </header>
 
       <main className="px-6 py-6 space-y-6">
-        {/* Today's Workout - Main Focus */}
+        {/* Today's Workouts - Main Focus */}
         <section>
-          <h2 className="text-sm font-medium text-zinc-500 uppercase tracking-wider mb-3">Today&apos;s Workout</h2>
+          <h2 className="text-sm font-medium text-zinc-500 uppercase tracking-wider mb-3">
+            Today&apos;s Workout{todayWorkouts.length > 1 ? 's' : ''}
+          </h2>
           
-          {todayWorkout ? (
-            <div className={`rounded-2xl overflow-hidden transition-all ${
-              todayCompleted 
-                ? 'bg-green-500/10 border-2 border-green-500/50' 
-                : 'bg-zinc-900 border border-zinc-800'
-            }`}>
-              {/* Workout Info */}
-              <div className="p-5">
-                <div className="flex items-start gap-4">
-                  <div className={`w-16 h-16 rounded-2xl flex items-center justify-center ${
-                    todayCompleted ? 'bg-green-500/20' : 'bg-yellow-400/10'
-                  }`}>
-                    {todayCompleted ? (
-                      <svg className="w-8 h-8 text-green-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                      </svg>
-                    ) : (
-                      <svg className="w-8 h-8 text-yellow-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
-                      </svg>
+          {todayWorkouts.length > 0 ? (
+            <div className="space-y-3">
+              {todayWorkouts.map((workout) => {
+                const completed = isWorkoutCompleted(workout)
+                return (
+                  <div 
+                    key={`${workout.id}-${workout.clientProgramId}`}
+                    className={`rounded-2xl overflow-hidden transition-all ${
+                      completed 
+                        ? 'bg-green-500/10 border border-green-500/30' 
+                        : 'bg-zinc-900 border border-zinc-800'
+                    }`}
+                  >
+                    {/* Workout Info */}
+                    <div className="p-4">
+                      <div className="flex items-center gap-4">
+                        <div className={`w-12 h-12 rounded-xl flex items-center justify-center ${
+                          completed ? 'bg-green-500/20' : getCategoryColor(workout.programCategory)
+                        }`}>
+                          {completed ? (
+                            <svg className="w-6 h-6 text-green-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                            </svg>
+                          ) : (
+                            <span className="text-sm font-bold">
+                              {workout.programCategory === 'strength' ? 'S' :
+                               workout.programCategory === 'cardio' ? 'C' :
+                               workout.programCategory === 'hyrox' ? 'H' : 'HY'}
+                            </span>
+                          )}
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <h3 className={`font-bold ${completed ? 'text-green-400' : 'text-white'}`}>{workout.name}</h3>
+                          <p className="text-zinc-500 text-sm">{workout.programName}</p>
+                        </div>
+                        {completed ? (
+                          <span className="text-green-400 text-sm font-medium">Done</span>
+                        ) : (
+                          <span className="text-zinc-500 text-sm">{workout.exerciseCount} exercises</span>
+                        )}
+                      </div>
+                    </div>
+                    
+                    {/* Start Button - only show if not completed */}
+                    {!completed && (
+                      <Link
+                        href={`/workout/${workout.id}?clientProgramId=${workout.clientProgramId}`}
+                        className="block w-full bg-yellow-400 hover:bg-yellow-500 text-black font-bold py-3 text-center transition-colors"
+                      >
+                        Start Workout →
+                      </Link>
                     )}
                   </div>
-                  <div className="flex-1">
-                    <h3 className="text-xl font-bold text-white">{todayWorkout.name}</h3>
-                    <p className={`text-sm mt-1 ${todayCompleted ? 'text-green-400' : 'text-yellow-400'}`}>
-                      {todayWorkout.programName}
-                    </p>
-                    <p className="text-zinc-500 text-sm mt-2">
-                      {todayCompleted ? (
-                        <span className="text-green-400 font-medium">✓ Completed today</span>
-                      ) : (
-                        `${todayWorkout.exerciseCount} exercises`
-                      )}
-                    </p>
-                  </div>
-                </div>
-              </div>
+                )
+              })}
               
-              {/* Start Button - only show if not completed */}
-              {!todayCompleted && (
-                <Link
-                  href={`/workout/${todayWorkout.id}?clientProgramId=${todayWorkout.clientProgramId}`}
-                  className="block w-full bg-yellow-400 hover:bg-yellow-500 text-black font-bold py-4 text-center transition-colors"
-                >
-                  Start Workout →
-                </Link>
-              )}
-              
-              {/* Tomorrow's workout info - show when today is completed */}
-              {todayCompleted && (
-                <div className="border-t border-green-500/20 p-4">
-                  {tomorrowWorkout ? (
-                    <Link
-                      href={`/workout/${tomorrowWorkout.id}?clientProgramId=${tomorrowWorkout.clientProgramId}`}
-                      className="flex items-center justify-between"
-                    >
-                      <div>
-                        <p className="text-zinc-400 text-sm">Tomorrow</p>
-                        <p className="text-white font-medium">{tomorrowWorkout.name}</p>
-                      </div>
-                      <span className="text-yellow-400 font-medium">Preview →</span>
-                    </Link>
-                  ) : (
-                    <div className="flex items-center gap-3">
-                      <div className="w-8 h-8 bg-zinc-800 rounded-lg flex items-center justify-center">
-                        <svg className="w-4 h-4 text-zinc-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z" />
-                        </svg>
-                      </div>
-                      <p className="text-zinc-400 text-sm">Rest day tomorrow — enjoy your recovery!</p>
+              {/* Tomorrow preview - show when all today's workouts are done */}
+              {allTodayCompleted && tomorrowWorkouts.length > 0 && (
+                <div className="bg-zinc-900/50 border border-zinc-800 rounded-xl p-4 mt-4">
+                  <p className="text-zinc-500 text-sm mb-2">Tomorrow</p>
+                  {tomorrowWorkouts.map((workout) => (
+                    <div key={`tomorrow-${workout.id}`} className="flex items-center justify-between py-1">
+                      <span className="text-white">{workout.name}</span>
+                      <span className="text-zinc-500 text-sm">{workout.programName}</span>
                     </div>
-                  )}
+                  ))}
                 </div>
               )}
             </div>
