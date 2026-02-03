@@ -38,6 +38,26 @@ interface PreviousSetLog {
   reps_completed: number
 }
 
+// Group exercises by superset
+function groupExercises(exercises: WorkoutExercise[]) {
+  const groups: { type: 'single' | 'superset'; exercises: WorkoutExercise[]; supersetGroup?: string }[] = []
+  const processedSupersets = new Set<string>()
+
+  exercises.forEach(exercise => {
+    if (exercise.superset_group) {
+      if (!processedSupersets.has(exercise.superset_group)) {
+        processedSupersets.add(exercise.superset_group)
+        const supersetExercises = exercises.filter(ex => ex.superset_group === exercise.superset_group)
+        groups.push({ type: 'superset', exercises: supersetExercises, supersetGroup: exercise.superset_group })
+      }
+    } else {
+      groups.push({ type: 'single', exercises: [exercise] })
+    }
+  })
+
+  return groups
+}
+
 interface SwappedExercise {
   exerciseId: string
   newName: string
@@ -243,36 +263,67 @@ export default function WorkoutClient({ workoutId, exercises, oneRMs, clientProg
     return swapped ? swapped.newName : exercise.exercise_name
   }
 
+  const exerciseGroups = groupExercises(exercises)
+
+  const renderExerciseCard = (exercise: WorkoutExercise, idx: number, isInSuperset: boolean = false) => {
+    const displayName = getExerciseDisplayName(exercise)
+    const oneRM = find1RM(displayName, oneRMs)
+    const intensityType = exercise.sets[0]?.intensity_type || 'rir'
+    const intensityValue = exercise.sets[0]?.intensity_value || '2'
+    const calculatedWeight = calculateWeight(intensityType, intensityValue, oneRM)
+    const prevLogs = previousLogs.get(exercise.id) || []
+
+    return (
+      <ExerciseCard
+        key={exercise.id}
+        exerciseId={exercise.id}
+        exerciseName={exercise.exercise_name}
+        index={idx}
+        sets={exercise.sets}
+        notes={exercise.notes}
+        supersetGroup={isInSuperset ? undefined : exercise.superset_group}
+        tutorialUrl={exercise.tutorial_url}
+        tutorialSteps={exercise.tutorial_steps}
+        intensitySummary={formatIntensity(intensityType, intensityValue)}
+        calculatedWeight={calculatedWeight}
+        previousLogs={prevLogs}
+        onLogUpdate={handleLogUpdate}
+        onExerciseSwap={handleExerciseSwap}
+        workoutExerciseId={exercise.id}
+      />
+    )
+  }
+
   return (
     <div className="space-y-3">
-      {exercises.map((exercise, idx) => {
-        // Use swapped exercise name for 1RM lookup if available
-        const displayName = getExerciseDisplayName(exercise)
-        const oneRM = find1RM(displayName, oneRMs)
-        const intensityType = exercise.sets[0]?.intensity_type || 'rir'
-        const intensityValue = exercise.sets[0]?.intensity_value || '2'
-        const calculatedWeight = calculateWeight(intensityType, intensityValue, oneRM)
-        const prevLogs = previousLogs.get(exercise.id) || []
-
-        return (
-          <ExerciseCard
-            key={exercise.id}
-            exerciseId={exercise.id}
-            exerciseName={exercise.exercise_name}
-            index={idx}
-            sets={exercise.sets}
-            notes={exercise.notes}
-            supersetGroup={exercise.superset_group}
-            tutorialUrl={exercise.tutorial_url}
-            tutorialSteps={exercise.tutorial_steps}
-            intensitySummary={formatIntensity(intensityType, intensityValue)}
-            calculatedWeight={calculatedWeight}
-            previousLogs={prevLogs}
-            onLogUpdate={handleLogUpdate}
-            onExerciseSwap={handleExerciseSwap}
-            workoutExerciseId={exercise.id}
-          />
-        )
+      {exerciseGroups.map((group, groupIndex) => {
+        if (group.type === 'superset') {
+          return (
+            <div 
+              key={group.supersetGroup}
+              className="relative border-2 border-yellow-400/50 rounded-2xl overflow-hidden bg-yellow-400/5"
+            >
+              {/* Superset Label */}
+              <div className="absolute top-2 left-3 z-10">
+                <span className="text-xs font-medium text-yellow-400 uppercase tracking-wide">
+                  Superset
+                </span>
+              </div>
+              
+              {/* Superset Exercises */}
+              <div className="pt-6 divide-y divide-yellow-400/20">
+                {group.exercises.map((exercise, idx) => (
+                  <div key={exercise.id} className="px-1 py-1">
+                    {renderExerciseCard(exercise, exercises.indexOf(exercise), true)}
+                  </div>
+                ))}
+              </div>
+            </div>
+          )
+        } else {
+          const exercise = group.exercises[0]
+          return renderExerciseCard(exercise, exercises.indexOf(exercise), false)
+        }
       })}
       
       {/* Auto-save indicator */}
