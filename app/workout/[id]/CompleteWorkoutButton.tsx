@@ -19,7 +19,7 @@ interface WorkoutRating {
   notes: string
 }
 
-// Workout Rating Modal
+// Workout Rating Modal - Compact design
 function WorkoutRatingModal({
   onSubmit,
   onSkip,
@@ -33,11 +33,12 @@ function WorkoutRatingModal({
   const [hoveredRating, setHoveredRating] = useState(0)
   const [difficulty, setDifficulty] = useState<Difficulty | null>(null)
   const [notes, setNotes] = useState('')
+  const [showNotes, setShowNotes] = useState(false)
   
   const difficultyOptions: { value: Difficulty; label: string; emoji: string }[] = [
-    { value: 'too_easy', label: 'Too Easy', emoji: '-' },
-    { value: 'just_right', label: 'Just Right', emoji: '=' },
-    { value: 'too_hard', label: 'Too Hard', emoji: '+' },
+    { value: 'too_easy', label: 'Easy', emoji: '😎' },
+    { value: 'just_right', label: 'Good', emoji: '💪' },
+    { value: 'too_hard', label: 'Hard', emoji: '🔥' },
   ]
   
   const handleSubmit = () => {
@@ -45,101 +46,99 @@ function WorkoutRatingModal({
   }
   
   return (
-    <div className="fixed inset-0 bg-black/90 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-      <div className="bg-zinc-900 border border-zinc-700 rounded-3xl w-full max-w-md overflow-hidden">
-        {/* Header */}
-        <div className="p-6 text-center border-b border-zinc-800">
-          <div className="w-16 h-16 bg-green-500/20 rounded-full flex items-center justify-center mx-auto mb-3">
-            <svg className="w-8 h-8 text-green-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+    <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-end sm:items-center justify-center">
+      <div className="bg-zinc-900 border-t sm:border border-zinc-700 rounded-t-3xl sm:rounded-3xl w-full sm:max-w-sm sm:mx-4 overflow-hidden animate-slide-up">
+        {/* Header - Compact */}
+        <div className="p-4 text-center">
+          <div className="w-12 h-12 bg-green-500/20 rounded-full flex items-center justify-center mx-auto mb-2">
+            <svg className="w-6 h-6 text-green-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
             </svg>
           </div>
-          <h2 className="text-2xl font-bold text-white">Workout Complete!</h2>
-          <p className="text-zinc-400 text-sm mt-2">How did it go?</p>
+          <h2 className="text-xl font-bold text-white">Nice work! 🎉</h2>
+          <p className="text-zinc-500 text-sm">How was it?</p>
         </div>
         
-        {/* Content */}
-        <div className="p-6 space-y-6">
-          {/* Star Rating */}
-          <div>
-            <label className="text-sm text-zinc-400 block mb-3 text-center">Rate your workout</label>
-            <div className="flex justify-center gap-2">
-              {[1, 2, 3, 4, 5].map((star) => (
-                <button
-                  key={star}
-                  onMouseEnter={() => setHoveredRating(star)}
-                  onMouseLeave={() => setHoveredRating(0)}
-                  onClick={() => setRating(star)}
-                  className="p-1 transition-transform hover:scale-110"
-                >
-                  <Star
-                    className={`w-10 h-10 transition-colors ${
-                      star <= (hoveredRating || rating)
-                        ? 'fill-yellow-400 text-yellow-400'
-                        : 'text-zinc-600'
-                    }`}
-                  />
-                </button>
-              ))}
-            </div>
-          </div>
-          
-          {/* Difficulty */}
-          <div>
-            <label className="text-sm text-zinc-400 block mb-3 text-center">How difficult was it?</label>
-            <div className="grid grid-cols-3 gap-2">
-              {difficultyOptions.map((option) => (
-                <button
-                  key={option.value}
-                  onClick={() => setDifficulty(option.value)}
-                  className={`py-3 px-2 rounded-xl text-center transition-all ${
-                    difficulty === option.value
-                      ? 'bg-yellow-400 text-black'
-                      : 'bg-zinc-800 text-white hover:bg-zinc-700'
+        {/* Content - Compact */}
+        <div className="px-4 pb-2 space-y-4">
+          {/* Star Rating - Smaller */}
+          <div className="flex justify-center gap-1">
+            {[1, 2, 3, 4, 5].map((star) => (
+              <button
+                key={star}
+                onMouseEnter={() => setHoveredRating(star)}
+                onMouseLeave={() => setHoveredRating(0)}
+                onClick={() => setRating(star)}
+                className="p-0.5 transition-transform hover:scale-110"
+              >
+                <Star
+                  className={`w-8 h-8 transition-colors ${
+                    star <= (hoveredRating || rating)
+                      ? 'fill-yellow-400 text-yellow-400'
+                      : 'text-zinc-700'
                   }`}
-                >
-                  <div className="text-2xl mb-1">{option.emoji}</div>
-                  <div className="text-xs font-medium">{option.label}</div>
-                </button>
-              ))}
-            </div>
+                />
+              </button>
+            ))}
           </div>
           
-          {/* Notes */}
-          <div>
-            <label className="text-sm text-zinc-400 block mb-2">Notes (optional)</label>
+          {/* Difficulty - Inline */}
+          <div className="flex gap-2">
+            {difficultyOptions.map((option) => (
+              <button
+                key={option.value}
+                onClick={() => setDifficulty(option.value)}
+                className={`flex-1 py-2.5 px-2 rounded-xl text-center transition-all ${
+                  difficulty === option.value
+                    ? 'bg-yellow-400 text-black'
+                    : 'bg-zinc-800 text-white hover:bg-zinc-700'
+                }`}
+              >
+                <span className="text-lg">{option.emoji}</span>
+                <span className="text-xs font-medium ml-1">{option.label}</span>
+              </button>
+            ))}
+          </div>
+          
+          {/* Notes Toggle */}
+          {!showNotes ? (
+            <button
+              onClick={() => setShowNotes(true)}
+              className="w-full text-zinc-500 text-sm hover:text-zinc-300 transition-colors"
+            >
+              + Add a note
+            </button>
+          ) : (
             <textarea
               value={notes}
               onChange={(e) => setNotes(e.target.value)}
-              placeholder="How did you feel? Any adjustments needed?"
-              rows={3}
-              className="w-full px-4 py-3 bg-zinc-800 border border-zinc-700 rounded-xl text-white placeholder-zinc-500 resize-none focus:outline-none focus:ring-2 focus:ring-yellow-400"
+              placeholder="Any notes for your coach?"
+              rows={2}
+              autoFocus
+              className="w-full px-3 py-2 bg-zinc-800 border border-zinc-700 rounded-xl text-white text-sm placeholder-zinc-500 resize-none focus:outline-none focus:ring-2 focus:ring-yellow-400"
             />
-          </div>
+          )}
         </div>
         
-        {/* Actions */}
-        <div className="p-6 pt-0 space-y-3">
-          <button
-            onClick={handleSubmit}
-            disabled={isSubmitting}
-            className="w-full py-4 bg-yellow-400 hover:bg-yellow-500 disabled:bg-yellow-400/50 text-black font-semibold rounded-xl transition-colors flex items-center justify-center gap-2"
-          >
-            {isSubmitting ? (
-              <>
-                <div className="w-5 h-5 border-2 border-black border-t-transparent rounded-full animate-spin" />
-                Saving...
-              </>
-            ) : (
-              'Save & Finish'
-            )}
-          </button>
+        {/* Actions - Compact */}
+        <div className="p-4 pt-2 flex gap-2">
           <button
             onClick={onSkip}
             disabled={isSubmitting}
-            className="w-full py-3 text-zinc-400 hover:text-white font-medium transition-colors"
+            className="flex-1 py-3 bg-zinc-800 hover:bg-zinc-700 text-zinc-300 font-medium rounded-xl transition-colors"
           >
-            Skip for now
+            Skip
+          </button>
+          <button
+            onClick={handleSubmit}
+            disabled={isSubmitting}
+            className="flex-1 py-3 bg-yellow-400 hover:bg-yellow-500 disabled:bg-yellow-400/50 text-black font-semibold rounded-xl transition-colors flex items-center justify-center gap-2"
+          >
+            {isSubmitting ? (
+              <div className="w-5 h-5 border-2 border-black border-t-transparent rounded-full animate-spin" />
+            ) : (
+              'Done'
+            )}
           </button>
         </div>
       </div>

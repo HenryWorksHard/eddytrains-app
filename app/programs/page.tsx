@@ -3,6 +3,7 @@ import { redirect } from 'next/navigation'
 import { getUserPermissions, hasAccess } from '../lib/permissions'
 import BottomNav from '../components/BottomNav'
 import Link from 'next/link'
+import ProgramsClient from './ProgramsClient'
 
 // Force dynamic rendering - no caching
 export const dynamic = 'force-dynamic'
@@ -145,124 +146,13 @@ export default async function ProgramsPage() {
 
       <main className="px-6 py-6">
         {clientPrograms.length > 0 ? (
-          <div className="space-y-6">
-            {/* All Active Programs */}
-            {clientPrograms.map((cp, programIdx) => {
-              const prog = cp.program
-              const cpProgress = getProgress(cp)
-              const cpWorkouts = programWorkoutsMap[cp.program_id] || []
-              
-              return (
-                <div key={cp.id} className="space-y-4">
-                  {/* Program Card */}
-                  <div className={`bg-zinc-900 border ${programIdx === 0 ? 'border-yellow-400/30' : 'border-zinc-800'} rounded-2xl p-6`}>
-                    <div className="flex items-center gap-2 mb-4">
-                      <span className="px-2 py-1 bg-yellow-400 text-black text-xs font-bold rounded">
-                        ACTIVE
-                      </span>
-                      {cpProgress && (
-                        <span className="text-zinc-500 text-sm">
-                          Week {cpProgress.week} of {cpProgress.totalWeeks}
-                        </span>
-                      )}
-                      {prog?.category && (
-                        <span className="px-2 py-1 bg-zinc-800 text-zinc-400 text-xs rounded capitalize">
-                          {prog.category}
-                        </span>
-                      )}
-                    </div>
-
-                    <div className="flex items-start gap-4">
-                      <div className="w-16 h-16 bg-yellow-400/10 rounded-xl flex items-center justify-center text-3xl shrink-0">
-                        {prog?.emoji || '💪'}
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <h3 className="font-semibold text-white text-xl">{prog?.name || 'Program'}</h3>
-                        {cp.phase_name && (
-                          <p className="text-yellow-400/80 text-sm mt-1">{cp.phase_name}</p>
-                        )}
-                        <p className="text-zinc-400 text-sm mt-1 line-clamp-2">{prog?.description || ''}</p>
-                      </div>
-                    </div>
-
-                    {/* Progress Bar */}
-                    {cpProgress && (
-                      <div className="mt-6">
-                        <div className="flex justify-between text-sm mb-2">
-                          <span className="text-zinc-500">Progress</span>
-                          <span className="text-yellow-400 font-medium">{cpProgress.percentage}%</span>
-                        </div>
-                        <div className="h-2 bg-zinc-800 rounded-full overflow-hidden">
-                          <div 
-                            className="h-full bg-yellow-400 rounded-full transition-all duration-500"
-                            style={{ width: `${cpProgress.percentage}%` }}
-                          />
-                        </div>
-                        <p className="text-zinc-600 text-xs mt-2">
-                          {cpProgress.daysRemaining > 0 
-                            ? `${cpProgress.daysRemaining} days remaining`
-                            : 'Completing soon!'
-                          }
-                        </p>
-                      </div>
-                    )}
-
-                    {/* Schedule Info */}
-                    <div className="mt-4 pt-4 border-t border-zinc-800">
-                      <div className="grid grid-cols-2 gap-4 text-sm">
-                        <div>
-                          <p className="text-zinc-500">Started</p>
-                          <p className="text-white font-medium">
-                            {new Date(cp.start_date).toLocaleDateString('en-AU', {
-                              day: 'numeric',
-                              month: 'short'
-                            })}
-                          </p>
-                        </div>
-                        {cp.end_date && (
-                          <div>
-                            <p className="text-zinc-500">Ends</p>
-                            <p className="text-white font-medium">
-                              {new Date(cp.end_date).toLocaleDateString('en-AU', {
-                                day: 'numeric',
-                                month: 'short'
-                              })}
-                            </p>
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Workouts List for this program */}
-                  {cpWorkouts.length > 0 && (
-                    <div className="space-y-2">
-                      {cpWorkouts.map((workout, idx) => (
-                        <Link
-                          key={workout.id}
-                          href={`/workout/${workout.id}?clientProgramId=${cp.id}`}
-                          className="block bg-zinc-900 border border-zinc-800 hover:border-yellow-400/50 rounded-xl p-4 transition-colors"
-                        >
-                          <div className="flex items-center gap-4">
-                            <div className="w-10 h-10 rounded-lg bg-yellow-400/10 flex items-center justify-center">
-                              <span className="text-yellow-400 font-bold text-sm">{idx + 1}</span>
-                            </div>
-                            <div className="flex-1 min-w-0">
-                              <p className="text-white font-medium">{workout.name}</p>
-                              {workout.day_of_week !== null && (
-                                <p className="text-zinc-500 text-sm">{daysOfWeek[workout.day_of_week]}</p>
-                              )}
-                            </div>
-                            <span className="text-yellow-400">→</span>
-                          </div>
-                        </Link>
-                      ))}
-                    </div>
-                  )}
-                </div>
-              )
-            })}
-          </div>
+          <ProgramsClient 
+            clientPrograms={clientPrograms.map(cp => ({
+              ...cp,
+              program: Array.isArray(cp.program) ? cp.program[0] : cp.program
+            }))}
+            programWorkoutsMap={programWorkoutsMap}
+          />
         ) : fallbackPrograms.length > 0 ? (
           // Fallback to old user_programs if no scheduled programs
           <div className="space-y-4">

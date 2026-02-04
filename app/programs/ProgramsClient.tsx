@@ -1,0 +1,167 @@
+'use client'
+
+import { useState } from 'react'
+import Link from 'next/link'
+import { ChevronDown, ChevronUp } from 'lucide-react'
+
+interface ProgramWorkout {
+  id: string
+  name: string
+  day_of_week: number | null
+  order_index: number
+  program_id: string
+}
+
+interface ClientProgram {
+  id: string
+  program_id: string
+  start_date: string
+  end_date: string | null
+  duration_weeks: number
+  phase_name: string | null
+  is_active: boolean
+  program: {
+    id: string
+    name: string
+    description?: string
+    emoji?: string
+    category?: string
+  } | null
+}
+
+interface ProgramsClientProps {
+  clientPrograms: ClientProgram[]
+  programWorkoutsMap: Record<string, ProgramWorkout[]>
+}
+
+const daysOfWeek = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
+
+export default function ProgramsClient({ clientPrograms, programWorkoutsMap }: ProgramsClientProps) {
+  const [expandedPrograms, setExpandedPrograms] = useState<Set<string>>(new Set())
+
+  const toggleProgram = (programId: string) => {
+    const newExpanded = new Set(expandedPrograms)
+    if (newExpanded.has(programId)) {
+      newExpanded.delete(programId)
+    } else {
+      newExpanded.add(programId)
+    }
+    setExpandedPrograms(newExpanded)
+  }
+
+  const getProgress = (cp: ClientProgram) => {
+    const start = new Date(cp.start_date)
+    const end = cp.end_date ? new Date(cp.end_date) : null
+    const now = new Date()
+    
+    if (!end) return null
+    
+    const totalDays = Math.ceil((end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24))
+    const daysElapsed = Math.ceil((now.getTime() - start.getTime()) / (1000 * 60 * 60 * 24))
+    const weeksElapsed = Math.ceil(daysElapsed / 7)
+    const totalWeeks = cp.duration_weeks || Math.ceil(totalDays / 7)
+    
+    return {
+      week: Math.min(weeksElapsed, totalWeeks),
+      totalWeeks,
+      percentage: Math.min(Math.round((daysElapsed / totalDays) * 100), 100),
+      daysRemaining: Math.max(0, totalDays - daysElapsed)
+    }
+  }
+
+  return (
+    <div className="space-y-4">
+      {clientPrograms.map((cp, idx) => {
+        const prog = cp.program
+        const cpProgress = getProgress(cp)
+        const cpWorkouts = programWorkoutsMap[cp.program_id] || []
+        const isExpanded = expandedPrograms.has(cp.id)
+        
+        return (
+          <div key={cp.id} className="space-y-2">
+            {/* Program Card - Clickable */}
+            <button
+              onClick={() => toggleProgram(cp.id)}
+              className={`w-full text-left bg-zinc-900 border ${idx === 0 ? 'border-yellow-400/30' : 'border-zinc-800'} hover:border-yellow-400/50 rounded-2xl p-5 transition-all`}
+            >
+              <div className="flex items-start gap-4">
+                <div className="w-14 h-14 bg-yellow-400/10 rounded-xl flex items-center justify-center text-2xl shrink-0">
+                  {prog?.emoji || '💪'}
+                </div>
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2 mb-1">
+                    <span className="px-2 py-0.5 bg-yellow-400 text-black text-xs font-bold rounded">
+                      ACTIVE
+                    </span>
+                    {cpProgress && (
+                      <span className="text-zinc-500 text-xs">
+                        Week {cpProgress.week}/{cpProgress.totalWeeks}
+                      </span>
+                    )}
+                  </div>
+                  <h3 className="font-semibold text-white text-lg">{prog?.name || 'Program'}</h3>
+                  {cp.phase_name && (
+                    <p className="text-yellow-400/80 text-sm">{cp.phase_name}</p>
+                  )}
+                  <div className="flex items-center gap-2 mt-2">
+                    <span className="text-zinc-500 text-sm">{cpWorkouts.length} workouts</span>
+                    {prog?.category && (
+                      <span className="px-2 py-0.5 bg-zinc-800 text-zinc-400 text-xs rounded capitalize">
+                        {prog.category}
+                      </span>
+                    )}
+                  </div>
+                </div>
+                <div className="shrink-0 mt-2">
+                  {isExpanded ? (
+                    <ChevronUp className="w-5 h-5 text-yellow-400" />
+                  ) : (
+                    <ChevronDown className="w-5 h-5 text-zinc-500" />
+                  )}
+                </div>
+              </div>
+              
+              {/* Progress Bar */}
+              {cpProgress && (
+                <div className="mt-4">
+                  <div className="h-1.5 bg-zinc-800 rounded-full overflow-hidden">
+                    <div 
+                      className="h-full bg-yellow-400 rounded-full transition-all duration-500"
+                      style={{ width: `${cpProgress.percentage}%` }}
+                    />
+                  </div>
+                </div>
+              )}
+            </button>
+
+            {/* Workouts List - Expandable */}
+            {isExpanded && cpWorkouts.length > 0 && (
+              <div className="space-y-2 pl-2 animate-fade-in">
+                {cpWorkouts.map((workout, widx) => (
+                  <Link
+                    key={workout.id}
+                    href={`/workout/${workout.id}?clientProgramId=${cp.id}`}
+                    className="block bg-zinc-900/80 border border-zinc-800 hover:border-yellow-400/50 rounded-xl p-4 transition-colors"
+                  >
+                    <div className="flex items-center gap-3">
+                      <div className="w-8 h-8 rounded-lg bg-yellow-400/10 flex items-center justify-center">
+                        <span className="text-yellow-400 font-bold text-sm">{widx + 1}</span>
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-white font-medium">{workout.name}</p>
+                        {workout.day_of_week !== null && (
+                          <p className="text-zinc-500 text-sm">{daysOfWeek[workout.day_of_week]}</p>
+                        )}
+                      </div>
+                      <span className="text-yellow-400">→</span>
+                    </div>
+                  </Link>
+                ))}
+              </div>
+            )}
+          </div>
+        )
+      })}
+    </div>
+  )
+}
