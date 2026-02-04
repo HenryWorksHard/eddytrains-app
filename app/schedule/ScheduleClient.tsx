@@ -202,9 +202,9 @@ export default function ScheduleClient({ scheduleByDay, completedWorkouts, upcom
                 >
                   <div className="flex items-start justify-between">
                     <div className="flex items-center gap-3">
-                      {/* Today indicator - white dot (only today gets a dot) */}
+                      {/* Today indicator - yellow dot (visible on both themes) */}
                       {isToday && (
-                        <div className="w-3 h-3 rounded-full bg-white mt-1" />
+                        <div className="w-3 h-3 rounded-full bg-yellow-400 mt-1" />
                       )}
                       <div>
                         <div className="flex items-center gap-2">
@@ -346,10 +346,10 @@ export default function ScheduleClient({ scheduleByDay, completedWorkouts, upcom
                     className={`aspect-square rounded-lg flex flex-col items-center justify-center text-sm transition-all ${
                       hasWorkouts
                         ? getStatusColor(status)
-                        : 'text-zinc-600'
-                    } ${hasWorkouts ? 'border' : ''} ${isToday ? 'font-bold' : ''}`}
+                        : 'bg-zinc-800/30 text-zinc-500'
+                    } ${hasWorkouts ? 'border' : 'border border-zinc-800/50'} ${isToday ? 'font-bold ring-2 ring-yellow-400' : ''}`}
                   >
-                    <span className={isToday && !hasWorkouts ? 'text-white' : ''}>{date.getDate()}</span>
+                    <span className={isToday ? 'text-yellow-400' : ''}>{date.getDate()}</span>
                     {/* Multiple workout indicator dots */}
                     {hasWorkouts && workouts.length > 1 && (
                       <div className="flex gap-0.5 mt-0.5">
@@ -358,9 +358,9 @@ export default function ScheduleClient({ scheduleByDay, completedWorkouts, upcom
                         ))}
                       </div>
                     )}
-                    {/* Today indicator dot - only on today's date */}
-                    {isToday && (
-                      <div className="w-1.5 h-1.5 rounded-full mt-0.5 bg-white" />
+                    {/* Rest day indicator */}
+                    {!hasWorkouts && !isToday && (
+                      <span className="text-[8px] text-zinc-600 mt-0.5">REST</span>
                     )}
                   </div>
                 )
@@ -375,14 +375,18 @@ export default function ScheduleClient({ scheduleByDay, completedWorkouts, upcom
               </div>
               <div className="flex items-center gap-1.5">
                 <div className="w-2.5 h-2.5 rounded-full bg-yellow-500" />
-                <span className="text-zinc-400 text-xs">Partial/Upcoming</span>
+                <span className="text-zinc-400 text-xs">Upcoming</span>
               </div>
               <div className="flex items-center gap-1.5">
                 <div className="w-2.5 h-2.5 rounded-full bg-red-500" />
                 <span className="text-zinc-400 text-xs">Missed</span>
               </div>
               <div className="flex items-center gap-1.5">
-                <div className="w-2.5 h-2.5 rounded-full bg-white" />
+                <div className="w-2.5 h-2.5 rounded bg-zinc-700" />
+                <span className="text-zinc-400 text-xs">Rest</span>
+              </div>
+              <div className="flex items-center gap-1.5">
+                <div className="w-2.5 h-2.5 rounded-full bg-yellow-400 ring-1 ring-yellow-400" />
                 <span className="text-zinc-400 text-xs">Today</span>
               </div>
             </div>
