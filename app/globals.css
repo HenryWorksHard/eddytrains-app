@@ -205,9 +205,18 @@
 }
 
 body {
-  background: var(--background);
+  background: var(--background) !important;
   color: var(--foreground);
   font-family: system-ui, -apple-system, sans-serif;
+}
+
+/* Ensure html element background also changes */
+html.light-mode {
+  background: #f4f4f5 !important;
+}
+
+html.light-mode body {
+  background: #f4f4f5 !important;
 }
 
 /* Custom scrollbar */
