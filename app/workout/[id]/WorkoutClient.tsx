@@ -64,11 +64,22 @@ interface SwappedExercise {
   isCustom: boolean
 }
 
+interface Finisher {
+  id: string
+  name: string
+  category: string
+  isEmom: boolean
+  emomInterval: number | null
+  isSuperset: boolean
+  exercises: WorkoutExercise[]
+}
+
 interface WorkoutClientProps {
   workoutId: string
   exercises: WorkoutExercise[]
   oneRMs: { exercise_name: string; weight_kg: number }[]
   clientProgramId?: string
+  finishers?: Finisher[]
 }
 
 // Helper to match exercise names to 1RMs
@@ -118,7 +129,7 @@ function formatIntensity(type: string, value: string) {
   }
 }
 
-export default function WorkoutClient({ workoutId, exercises, oneRMs, clientProgramId }: WorkoutClientProps) {
+export default function WorkoutClient({ workoutId, exercises, oneRMs, clientProgramId, finishers = [] }: WorkoutClientProps) {
   const [setLogs, setSetLogs] = useState<Map<string, SetLog>>(new Map())
   const [previousLogs, setPreviousLogs] = useState<Map<string, PreviousSetLog[]>>(new Map())
   const [saving, setSaving] = useState(false)
@@ -324,6 +335,83 @@ export default function WorkoutClient({ workoutId, exercises, oneRMs, clientProg
           const exercise = group.exercises[0]
           return renderExerciseCard(exercise, exercises.indexOf(exercise), false)
         }
+      })}
+
+      {/* Finishers */}
+      {finishers.map((finisher) => {
+        const finisherExerciseGroups = groupExercises(finisher.exercises)
+        const categoryColors: Record<string, { border: string; bg: string; text: string; divider: string }> = {
+          cardio: { border: 'border-orange-500/50', bg: 'bg-orange-500/5', text: 'text-orange-400', divider: 'divide-orange-500/20' },
+          hyrox: { border: 'border-red-500/50', bg: 'bg-red-500/5', text: 'text-red-400', divider: 'divide-red-500/20' },
+          strength: { border: 'border-blue-500/50', bg: 'bg-blue-500/5', text: 'text-blue-400', divider: 'divide-blue-500/20' },
+          hybrid: { border: 'border-purple-500/50', bg: 'bg-purple-500/5', text: 'text-purple-400', divider: 'divide-purple-500/20' },
+        }
+        const colors = categoryColors[finisher.category] || categoryColors.strength
+        
+        return (
+          <div 
+            key={finisher.id}
+            className={`relative border-2 ${colors.border} rounded-2xl overflow-hidden ${colors.bg} mt-6`}
+          >
+            {/* Finisher Header */}
+            <div className={`px-4 py-3 border-b ${colors.border.replace('border-', 'border-').replace('/50', '/30')}`}>
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <span className={`text-xs font-bold ${colors.text} uppercase tracking-wider`}>
+                    Finisher
+                  </span>
+                  <span className="text-zinc-500 text-xs">•</span>
+                  <span className="text-zinc-400 text-sm font-medium">{finisher.name}</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  {finisher.isEmom && (
+                    <span className={`px-2 py-0.5 ${colors.bg} ${colors.text} text-xs font-semibold rounded-full border ${colors.border}`}>
+                      EMOM {finisher.emomInterval ? `${finisher.emomInterval >= 60 ? `${finisher.emomInterval / 60}min` : `${finisher.emomInterval}s`}` : ''}
+                    </span>
+                  )}
+                  {finisher.isSuperset && (
+                    <span className={`px-2 py-0.5 ${colors.bg} ${colors.text} text-xs font-semibold rounded-full border ${colors.border}`}>
+                      Superset
+                    </span>
+                  )}
+                </div>
+              </div>
+            </div>
+            
+            {/* Finisher Exercises */}
+            <div className={`${colors.divider} divide-y`}>
+              {finisherExerciseGroups.map((group) => {
+                if (group.type === 'superset') {
+                  return (
+                    <div key={group.supersetGroup} className="p-2">
+                      <div className="border border-yellow-400/30 rounded-xl overflow-hidden bg-yellow-400/5">
+                        <div className="px-3 py-1.5 border-b border-yellow-400/20">
+                          <span className="text-xs font-medium text-yellow-400 uppercase tracking-wide">
+                            Superset
+                          </span>
+                        </div>
+                        <div className="divide-y divide-yellow-400/20">
+                          {group.exercises.map((exercise) => (
+                            <div key={exercise.id} className="px-1 py-1">
+                              {renderExerciseCard(exercise, exercises.length + finisher.exercises.indexOf(exercise), true)}
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    </div>
+                  )
+                } else {
+                  const exercise = group.exercises[0]
+                  return (
+                    <div key={exercise.id} className="p-2">
+                      {renderExerciseCard(exercise, exercises.length + finisher.exercises.indexOf(exercise), false)}
+                    </div>
+                  )
+                }
+              })}
+            </div>
+          </div>
+        )
       })}
       
       {/* Auto-save indicator */}

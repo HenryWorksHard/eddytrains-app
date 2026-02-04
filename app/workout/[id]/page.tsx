@@ -237,6 +237,88 @@ export default async function WorkoutDetailPage({
       }
     })
 
+  // Fetch finishers for this workout (workouts with parent_workout_id = this workout's id)
+  const { data: finisherWorkouts } = await supabase
+    .from('program_workouts')
+    .select(`
+      id,
+      name,
+      category,
+      is_emom,
+      emom_interval,
+      is_superset,
+      workout_exercises (
+        id,
+        exercise_id,
+        exercise_name,
+        order_index,
+        notes,
+        superset_group,
+        exercise_sets (
+          id,
+          set_number,
+          reps,
+          intensity_type,
+          intensity_value,
+          rest_seconds,
+          notes,
+          cardio_type,
+          cardio_value,
+          cardio_unit,
+          heart_rate_zone,
+          hyrox_station,
+          hyrox_distance,
+          hyrox_unit,
+          hyrox_target_time,
+          hyrox_weight_class
+        )
+      )
+    `)
+    .eq('parent_workout_id', workoutId)
+
+  // Process finisher exercises
+  interface Finisher {
+    id: string
+    name: string
+    category: string
+    isEmom: boolean
+    emomInterval: number | null
+    isSuperset: boolean
+    exercises: WorkoutExercise[]
+  }
+
+  const finishers: Finisher[] = (finisherWorkouts || []).map(finisher => {
+    const finisherExercises: WorkoutExercise[] = ((finisher.workout_exercises as unknown) as WorkoutExercise[] || [])
+      .sort((a, b) => a.order_index - b.order_index)
+      .map(exercise => {
+        const tutorial = tutorialMap.get(exercise.exercise_name.toLowerCase())
+        const sets = ((exercise as unknown as { exercise_sets: ExerciseSet[] }).exercise_sets || [])
+          .sort((a: ExerciseSet, b: ExerciseSet) => a.set_number - b.set_number)
+          .map((s: ExerciseSet) => ({
+            ...s,
+            rest_bracket: s.rest_bracket || `${s.rest_seconds || 90}`,
+            is_custom: false
+          }))
+        
+        return {
+          ...exercise,
+          sets,
+          tutorial_url: tutorial?.url,
+          tutorial_steps: tutorial?.steps
+        }
+      })
+
+    return {
+      id: finisher.id,
+      name: finisher.name,
+      category: finisher.category || 'strength',
+      isEmom: finisher.is_emom || false,
+      emomInterval: finisher.emom_interval,
+      isSuperset: finisher.is_superset || false,
+      exercises: finisherExercises
+    }
+  })
+
   const programData = workout.programs as { id: string; name: string; emoji?: string }[] | { id: string; name: string; emoji?: string } | null
   const program = Array.isArray(programData) ? programData[0] : programData
 
@@ -295,6 +377,7 @@ export default async function WorkoutDetailPage({
             exercises={exercises}
             oneRMs={oneRMs}
             clientProgramId={clientProgramId}
+            finishers={finishers}
           />
         ) : (
           <div className="bg-zinc-900 border border-zinc-800 rounded-2xl p-8 text-center">
