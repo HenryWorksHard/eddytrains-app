@@ -3,11 +3,17 @@
 import { useState } from 'react'
 import { createClient } from '../lib/supabase/client'
 import BackButton from '../components/BackButton'
+import ProgressChart from '../components/ProgressChart'
 
 interface OneRM {
   id?: string
   exercise_name: string
   weight_kg: number
+}
+
+interface ProgressDataPoint {
+  date: string
+  value: number
 }
 
 const COMMON_LIFTS = [
@@ -21,11 +27,24 @@ const COMMON_LIFTS = [
   'Incline Bench Press'
 ]
 
-interface Props {
-  initialOneRMs: OneRM[]
+const LIFT_COLORS: Record<string, string> = {
+  'Squat': '#3b82f6',
+  'Bench Press': '#f59e0b',
+  'Deadlift': '#ef4444',
+  'Overhead Press': '#8b5cf6',
+  'Barbell Row': '#10b981',
+  'Front Squat': '#06b6d4',
+  'Romanian Deadlift': '#f97316',
+  'Incline Bench Press': '#eab308',
 }
 
-export default function OneRMClient({ initialOneRMs }: Props) {
+interface Props {
+  initialOneRMs: OneRM[]
+  progressData: Record<string, ProgressDataPoint[]>
+}
+
+export default function OneRMClient({ initialOneRMs, progressData }: Props) {
+  const [showCharts, setShowCharts] = useState(true)
   // Merge with common lifts
   const existingMap = new Map(initialOneRMs.map(rm => [rm.exercise_name, rm]))
   const merged = COMMON_LIFTS.map(name => 
@@ -185,6 +204,63 @@ export default function OneRMClient({ initialOneRMs }: Props) {
             </div>
           ))}
         </div>
+
+        {/* Progress Charts */}
+        {Object.keys(progressData).length > 0 && (
+          <div className="mt-6">
+            <button
+              onClick={() => setShowCharts(!showCharts)}
+              className="flex items-center justify-between w-full mb-3"
+            >
+              <h2 className="text-xs font-medium text-zinc-500 uppercase tracking-wider">
+                Progress Charts
+              </h2>
+              <svg 
+                className={`w-4 h-4 text-zinc-500 transition-transform ${showCharts ? 'rotate-180' : ''}`}
+                fill="none" 
+                viewBox="0 0 24 24" 
+                stroke="currentColor"
+              >
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+              </svg>
+            </button>
+            
+            {showCharts && (
+              <div className="space-y-3">
+                {/* Main lifts first */}
+                {COMMON_LIFTS
+                  .filter(lift => progressData[lift]?.length >= 2)
+                  .map(lift => (
+                    <ProgressChart
+                      key={lift}
+                      data={progressData[lift]}
+                      label={lift}
+                      color={LIFT_COLORS[lift] || '#facc15'}
+                    />
+                  ))
+                }
+                
+                {/* Other exercises */}
+                {Object.keys(progressData)
+                  .filter(ex => !COMMON_LIFTS.includes(ex) && progressData[ex].length >= 2)
+                  .map(exercise => (
+                    <ProgressChart
+                      key={exercise}
+                      data={progressData[exercise]}
+                      label={exercise}
+                    />
+                  ))
+                }
+                
+                {Object.values(progressData).every(d => d.length < 2) && (
+                  <p className="text-zinc-500 text-xs text-center py-4">
+                    Complete more workouts to see your progress!
+                  </p>
+                )}
+              </div>
+            )}
+          </div>
+        )}
 
         {/* Info Card */}
         <div className="mt-6 bg-zinc-900/50 border border-zinc-800 rounded-xl p-4">
