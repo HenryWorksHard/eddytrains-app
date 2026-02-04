@@ -132,6 +132,8 @@ export default async function WorkoutDetailPage({
       day_of_week,
       notes,
       program_id,
+      is_emom,
+      emom_interval,
       programs (
         id,
         name,
@@ -270,7 +272,14 @@ export default async function WorkoutDetailPage({
             <div className="flex-1">
               <h1 className="text-2xl font-bold text-white">{workout.name}</h1>
               <p className="text-zinc-400 text-sm mt-1">{program?.name}</p>
-              <p className="text-zinc-500 text-sm mt-2">{exercises.length} exercises</p>
+              <div className="flex items-center gap-3 mt-2">
+                <p className="text-zinc-500 text-sm">{exercises.length} exercises</p>
+                {workout.is_emom && (
+                  <span className="px-2 py-0.5 bg-yellow-400/20 text-yellow-400 text-xs font-semibold rounded-full">
+                    EMOM {workout.emom_interval ? `${workout.emom_interval >= 60 ? `${workout.emom_interval / 60}min` : `${workout.emom_interval}s`}` : ''}
+                  </span>
+                )}
+              </div>
             </div>
           </div>
         </div>
