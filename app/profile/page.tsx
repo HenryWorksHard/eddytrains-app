@@ -29,6 +29,15 @@ interface ProgressImage {
   created_at: string
 }
 
+interface WorkoutHistoryItem {
+  id: string
+  date: string
+  workoutName: string
+  programName: string
+  totalSets: number
+  totalVolume: number
+}
+
 // Common compound lifts for 1RM tracking
 const COMMON_LIFTS = [
   'Squat',
@@ -51,6 +60,7 @@ export default function ProfilePage() {
   const [uploadingImage, setUploadingImage] = useState(false)
   const [selectedImage, setSelectedImage] = useState<ProgressImage | null>(null)
   const [uploadingPfp, setUploadingPfp] = useState(false)
+  const [workoutHistory, setWorkoutHistory] = useState<WorkoutHistoryItem[]>([])
   const fileInputRef = useRef<HTMLInputElement>(null)
   const pfpInputRef = useRef<HTMLInputElement>(null)
   const router = useRouter()
@@ -86,6 +96,9 @@ export default function ProfilePage() {
       // Load progress images
       await loadProgressImages(user.id)
       
+      // Load workout history
+      await loadWorkoutHistory(user.id)
+      
       setLoading(false)
     }
 
@@ -106,6 +119,62 @@ export default function ProfilePage() {
       }
     } catch (err) {
       console.error('Failed to load progress images:', err)
+    }
+  }
+
+  const loadWorkoutHistory = async (userId: string) => {
+    try {
+      // Get recent workout logs
+      const { data: workoutLogs, error: logsError } = await supabase
+        .from('workout_logs')
+        .select(`
+          id,
+          workout_id,
+          completed_at,
+          program_workouts (
+            id,
+            name,
+            programs (
+              id,
+              name
+            )
+          )
+        `)
+        .eq('client_id', userId)
+        .order('completed_at', { ascending: false })
+        .limit(5)
+
+      if (logsError) throw logsError
+
+      // Get set logs for these workouts
+      const workoutLogIds = workoutLogs?.map(log => log.id) || []
+      
+      const { data: setLogs } = await supabase
+        .from('set_logs')
+        .select('workout_log_id, weight_kg, reps_completed')
+        .in('workout_log_id', workoutLogIds)
+
+      // Transform data
+      const history = workoutLogs?.map(log => {
+        const workout = log.program_workouts as unknown as { id: string; name: string; programs: { id: string; name: string } | null } | null
+        const workoutSetLogs = setLogs?.filter(sl => sl.workout_log_id === log.id) || []
+        
+        const totalSets = workoutSetLogs.length
+        const totalVolume = workoutSetLogs.reduce((sum, sl) => sum + ((sl.weight_kg || 0) * (sl.reps_completed || 0)), 0)
+
+        return {
+          id: log.id,
+          date: log.completed_at,
+          workoutName: workout?.name || 'Workout',
+          programName: workout?.programs?.name || '',
+          totalSets,
+          totalVolume
+        }
+      }) || []
+
+      setWorkoutHistory(history)
+    } catch (err) {
+      console.error('Failed to load workout history:', err)
     }
   }
 
@@ -533,6 +602,50 @@ export default function ProfilePage() {
             </div>
           </div>
         )}
+
+        {/* Recent Workouts Section */}
+        <section>
+          <div className="flex items-center justify-between mb-3">
+            <h2 className="text-sm font-medium text-zinc-500 uppercase tracking-wider">Recent Workouts</h2>
+            <a href="/history" className="text-xs text-yellow-400 hover:text-yellow-300">View All →</a>
+          </div>
+          <div className="bg-zinc-900 border border-zinc-800 rounded-2xl overflow-hidden">
+            {workoutHistory.length > 0 ? (
+              <div className="divide-y divide-zinc-800">
+                {workoutHistory.map((workout) => (
+                  <div key={workout.id} className="px-4 py-3 flex items-center justify-between">
+                    <div className="flex items-center gap-3 min-w-0">
+                      <div className="w-9 h-9 bg-green-500/20 rounded-lg flex items-center justify-center flex-shrink-0">
+                        <svg className="w-4 h-4 text-green-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                        </svg>
+                      </div>
+                      <div className="min-w-0">
+                        <p className="text-white text-sm font-medium truncate">{workout.workoutName}</p>
+                        <p className="text-zinc-500 text-xs truncate">{workout.programName}</p>
+                      </div>
+                    </div>
+                    <div className="text-right flex-shrink-0 ml-2">
+                      <p className="text-white text-xs font-medium">{workout.totalSets} sets</p>
+                      <p className="text-zinc-500 text-[10px]">
+                        {new Date(workout.date).toLocaleDateString(undefined, { day: 'numeric', month: 'short' })}
+                      </p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div className="px-4 py-8 text-center">
+                <div className="w-10 h-10 bg-zinc-800 rounded-xl flex items-center justify-center mx-auto mb-2">
+                  <svg className="w-5 h-5 text-zinc-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
+                  </svg>
+                </div>
+                <p className="text-zinc-500 text-sm">No workouts completed yet</p>
+              </div>
+            )}
+          </div>
+        </section>
 
         {/* Admin Section (only for admins) */}
         {profile?.role === 'admin' && (
