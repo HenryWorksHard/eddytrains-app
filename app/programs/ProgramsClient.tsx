@@ -139,55 +139,97 @@ export default function ProgramsClient({ clientPrograms, programWorkoutsMap }: P
               )}
             </button>
 
-            {/* Workouts List - Expandable */}
-            {isExpanded && cpWorkouts.length > 0 && (
-              <div className="space-y-2 pl-2 animate-fade-in">
-                {cpWorkouts.map((workout, widx) => (
-                  <div key={workout.id} className="space-y-1">
-                    {/* Main Workout */}
-                    <Link
-                      href={`/workout/${workout.id}?clientProgramId=${cp.id}`}
-                      className="block bg-zinc-900/80 border border-zinc-800 hover:border-yellow-400/50 rounded-xl p-4 transition-colors"
-                    >
+            {/* Workouts List - Expandable, Grouped by Day */}
+            {isExpanded && cpWorkouts.length > 0 && (() => {
+              // Group workouts by day
+              const groupedByDay: { day: number | null; dayName: string; workouts: typeof cpWorkouts }[] = []
+              const dayMap = new Map<number | null, typeof cpWorkouts>()
+              
+              cpWorkouts.forEach(w => {
+                const existing = dayMap.get(w.day_of_week)
+                if (existing) {
+                  existing.push(w)
+                } else {
+                  dayMap.set(w.day_of_week, [w])
+                }
+              })
+
+              // Sort: days first (0-6), then unassigned (null) at bottom
+              const sortedDays = Array.from(dayMap.keys()).sort((a, b) => {
+                if (a === null) return 1
+                if (b === null) return -1
+                return a - b
+              })
+
+              sortedDays.forEach(day => {
+                groupedByDay.push({
+                  day,
+                  dayName: day === null ? 'Unassigned' : daysOfWeek[day],
+                  workouts: dayMap.get(day) || []
+                })
+              })
+
+              return (
+                <div className="space-y-4 animate-fade-in">
+                  {groupedByDay.map((group) => (
+                    <div key={group.dayName} className="space-y-2">
+                      {/* Day Header */}
                       <div className="flex items-center gap-3">
                         <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${
-                          workout.day_of_week !== null ? 'bg-yellow-400/20' : 'bg-zinc-700'
+                          group.day !== null ? 'bg-yellow-400/20' : 'bg-zinc-700'
                         }`}>
                           <span className={`font-bold text-sm ${
-                            workout.day_of_week !== null ? 'text-yellow-400' : 'text-zinc-400'
+                            group.day !== null ? 'text-yellow-400' : 'text-zinc-400'
                           }`}>
-                            {workout.day_of_week !== null ? dayAbbrev[workout.day_of_week] : '?'}
+                            {group.day !== null ? dayAbbrev[group.day] : '?'}
                           </span>
                         </div>
-                        <div className="flex-1 min-w-0">
-                          <p className="text-white font-medium">{workout.name}</p>
-                          {workout.day_of_week !== null && (
-                            <p className="text-zinc-500 text-sm">{daysOfWeek[workout.day_of_week]}</p>
-                          )}
+                        <div>
+                          <p className="text-white font-medium">{group.dayName}</p>
+                          <p className="text-zinc-500 text-xs">{group.workouts.length} workout{group.workouts.length !== 1 ? 's' : ''}</p>
                         </div>
-                        <span className="text-yellow-400">→</span>
                       </div>
-                    </Link>
-                    
-                    {/* Finisher Sub-workout (nested) */}
-                    {workout.finisher && (
-                      <Link
-                        href={`/workout/${workout.finisher.id}?clientProgramId=${cp.id}`}
-                        className="block ml-6 bg-zinc-800/50 border border-zinc-700 hover:border-orange-400/50 rounded-lg p-3 transition-colors"
-                      >
-                        <div className="flex items-center gap-2">
-                          <div className="w-6 h-6 rounded bg-orange-500/20 flex items-center justify-center">
-                            <span className="text-orange-400 text-xs font-bold">F</span>
+
+                      {/* Workouts for this day */}
+                      <div className="space-y-2 pl-4 border-l-2 border-yellow-400/30">
+                        {group.workouts.map((workout) => (
+                          <div key={workout.id} className="space-y-1">
+                            {/* Main Workout */}
+                            <Link
+                              href={`/workout/${workout.id}?clientProgramId=${cp.id}`}
+                              className="block bg-zinc-900/80 border border-zinc-800 hover:border-yellow-400/50 rounded-xl p-4 transition-colors"
+                            >
+                              <div className="flex items-center gap-3">
+                                <div className="flex-1 min-w-0">
+                                  <p className="text-white font-medium">{workout.name}</p>
+                                </div>
+                                <span className="text-yellow-400">→</span>
+                              </div>
+                            </Link>
+                            
+                            {/* Finisher Sub-workout (nested) */}
+                            {workout.finisher && (
+                              <Link
+                                href={`/workout/${workout.finisher.id}?clientProgramId=${cp.id}`}
+                                className="block ml-4 bg-zinc-800/50 border border-zinc-700 hover:border-orange-400/50 rounded-lg p-3 transition-colors"
+                              >
+                                <div className="flex items-center gap-2">
+                                  <div className="w-6 h-6 rounded bg-orange-500/20 flex items-center justify-center">
+                                    <span className="text-orange-400 text-xs font-bold">F</span>
+                                  </div>
+                                  <p className="text-zinc-300 text-sm font-medium">{workout.finisher.name}</p>
+                                  <span className="text-orange-400 ml-auto text-sm">→</span>
+                                </div>
+                              </Link>
+                            )}
                           </div>
-                          <p className="text-zinc-300 text-sm font-medium">{workout.finisher.name}</p>
-                          <span className="text-orange-400 ml-auto text-sm">→</span>
-                        </div>
-                      </Link>
-                    )}
-                  </div>
-                ))}
-              </div>
-            )}
+                        ))}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )
+            })()}
           </div>
         )
       })}
