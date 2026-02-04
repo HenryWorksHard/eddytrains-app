@@ -340,22 +340,40 @@ export default function ExerciseCard({
   }
 
   const handleWeightChange = (setNumber: number, value: string) => {
+    // Allow empty, numbers, and decimal point
+    if (value !== '' && !/^[0-9]*\.?[0-9]*$/.test(value)) return
+    
     const weight = value === '' ? null : parseFloat(value)
-    const current = localLogs.get(setNumber) || { set_number: setNumber, weight_kg: null, reps_completed: null }
-    const updated = { ...current, weight_kg: weight }
-    setLocalLogs(new Map(localLogs.set(setNumber, updated)))
-    onLogUpdate(exerciseId, setNumber, weight, updated.reps_completed)
+    const weightToStore = value === '' ? null : (isNaN(weight!) ? null : weight)
+    
+    setLocalLogs(prev => {
+      const current = prev.get(setNumber) || { set_number: setNumber, weight_kg: null, reps_completed: null }
+      const updated = { ...current, weight_kg: weightToStore }
+      const newMap = new Map(prev)
+      newMap.set(setNumber, updated)
+      onLogUpdate(exerciseId, setNumber, weightToStore, current.reps_completed)
+      return newMap
+    })
   }
 
   const handleRepsChange = (setNumber: number, value: string, restBracket?: string) => {
+    // Allow empty and numbers only
+    if (value !== '' && !/^[0-9]*$/.test(value)) return
+    
     const reps = value === '' ? null : parseInt(value)
-    const current = localLogs.get(setNumber) || { set_number: setNumber, weight_kg: null, reps_completed: null }
-    const updated = { ...current, reps_completed: reps }
-    setLocalLogs(new Map(localLogs.set(setNumber, updated)))
-    onLogUpdate(exerciseId, setNumber, updated.weight_kg, reps)
+    const repsToStore = value === '' ? null : (isNaN(reps!) ? null : reps)
+    
+    setLocalLogs(prev => {
+      const current = prev.get(setNumber) || { set_number: setNumber, weight_kg: null, reps_completed: null }
+      const updated = { ...current, reps_completed: repsToStore }
+      const newMap = new Map(prev)
+      newMap.set(setNumber, updated)
+      onLogUpdate(exerciseId, setNumber, current.weight_kg, repsToStore)
+      return newMap
+    })
     
     // Start rest timer if reps were logged
-    if (reps !== null && reps > 0) {
+    if (repsToStore !== null && repsToStore > 0) {
       const restSeconds = parseRestBracket(restBracket)
       setRestTimer({ active: true, seconds: restSeconds, setNumber })
     }
@@ -505,22 +523,26 @@ export default function ExerciseCard({
                     {set.reps} @ {formatIntensity(set.intensity_type, set.intensity_value)}
                   </div>
                   <input
-                    type="number"
+                    type="text"
                     inputMode="decimal"
+                    pattern="[0-9]*\.?[0-9]*"
                     placeholder={calculatedWeight ? `${calculatedWeight}` : '-'}
                     value={log?.weight_kg ?? ''}
                     onChange={(e) => handleWeightChange(set.set_number, e.target.value)}
-                    className="w-full px-3 py-2 bg-zinc-800 border border-zinc-700 rounded-lg text-white text-center font-medium focus:outline-none focus:ring-2 focus:ring-yellow-400 focus:border-transparent"
+                    className="w-full px-3 py-2 bg-zinc-800 border border-zinc-700 rounded-lg text-white text-center font-medium focus:outline-none focus:ring-2 focus:ring-yellow-400 focus:border-transparent touch-manipulation"
                     onClick={e => e.stopPropagation()}
+                    onTouchStart={e => e.stopPropagation()}
                   />
                   <input
-                    type="number"
+                    type="text"
                     inputMode="numeric"
+                    pattern="[0-9]*"
                     placeholder={set.reps.split('-')[0] || '-'}
                     value={log?.reps_completed ?? ''}
                     onChange={(e) => handleRepsChange(set.set_number, e.target.value, set.rest_bracket)}
-                    className="w-full px-3 py-2 bg-zinc-800 border border-zinc-700 rounded-lg text-white text-center font-medium focus:outline-none focus:ring-2 focus:ring-yellow-400 focus:border-transparent"
+                    className="w-full px-3 py-2 bg-zinc-800 border border-zinc-700 rounded-lg text-white text-center font-medium focus:outline-none focus:ring-2 focus:ring-yellow-400 focus:border-transparent touch-manipulation"
                     onClick={e => e.stopPropagation()}
+                    onTouchStart={e => e.stopPropagation()}
                   />
                 </div>
               )
