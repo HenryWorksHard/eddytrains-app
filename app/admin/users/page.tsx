@@ -62,7 +62,7 @@ export default function AdminUsersPage() {
       {/* Info Banner */}
       <div className="mx-6 mt-6 p-4 bg-zinc-800/50 border border-zinc-700 rounded-xl">
         <p className="text-zinc-400 text-sm">
-          💡 To add or manage users with full features (permissions, programs, schedules), use the{' '}
+          To add or manage users with full features (permissions, programs, schedules), use the{' '}
           <a 
             href="https://eddytrains-admin.vercel.app/users" 
             target="_blank" 

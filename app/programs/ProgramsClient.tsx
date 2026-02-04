@@ -91,7 +91,7 @@ export default function ProgramsClient({ clientPrograms, programWorkoutsMap }: P
             >
               <div className="flex items-start gap-4">
                 <div className="w-14 h-14 bg-yellow-400/10 rounded-xl flex items-center justify-center text-2xl shrink-0">
-                  {prog?.emoji || '💪'}
+                  {prog?.category?.charAt(0).toUpperCase() || 'P'}
                 </div>
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2 mb-1">

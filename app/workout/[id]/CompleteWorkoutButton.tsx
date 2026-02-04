@@ -35,10 +35,10 @@ function WorkoutRatingModal({
   const [notes, setNotes] = useState('')
   const [showNotes, setShowNotes] = useState(false)
   
-  const difficultyOptions: { value: Difficulty; label: string; emoji: string }[] = [
-    { value: 'too_easy', label: 'Easy', emoji: '😎' },
-    { value: 'just_right', label: 'Good', emoji: '💪' },
-    { value: 'too_hard', label: 'Hard', emoji: '🔥' },
+  const difficultyOptions: { value: Difficulty; label: string }[] = [
+    { value: 'too_easy', label: 'Easy' },
+    { value: 'just_right', label: 'Good' },
+    { value: 'too_hard', label: 'Hard' },
   ]
   
   const handleSubmit = () => {
@@ -55,7 +55,7 @@ function WorkoutRatingModal({
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
             </svg>
           </div>
-          <h2 className="text-xl font-bold text-white">Nice work! 🎉</h2>
+          <h2 className="text-xl font-bold text-white">Nice work!</h2>
           <p className="text-zinc-500 text-sm">How was it?</p>
         </div>
         
@@ -94,8 +94,7 @@ function WorkoutRatingModal({
                     : 'bg-zinc-800 text-white hover:bg-zinc-700'
                 }`}
               >
-                <span className="text-lg">{option.emoji}</span>
-                <span className="text-xs font-medium ml-1">{option.label}</span>
+                <span className="text-sm font-medium">{option.label}</span>
               </button>
             ))}
           </div>
