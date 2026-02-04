@@ -197,13 +197,13 @@ export default function ProgramsClient({ clientPrograms, programWorkoutsMap }: P
                             {/* Main Workout */}
                             <Link
                               href={`/workout/${workout.id}?clientProgramId=${cp.id}`}
-                              className="block bg-zinc-900/80 border border-zinc-800 hover:border-yellow-400/50 rounded-xl p-4 transition-colors"
+                              className="block bg-zinc-100 dark:bg-zinc-900/80 border border-zinc-300 dark:border-zinc-800 hover:border-yellow-400/50 rounded-xl p-4 transition-colors"
                             >
                               <div className="flex items-center gap-3">
                                 <div className="flex-1 min-w-0">
-                                  <p className="text-white font-medium">{workout.name}</p>
+                                  <p className="text-black dark:text-white font-medium">{workout.name}</p>
                                 </div>
-                                <span className="text-yellow-400">→</span>
+                                <span className="text-yellow-500 dark:text-yellow-400">→</span>
                               </div>
                             </Link>
                             
@@ -211,13 +211,13 @@ export default function ProgramsClient({ clientPrograms, programWorkoutsMap }: P
                             {workout.finisher && (
                               <Link
                                 href={`/workout/${workout.finisher.id}?clientProgramId=${cp.id}`}
-                                className="block ml-4 bg-zinc-800/50 border border-zinc-700 hover:border-orange-400/50 rounded-lg p-3 transition-colors"
+                                className="block ml-4 bg-zinc-200/50 dark:bg-zinc-800/50 border border-zinc-300 dark:border-zinc-700 hover:border-orange-400/50 rounded-lg p-3 transition-colors"
                               >
                                 <div className="flex items-center gap-2">
                                   <div className="w-6 h-6 rounded bg-orange-500/20 flex items-center justify-center">
                                     <span className="text-orange-400 text-xs font-bold">F</span>
                                   </div>
-                                  <p className="text-zinc-300 text-sm font-medium">{workout.finisher.name}</p>
+                                  <p className="text-zinc-600 dark:text-zinc-300 text-sm font-medium">{workout.finisher.name}</p>
                                   <span className="text-orange-400 ml-auto text-sm">→</span>
                                 </div>
                               </Link>
