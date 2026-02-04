@@ -451,29 +451,29 @@ export default function ExerciseCard({
 
   return (
     <>
-      <div className="bg-zinc-900 border border-zinc-800 rounded-2xl overflow-hidden">
+      <div className="bg-zinc-900 border border-zinc-800 rounded-xl overflow-hidden">
         {/* Main Row - Always visible */}
         <div 
-          className="p-4 cursor-pointer"
+          className="p-3 cursor-pointer"
           onClick={() => setExpanded(!expanded)}
         >
           {/* Top Row: Number + Name + Actions */}
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2">
             {/* Exercise Number */}
-            <span className="w-8 h-8 rounded-lg bg-yellow-400/10 text-yellow-400 flex items-center justify-center font-bold text-sm flex-shrink-0">
+            <span className="w-7 h-7 rounded-lg bg-yellow-400/10 text-yellow-400 flex items-center justify-center font-bold text-xs flex-shrink-0">
               {index + 1}
             </span>
             
             {/* Exercise Name */}
-            <div className="flex-1 min-w-0 flex items-center gap-2">
-              <h3 className="font-semibold text-white truncate">{currentExerciseName}</h3>
+            <div className="flex-1 min-w-0 flex items-center gap-1.5">
+              <h3 className="font-semibold text-white text-sm truncate">{currentExerciseName}</h3>
               {currentExerciseName !== exerciseName && (
-                <span className="px-2 py-0.5 bg-yellow-500/20 text-yellow-400 text-xs rounded flex-shrink-0">
+                <span className="px-1.5 py-0.5 bg-yellow-500/20 text-yellow-400 text-[10px] rounded flex-shrink-0">
                   Swapped
                 </span>
               )}
               {supersetGroup && (
-                <span className="px-2 py-0.5 bg-purple-500/20 text-purple-400 text-xs rounded flex-shrink-0">
+                <span className="px-1.5 py-0.5 bg-purple-500/20 text-purple-400 text-[10px] rounded flex-shrink-0">
                   SS{supersetGroup}
                 </span>
               )}
@@ -485,10 +485,10 @@ export default function ExerciseCard({
                 e.stopPropagation()
                 setShowSwapModal(true)
               }}
-              className="p-2 text-zinc-500 hover:text-yellow-400 transition-colors flex-shrink-0"
+              className="p-1.5 text-zinc-500 hover:text-yellow-400 transition-colors flex-shrink-0"
               title="Swap Exercise"
             >
-              <RefreshCw className="w-4 h-4" />
+              <RefreshCw className="w-3.5 h-3.5" />
             </button>
             
             {/* Tutorial Icon Button */}
@@ -502,22 +502,22 @@ export default function ExerciseCard({
             
             {/* Expand Arrow */}
             <button className="p-1 text-zinc-500 hover:text-white transition-colors flex-shrink-0">
-              {expanded ? <ChevronUp className="w-5 h-5" /> : <ChevronDown className="w-5 h-5" />}
+              {expanded ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
             </button>
           </div>
           
           {/* Bottom Row: Sets × Reps | Intensity | Weight */}
-          <div className="flex items-center gap-2 mt-2 ml-11 text-sm flex-wrap">
+          <div className="flex items-center gap-1.5 mt-1.5 ml-9 text-xs flex-wrap">
             <span className="text-white font-medium">
-              {sets.length} sets × {sets[0]?.reps || '-'}
+              {sets.length} × {sets[0]?.reps || '-'}
             </span>
-            <span className="text-zinc-600">|</span>
+            <span className="text-zinc-600">•</span>
             <span className="text-yellow-400">
               {intensitySummary}
             </span>
             {calculatedWeight && (
               <>
-                <span className="text-zinc-600">|</span>
+                <span className="text-zinc-600">•</span>
                 <span className="text-green-400 font-medium">
                   {calculatedWeight}kg
                 </span>
@@ -526,7 +526,7 @@ export default function ExerciseCard({
           </div>
           
           {notes && !expanded && (
-            <p className="text-zinc-500 text-xs mt-2 ml-11">{notes}</p>
+            <p className="text-zinc-500 text-[10px] mt-1 ml-9 line-clamp-1">{notes}</p>
           )}
         </div>
         
@@ -540,19 +540,19 @@ export default function ExerciseCard({
               return (
                 <div 
                   key={set.set_number}
-                  className={`px-4 py-3 border-t border-zinc-800/50 ${isLogged ? 'bg-green-500/5' : ''}`}
+                  className={`px-3 py-2 border-t border-zinc-800/50 first:border-t-0 ${isLogged ? 'bg-green-500/5' : ''}`}
                 >
-                  <div className="flex items-center justify-between gap-3">
+                  <div className="flex items-center justify-between gap-2">
                     {/* Set number + status */}
-                    <div className="flex items-center gap-2 min-w-[50px]">
-                      <span className="w-7 h-7 rounded-lg bg-zinc-800 text-white flex items-center justify-center font-semibold text-sm">
+                    <div className="flex items-center gap-1.5 min-w-[40px]">
+                      <span className="w-6 h-6 rounded-md bg-zinc-800 text-white flex items-center justify-center font-semibold text-xs">
                         {set.set_number}
                       </span>
-                      {isLogged && <Check className="w-4 h-4 text-green-500" />}
+                      {isLogged && <Check className="w-3.5 h-3.5 text-green-500" />}
                     </div>
                     
                     {/* Target info */}
-                    <div className="text-zinc-500 text-xs flex-1">
+                    <div className="text-zinc-500 text-[10px] flex-1">
                       {set.reps} @ {formatIntensity(set.intensity_type, set.intensity_value)}
                     </div>
                     
@@ -562,28 +562,27 @@ export default function ExerciseCard({
                         e.stopPropagation()
                         openWheelPicker(set.set_number, set.reps, set.rest_bracket)
                       }}
-                      className={`flex items-center gap-3 px-4 py-2.5 rounded-xl transition-all active:scale-95 ${
+                      className={`flex items-center gap-2 px-3 py-2 rounded-lg transition-all active:scale-95 ${
                         isLogged 
                           ? 'bg-green-500/20 border border-green-500/30' 
                           : 'bg-yellow-400/10 border border-yellow-400/30 hover:bg-yellow-400/20'
                       }`}
                     >
                       {/* Weight display */}
-                      <div className="text-center min-w-[50px]">
-                        <span className={`font-bold text-base ${isLogged ? 'text-green-400' : 'text-white'}`}>
+                      <div className="text-center min-w-[40px]">
+                        <span className={`font-bold text-sm ${isLogged ? 'text-green-400' : 'text-white'}`}>
                           {log?.weight_kg ?? (calculatedWeight || '—')}
                         </span>
-                        <span className="text-zinc-500 text-xs ml-0.5">kg</span>
+                        <span className="text-zinc-500 text-[10px] ml-0.5">kg</span>
                       </div>
                       
-                      <span className="text-zinc-600">×</span>
+                      <span className="text-zinc-600 text-xs">×</span>
                       
                       {/* Reps display */}
-                      <div className="text-center min-w-[30px]">
-                        <span className={`font-bold text-base ${isLogged ? 'text-green-400' : 'text-white'}`}>
+                      <div className="text-center min-w-[24px]">
+                        <span className={`font-bold text-sm ${isLogged ? 'text-green-400' : 'text-white'}`}>
                           {log?.reps_completed ?? '—'}
                         </span>
-                        <span className="text-zinc-500 text-xs ml-0.5">reps</span>
                       </div>
                     </button>
                   </div>
@@ -592,8 +591,8 @@ export default function ExerciseCard({
             })}
             
             {notes && (
-              <div className="px-4 py-3 border-t border-zinc-800/50">
-                <p className="text-zinc-500 text-xs">{notes}</p>
+              <div className="px-3 py-2 border-t border-zinc-800/50">
+                <p className="text-zinc-500 text-[10px]">{notes}</p>
               </div>
             )}
           </div>
