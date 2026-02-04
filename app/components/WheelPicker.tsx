@@ -6,13 +6,16 @@ import { X, Check } from 'lucide-react'
 interface WheelPickerProps {
   isOpen: boolean
   onClose: () => void
-  onConfirm: (weight: number | null, reps: number | null) => void
+  onConfirm: (weight: number | null, reps: number | null, steps?: number | null) => void
   initialWeight?: number | null
   initialReps?: number | null
+  initialSteps?: number | null
   targetReps?: string
+  targetSteps?: string
   suggestedWeight?: number | null
   exerciseName?: string
   setNumber?: number
+  mode?: 'weight-reps' | 'steps'
 }
 
 // Single column picker component - COMPACT VERSION
@@ -137,16 +140,22 @@ export default function WheelPicker({
   onConfirm,
   initialWeight,
   initialReps,
+  initialSteps,
   targetReps,
+  targetSteps,
   suggestedWeight,
   exerciseName,
-  setNumber
+  setNumber,
+  mode = 'weight-reps'
 }: WheelPickerProps) {
   // Weight values (0-200 in 0.5 increments)
   const weightValues = Array.from({ length: 401 }, (_, i) => (i * 0.5).toFixed(1))
   
   // Reps values (0-50)
   const repsValues = Array.from({ length: 51 }, (_, i) => i)
+  
+  // Steps values (0-50000 in 100 increments)
+  const stepsValues = Array.from({ length: 501 }, (_, i) => i * 100)
   
   const getWeightIndex = (weight: number | null | undefined): number => {
     if (weight === null || weight === undefined) {
@@ -167,22 +176,40 @@ export default function WheelPicker({
     return reps
   }
   
+  const getStepsIndex = (steps: number | null | undefined): number => {
+    if (steps === null || steps === undefined) {
+      if (targetSteps) {
+        const match = targetSteps.match(/^(\d+)/)
+        if (match) return Math.round(parseInt(match[1]) / 100)
+      }
+      return 50 // Default to 5000 steps
+    }
+    return Math.round(steps / 100)
+  }
+  
   const [weightIndex, setWeightIndex] = useState(getWeightIndex(initialWeight))
   const [repsIndex, setRepsIndex] = useState(getRepsIndex(initialReps))
+  const [stepsIndex, setStepsIndex] = useState(getStepsIndex(initialSteps))
   
   useEffect(() => {
     if (isOpen) {
       setWeightIndex(getWeightIndex(initialWeight))
       setRepsIndex(getRepsIndex(initialReps))
+      setStepsIndex(getStepsIndex(initialSteps))
     }
-  }, [isOpen, initialWeight, initialReps, suggestedWeight, targetReps])
+  }, [isOpen, initialWeight, initialReps, initialSteps, suggestedWeight, targetReps, targetSteps])
   
   if (!isOpen) return null
   
   const handleConfirm = () => {
-    const weight = parseFloat(weightValues[weightIndex])
-    const reps = repsValues[repsIndex]
-    onConfirm(weight, reps)
+    if (mode === 'steps') {
+      const steps = stepsValues[stepsIndex]
+      onConfirm(null, null, steps)
+    } else {
+      const weight = parseFloat(weightValues[weightIndex])
+      const reps = repsValues[repsIndex]
+      onConfirm(weight, reps, null)
+    }
     onClose()
   }
   
@@ -223,28 +250,41 @@ export default function WheelPicker({
         </div>
         
         {/* Target info - Compact */}
-        {targetReps && (
+        {(targetReps || targetSteps) && (
           <div className="text-center py-1.5 text-xs border-b border-zinc-800/50">
             <span className="text-zinc-400">Target: </span>
-            <span className="text-yellow-400 font-medium">{targetReps} reps</span>
+            <span className="text-yellow-400 font-medium">
+              {mode === 'steps' ? `${targetSteps || '5000'} steps` : `${targetReps} reps`}
+            </span>
           </div>
         )}
         
         {/* Wheel Pickers - Compact */}
         <div className="flex gap-2 px-4 py-4">
-          <PickerColumn
-            values={weightValues}
-            selectedIndex={weightIndex}
-            onSelect={setWeightIndex}
-            label="Weight"
-            unit="kg"
-          />
-          <PickerColumn
-            values={repsValues}
-            selectedIndex={repsIndex}
-            onSelect={setRepsIndex}
-            label="Reps"
-          />
+          {mode === 'steps' ? (
+            <PickerColumn
+              values={stepsValues}
+              selectedIndex={stepsIndex}
+              onSelect={setStepsIndex}
+              label="Steps"
+            />
+          ) : (
+            <>
+              <PickerColumn
+                values={weightValues}
+                selectedIndex={weightIndex}
+                onSelect={setWeightIndex}
+                label="Weight"
+                unit="kg"
+              />
+              <PickerColumn
+                values={repsValues}
+                selectedIndex={repsIndex}
+                onSelect={setRepsIndex}
+                label="Reps"
+              />
+            </>
+          )}
         </div>
         
         {/* Confirm Button - Compact */}

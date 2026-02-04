@@ -20,6 +20,7 @@ interface SetLog {
   set_number: number
   weight_kg: number | null
   reps_completed: number | null
+  steps_completed?: number | null
 }
 
 interface Exercise {
@@ -315,7 +316,8 @@ export default function ExerciseCard({
     setNumber: number; 
     targetReps: string;
     restBracket?: string;
-  }>({ open: false, setNumber: 0, targetReps: '' })
+    mode: 'weight-reps' | 'steps';
+  }>({ open: false, setNumber: 0, targetReps: '', mode: 'weight-reps' })
   const [prCelebration, setPRCelebration] = useState<{
     show: boolean
     weight: number
@@ -426,20 +428,22 @@ export default function ExerciseCard({
   }
 
   // Handle wheel picker confirmation
-  const handleWheelPickerConfirm = (weight: number | null, reps: number | null) => {
+  const handleWheelPickerConfirm = (weight: number | null, reps: number | null, steps?: number | null) => {
     const setNumber = wheelPicker.setNumber
     const restBracket = wheelPicker.restBracket
     
     setLocalLogs(prev => {
-      const current = prev.get(setNumber) || { set_number: setNumber, weight_kg: null, reps_completed: null }
-      const updated = { ...current, weight_kg: weight, reps_completed: reps }
+      const current = prev.get(setNumber) || { set_number: setNumber, weight_kg: null, reps_completed: null, steps_completed: null }
+      const updated = steps !== undefined && steps !== null
+        ? { ...current, steps_completed: steps }
+        : { ...current, weight_kg: weight, reps_completed: reps }
       const newMap = new Map(prev)
       newMap.set(setNumber, updated)
       onLogUpdate(exerciseId, setNumber, weight, reps)
       return newMap
     })
     
-    // Check for PR (only if we have personal best data)
+    // Check for PR (only if we have personal best data and not steps)
     if (weight && reps && personalBest && isNewPR(weight, reps)) {
       setPRCelebration({ show: true, weight, reps })
       setSessionBest({ weight, reps })
@@ -451,18 +455,23 @@ export default function ExerciseCard({
       }
     }
     
-    // Start rest timer if reps were logged
-    if (reps !== null && reps > 0) {
+    // Start rest timer if reps or steps were logged
+    if ((reps !== null && reps > 0) || (steps !== null && steps !== undefined && steps > 0)) {
       const restSeconds = parseRestBracket(restBracket)
       setRestTimer({ active: true, seconds: restSeconds, setNumber })
     }
     
-    setWheelPicker({ open: false, setNumber: 0, targetReps: '' })
+    setWheelPicker({ open: false, setNumber: 0, targetReps: '', mode: 'weight-reps' })
   }
+
+  // Check if exercise is steps-based
+  const isStepsExercise = currentExerciseName.toLowerCase().includes('step') || 
+                          currentExerciseName.toLowerCase().includes('walk')
 
   // Open wheel picker for a set
   const openWheelPicker = (setNumber: number, targetReps: string, restBracket?: string) => {
-    setWheelPicker({ open: true, setNumber, targetReps, restBracket })
+    const mode = isStepsExercise ? 'steps' : 'weight-reps'
+    setWheelPicker({ open: true, setNumber, targetReps, restBracket, mode })
   }
 
   const handleExerciseSwap = async (newExerciseName: string, isCustom: boolean, customExerciseId?: string) => {
@@ -587,7 +596,9 @@ export default function ExerciseCard({
             {/* Set Rows */}
             {sets.map((set) => {
               const log = localLogs.get(set.set_number)
-              const isLogged = log?.reps_completed !== null && log?.reps_completed !== undefined
+              const isLogged = isStepsExercise 
+                ? (log?.steps_completed !== null && log?.steps_completed !== undefined)
+                : (log?.reps_completed !== null && log?.reps_completed !== undefined)
               return (
                 <div 
                   key={set.set_number}
@@ -604,7 +615,7 @@ export default function ExerciseCard({
                     
                     {/* Target info */}
                     <div className="text-zinc-500 text-[10px] flex-1">
-                      {set.reps} @ {formatIntensity(set.intensity_type, set.intensity_value)}
+                      {isStepsExercise ? `${set.reps} steps` : `${set.reps} @ ${formatIntensity(set.intensity_type, set.intensity_value)}`}
                     </div>
                     
                     {/* Tappable log button */}
@@ -619,22 +630,34 @@ export default function ExerciseCard({
                           : 'bg-yellow-400/10 border border-yellow-400/30 hover:bg-yellow-400/20'
                       }`}
                     >
-                      {/* Weight display */}
-                      <div className="text-center min-w-[40px]">
-                        <span className={`font-bold text-sm ${isLogged ? 'text-green-400' : 'text-white'}`}>
-                          {log?.weight_kg ?? (calculatedWeight || '—')}
-                        </span>
-                        <span className="text-zinc-500 text-[10px] ml-0.5">kg</span>
-                      </div>
-                      
-                      <span className="text-zinc-600 text-xs">×</span>
-                      
-                      {/* Reps display */}
-                      <div className="text-center min-w-[24px]">
-                        <span className={`font-bold text-sm ${isLogged ? 'text-green-400' : 'text-white'}`}>
-                          {log?.reps_completed ?? '—'}
-                        </span>
-                      </div>
+                      {isStepsExercise ? (
+                        /* Steps display */
+                        <div className="text-center min-w-[60px]">
+                          <span className={`font-bold text-sm ${isLogged ? 'text-green-400' : 'text-white'}`}>
+                            {log?.steps_completed ?? '—'}
+                          </span>
+                          <span className="text-zinc-500 text-[10px] ml-0.5">steps</span>
+                        </div>
+                      ) : (
+                        <>
+                          {/* Weight display */}
+                          <div className="text-center min-w-[40px]">
+                            <span className={`font-bold text-sm ${isLogged ? 'text-green-400' : 'text-white'}`}>
+                              {log?.weight_kg ?? (calculatedWeight || '—')}
+                            </span>
+                            <span className="text-zinc-500 text-[10px] ml-0.5">kg</span>
+                          </div>
+                          
+                          <span className="text-zinc-600 text-xs">×</span>
+                          
+                          {/* Reps display */}
+                          <div className="text-center min-w-[24px]">
+                            <span className={`font-bold text-sm ${isLogged ? 'text-green-400' : 'text-white'}`}>
+                              {log?.reps_completed ?? '—'}
+                            </span>
+                          </div>
+                        </>
+                      )}
                     </button>
                   </div>
                 </div>
@@ -673,14 +696,17 @@ export default function ExerciseCard({
       {/* Wheel Picker Modal */}
       <WheelPicker
         isOpen={wheelPicker.open}
-        onClose={() => setWheelPicker({ open: false, setNumber: 0, targetReps: '' })}
+        onClose={() => setWheelPicker({ open: false, setNumber: 0, targetReps: '', mode: 'weight-reps' })}
         onConfirm={handleWheelPickerConfirm}
         initialWeight={localLogs.get(wheelPicker.setNumber)?.weight_kg}
         initialReps={localLogs.get(wheelPicker.setNumber)?.reps_completed}
+        initialSteps={localLogs.get(wheelPicker.setNumber)?.steps_completed}
         targetReps={wheelPicker.targetReps}
+        targetSteps={wheelPicker.targetReps}
         suggestedWeight={calculatedWeight}
         exerciseName={currentExerciseName}
         setNumber={wheelPicker.setNumber}
+        mode={wheelPicker.mode}
       />
       
       {/* PR Celebration */}
