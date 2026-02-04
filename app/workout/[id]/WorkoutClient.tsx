@@ -304,14 +304,14 @@ export default function WorkoutClient({ workoutId, exercises, oneRMs, clientProg
               className="relative border-2 border-yellow-400/50 rounded-2xl overflow-hidden bg-yellow-400/5"
             >
               {/* Superset Label */}
-              <div className="absolute top-2 left-3 z-10">
+              <div className="px-3 py-2 border-b border-yellow-400/20">
                 <span className="text-xs font-medium text-yellow-400 uppercase tracking-wide">
                   Superset
                 </span>
               </div>
               
               {/* Superset Exercises */}
-              <div className="pt-6 divide-y divide-yellow-400/20">
+              <div className="divide-y divide-yellow-400/20">
                 {group.exercises.map((exercise, idx) => (
                   <div key={exercise.id} className="px-1 py-1">
                     {renderExerciseCard(exercise, exercises.indexOf(exercise), true)}

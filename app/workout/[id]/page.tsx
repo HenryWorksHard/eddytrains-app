@@ -296,6 +296,11 @@ export default async function WorkoutDetailPage({
           </div>
         )}
         
+        {/* Spacer for Complete Workout button */}
+        {exercises.length > 0 && (
+          <div className="h-24" />
+        )}
+        
         {/* Sentinel for scroll detection */}
         {exercises.length > 0 && (
           <div id="workout-end-sentinel" className="h-1" />
