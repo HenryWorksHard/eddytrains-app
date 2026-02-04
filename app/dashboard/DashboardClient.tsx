@@ -28,6 +28,7 @@ export default function DashboardClient({ firstName, workoutsByDay, programCount
   const [streak, setStreak] = useState(0)
 
   const daysOfWeek = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday']
+  const dayAbbrev = ['SU', 'MO', 'TU', 'WE', 'TH', 'FR', 'SA']
 
   useEffect(() => {
     setMounted(true)
@@ -163,17 +164,15 @@ export default function DashboardClient({ firstName, workoutsByDay, programCount
                     <div className="p-4">
                       <div className="flex items-center gap-4">
                         <div className={`w-12 h-12 rounded-xl flex items-center justify-center ${
-                          completed ? 'bg-green-500/20' : getCategoryColor(workout.programCategory)
+                          completed ? 'bg-green-500/20' : 'bg-yellow-400/20'
                         }`}>
                           {completed ? (
                             <svg className="w-6 h-6 text-green-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
                             </svg>
                           ) : (
-                            <span className="text-sm font-bold">
-                              {workout.programCategory === 'strength' ? 'S' :
-                               workout.programCategory === 'cardio' ? 'C' :
-                               workout.programCategory === 'hyrox' ? 'H' : 'HY'}
+                            <span className="text-sm font-bold text-yellow-400">
+                              {dayAbbrev[todayDayOfWeek]}
                             </span>
                           )}
                         </div>
