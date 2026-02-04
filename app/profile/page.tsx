@@ -603,10 +603,10 @@ export default function ProfilePage() {
           </div>
         )}
 
-        {/* Recent Workouts Section */}
+        {/* History Section */}
         <section>
           <div className="flex items-center justify-between mb-3">
-            <h2 className="text-sm font-medium text-zinc-500 uppercase tracking-wider">Recent Workouts</h2>
+            <h2 className="text-sm font-medium text-zinc-500 uppercase tracking-wider">History</h2>
             <a href="/history" className="text-xs text-yellow-400 hover:text-yellow-300">View All →</a>
           </div>
           <div className="bg-zinc-900 border border-zinc-800 rounded-2xl overflow-hidden">
