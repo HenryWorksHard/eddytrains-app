@@ -46,8 +46,8 @@ function WorkoutRatingModal({
   }
   
   return (
-    <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-end sm:items-center justify-center">
-      <div className="bg-zinc-900 border-t sm:border border-zinc-700 rounded-t-3xl sm:rounded-3xl w-full sm:max-w-sm sm:mx-4 overflow-hidden animate-slide-up">
+    <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center px-4">
+      <div className="bg-zinc-900 border border-zinc-700 rounded-3xl w-full max-w-sm overflow-hidden animate-slide-up">
         {/* Header - Compact */}
         <div className="p-4 text-center">
           <div className="w-12 h-12 bg-green-500/20 rounded-full flex items-center justify-center mx-auto mb-2">
