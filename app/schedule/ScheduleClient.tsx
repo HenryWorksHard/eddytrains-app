@@ -145,7 +145,7 @@ export default function ScheduleClient({ scheduleByDay, completedWorkouts, upcom
       case 'partial': return 'bg-yellow-500/20 border-yellow-500/50 text-yellow-400'
       case 'skipped': return 'bg-red-500/20 border-red-500/50 text-red-400'
       case 'upcoming': return 'bg-zinc-700/30 border-zinc-600/50 text-zinc-400'
-      case 'rest': return 'bg-zinc-800/30 border-zinc-700/50 text-zinc-500'
+      case 'rest': return 'bg-blue-900/20 border-blue-800/40 text-blue-400/70'
       default: return 'bg-zinc-800/50 border-zinc-700 text-zinc-500'
     }
   }
