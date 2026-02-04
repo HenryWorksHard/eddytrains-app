@@ -4,8 +4,10 @@ import { useEffect, useState, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '../lib/supabase/client'
 import { compressImage } from '../lib/imageUtils'
+import { useTheme } from '../lib/ThemeContext'
 import BottomNav from '../components/BottomNav'
 import Image from 'next/image'
+import { Sun, Moon } from 'lucide-react'
 
 interface Profile {
   id: string
@@ -53,6 +55,7 @@ export default function ProfilePage() {
   const pfpInputRef = useRef<HTMLInputElement>(null)
   const router = useRouter()
   const supabase = createClient()
+  const { theme, toggleTheme } = useTheme()
 
   useEffect(() => {
     async function loadProfile() {
@@ -551,6 +554,29 @@ export default function ProfilePage() {
         <section>
           <h2 className="text-sm font-medium text-zinc-500 uppercase tracking-wider mb-3">Settings</h2>
           <div className="bg-zinc-900 border border-zinc-800 rounded-2xl overflow-hidden">
+            {/* Theme Toggle */}
+            <div className="flex items-center justify-between px-4 py-4 border-b border-zinc-800">
+              <div className="flex items-center gap-3">
+                {theme === 'dark' ? (
+                  <Moon className="w-5 h-5 text-zinc-400" />
+                ) : (
+                  <Sun className="w-5 h-5 text-yellow-400" />
+                )}
+                <span className="text-white">Theme</span>
+              </div>
+              <button
+                onClick={toggleTheme}
+                className={`relative w-12 h-7 rounded-full transition-colors ${
+                  theme === 'light' ? 'bg-yellow-400' : 'bg-zinc-700'
+                }`}
+              >
+                <div
+                  className={`absolute top-1 w-5 h-5 rounded-full bg-white shadow transition-transform ${
+                    theme === 'light' ? 'translate-x-6' : 'translate-x-1'
+                  }`}
+                />
+              </button>
+            </div>
             <a 
               href="/reset-password"
               className="flex items-center justify-between px-4 py-4 hover:bg-zinc-800/50 transition-colors"
