@@ -39,6 +39,7 @@ interface ProgramsClientProps {
 }
 
 const daysOfWeek = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
+const dayAbbrev = ['SU', 'MO', 'TU', 'WE', 'TH', 'FR', 'SA']
 
 export default function ProgramsClient({ clientPrograms, programWorkoutsMap }: ProgramsClientProps) {
   const [expandedPrograms, setExpandedPrograms] = useState<Set<string>>(new Set())
@@ -149,8 +150,14 @@ export default function ProgramsClient({ clientPrograms, programWorkoutsMap }: P
                       className="block bg-zinc-900/80 border border-zinc-800 hover:border-yellow-400/50 rounded-xl p-4 transition-colors"
                     >
                       <div className="flex items-center gap-3">
-                        <div className="w-8 h-8 rounded-lg bg-yellow-400/10 flex items-center justify-center">
-                          <span className="text-yellow-400 font-bold text-sm">{widx + 1}</span>
+                        <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${
+                          workout.day_of_week !== null ? 'bg-yellow-400/20' : 'bg-zinc-700'
+                        }`}>
+                          <span className={`font-bold text-sm ${
+                            workout.day_of_week !== null ? 'text-yellow-400' : 'text-zinc-400'
+                          }`}>
+                            {workout.day_of_week !== null ? dayAbbrev[workout.day_of_week] : '?'}
+                          </span>
                         </div>
                         <div className="flex-1 min-w-0">
                           <p className="text-white font-medium">{workout.name}</p>
