@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback } from 'react'
 import { ChevronDown, ChevronUp, RefreshCw, X, Check, Clock } from 'lucide-react'
 import TutorialModal from './TutorialModal'
 import { createClient } from '../../lib/supabase/client'
+import WheelPicker from '../../components/WheelPicker'
 
 interface ExerciseSet {
   set_number: number
@@ -301,6 +302,12 @@ export default function ExerciseCard({
   const [currentExerciseName, setCurrentExerciseName] = useState(exerciseName)
   const [clientId, setClientId] = useState<string | null>(null)
   const [muscleGroup, setMuscleGroup] = useState<string>('other')
+  const [wheelPicker, setWheelPicker] = useState<{ 
+    open: boolean; 
+    setNumber: number; 
+    targetReps: string;
+    restBracket?: string;
+  }>({ open: false, setNumber: 0, targetReps: '' })
   const supabase = createClient()
 
   // Get client ID and muscle group on mount
@@ -377,6 +384,34 @@ export default function ExerciseCard({
       const restSeconds = parseRestBracket(restBracket)
       setRestTimer({ active: true, seconds: restSeconds, setNumber })
     }
+  }
+
+  // Handle wheel picker confirmation
+  const handleWheelPickerConfirm = (weight: number | null, reps: number | null) => {
+    const setNumber = wheelPicker.setNumber
+    const restBracket = wheelPicker.restBracket
+    
+    setLocalLogs(prev => {
+      const current = prev.get(setNumber) || { set_number: setNumber, weight_kg: null, reps_completed: null }
+      const updated = { ...current, weight_kg: weight, reps_completed: reps }
+      const newMap = new Map(prev)
+      newMap.set(setNumber, updated)
+      onLogUpdate(exerciseId, setNumber, weight, reps)
+      return newMap
+    })
+    
+    // Start rest timer if reps were logged
+    if (reps !== null && reps > 0) {
+      const restSeconds = parseRestBracket(restBracket)
+      setRestTimer({ active: true, seconds: restSeconds, setNumber })
+    }
+    
+    setWheelPicker({ open: false, setNumber: 0, targetReps: '' })
+  }
+
+  // Open wheel picker for a set
+  const openWheelPicker = (setNumber: number, targetReps: string, restBracket?: string) => {
+    setWheelPicker({ open: true, setNumber, targetReps, restBracket })
   }
 
   const handleExerciseSwap = async (newExerciseName: string, isCustom: boolean, customExerciseId?: string) => {
@@ -498,14 +533,6 @@ export default function ExerciseCard({
         {/* Expanded Sets */}
         {expanded && (
           <div className="border-t border-zinc-800 bg-zinc-950/50">
-            {/* Header Row */}
-            <div className="grid grid-cols-4 gap-2 px-4 py-2 text-xs text-zinc-500 uppercase tracking-wider">
-              <div>Set</div>
-              <div>Target</div>
-              <div>Weight (kg)</div>
-              <div>Reps Done</div>
-            </div>
-            
             {/* Set Rows */}
             {sets.map((set) => {
               const log = localLogs.get(set.set_number)
@@ -513,37 +540,53 @@ export default function ExerciseCard({
               return (
                 <div 
                   key={set.set_number}
-                  className={`grid grid-cols-4 gap-2 px-4 py-3 border-t border-zinc-800/50 items-center ${isLogged ? 'bg-green-500/5' : ''}`}
+                  className={`px-4 py-3 border-t border-zinc-800/50 ${isLogged ? 'bg-green-500/5' : ''}`}
                 >
-                  <div className="flex items-center gap-2">
-                    <span className="text-white font-medium">{set.set_number}</span>
-                    {isLogged && <Check className="w-4 h-4 text-green-500" />}
+                  <div className="flex items-center justify-between gap-3">
+                    {/* Set number + status */}
+                    <div className="flex items-center gap-2 min-w-[50px]">
+                      <span className="w-7 h-7 rounded-lg bg-zinc-800 text-white flex items-center justify-center font-semibold text-sm">
+                        {set.set_number}
+                      </span>
+                      {isLogged && <Check className="w-4 h-4 text-green-500" />}
+                    </div>
+                    
+                    {/* Target info */}
+                    <div className="text-zinc-500 text-xs flex-1">
+                      {set.reps} @ {formatIntensity(set.intensity_type, set.intensity_value)}
+                    </div>
+                    
+                    {/* Tappable log button */}
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        openWheelPicker(set.set_number, set.reps, set.rest_bracket)
+                      }}
+                      className={`flex items-center gap-3 px-4 py-2.5 rounded-xl transition-all active:scale-95 ${
+                        isLogged 
+                          ? 'bg-green-500/20 border border-green-500/30' 
+                          : 'bg-yellow-400/10 border border-yellow-400/30 hover:bg-yellow-400/20'
+                      }`}
+                    >
+                      {/* Weight display */}
+                      <div className="text-center min-w-[50px]">
+                        <span className={`font-bold text-base ${isLogged ? 'text-green-400' : 'text-white'}`}>
+                          {log?.weight_kg ?? (calculatedWeight || '—')}
+                        </span>
+                        <span className="text-zinc-500 text-xs ml-0.5">kg</span>
+                      </div>
+                      
+                      <span className="text-zinc-600">×</span>
+                      
+                      {/* Reps display */}
+                      <div className="text-center min-w-[30px]">
+                        <span className={`font-bold text-base ${isLogged ? 'text-green-400' : 'text-white'}`}>
+                          {log?.reps_completed ?? '—'}
+                        </span>
+                        <span className="text-zinc-500 text-xs ml-0.5">reps</span>
+                      </div>
+                    </button>
                   </div>
-                  <div className="text-zinc-400 text-sm">
-                    {set.reps} @ {formatIntensity(set.intensity_type, set.intensity_value)}
-                  </div>
-                  <input
-                    type="text"
-                    inputMode="decimal"
-                    pattern="[0-9]*\.?[0-9]*"
-                    placeholder={calculatedWeight ? `${calculatedWeight}` : '-'}
-                    value={log?.weight_kg ?? ''}
-                    onChange={(e) => handleWeightChange(set.set_number, e.target.value)}
-                    className="w-full px-3 py-2 bg-zinc-800 border border-zinc-700 rounded-lg text-white text-center font-medium focus:outline-none focus:ring-2 focus:ring-yellow-400 focus:border-transparent touch-manipulation"
-                    onClick={e => e.stopPropagation()}
-                    onTouchStart={e => e.stopPropagation()}
-                  />
-                  <input
-                    type="text"
-                    inputMode="numeric"
-                    pattern="[0-9]*"
-                    placeholder={set.reps.split('-')[0] || '-'}
-                    value={log?.reps_completed ?? ''}
-                    onChange={(e) => handleRepsChange(set.set_number, e.target.value, set.rest_bracket)}
-                    className="w-full px-3 py-2 bg-zinc-800 border border-zinc-700 rounded-lg text-white text-center font-medium focus:outline-none focus:ring-2 focus:ring-yellow-400 focus:border-transparent touch-manipulation"
-                    onClick={e => e.stopPropagation()}
-                    onTouchStart={e => e.stopPropagation()}
-                  />
                 </div>
               )
             })}
@@ -576,6 +619,19 @@ export default function ExerciseCard({
           clientId={clientId}
         />
       )}
+      
+      {/* Wheel Picker Modal */}
+      <WheelPicker
+        isOpen={wheelPicker.open}
+        onClose={() => setWheelPicker({ open: false, setNumber: 0, targetReps: '' })}
+        onConfirm={handleWheelPickerConfirm}
+        initialWeight={localLogs.get(wheelPicker.setNumber)?.weight_kg}
+        initialReps={localLogs.get(wheelPicker.setNumber)?.reps_completed}
+        targetReps={wheelPicker.targetReps}
+        suggestedWeight={calculatedWeight}
+        exerciseName={currentExerciseName}
+        setNumber={wheelPicker.setNumber}
+      />
     </>
   )
 }
