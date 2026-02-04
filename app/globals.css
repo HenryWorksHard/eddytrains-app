@@ -74,6 +74,75 @@
   color: #a1a1aa !important;
 }
 
+/* Light mode navigation */
+.light-mode .bg-zinc-900\/95 {
+  background-color: rgba(255, 255, 255, 0.95) !important;
+}
+
+.light-mode nav.border-zinc-800 {
+  border-color: #e4e4e7 !important;
+}
+
+/* Light mode header */
+.light-mode header.bg-zinc-900,
+.light-mode header.bg-gradient-to-b {
+  background: linear-gradient(to bottom, #ffffff, #f4f4f5) !important;
+}
+
+.light-mode .from-zinc-900 {
+  --tw-gradient-from: #ffffff !important;
+}
+
+.light-mode .to-black {
+  --tw-gradient-to: #f4f4f5 !important;
+}
+
+/* Light mode various backgrounds */
+.light-mode .bg-zinc-800\/50 {
+  background-color: rgba(244, 244, 245, 0.5) !important;
+}
+
+.light-mode .bg-zinc-800\/70 {
+  background-color: rgba(228, 228, 231, 0.7) !important;
+}
+
+.light-mode .divide-zinc-800 > :not([hidden]) ~ :not([hidden]) {
+  border-color: #e4e4e7 !important;
+}
+
+/* Light mode inputs */
+.light-mode input.bg-zinc-800,
+.light-mode textarea.bg-zinc-800,
+.light-mode select.bg-zinc-800 {
+  background-color: #f4f4f5 !important;
+  border-color: #d4d4d8 !important;
+  color: #18181b !important;
+}
+
+.light-mode input::placeholder,
+.light-mode textarea::placeholder {
+  color: #a1a1aa !important;
+}
+
+/* Light mode modals and overlays */
+.light-mode .bg-black\/80,
+.light-mode .bg-black\/90 {
+  background-color: rgba(0, 0, 0, 0.6) !important;
+}
+
+/* Light mode cards with specific patterns */
+.light-mode .bg-green-500\/20 {
+  background-color: rgba(34, 197, 94, 0.15) !important;
+}
+
+.light-mode .bg-orange-500\/10 {
+  background-color: rgba(249, 115, 22, 0.1) !important;
+}
+
+.light-mode .bg-yellow-400\/10 {
+  background-color: rgba(250, 204, 21, 0.1) !important;
+}
+
 body {
   background: var(--background);
   color: var(--foreground);
