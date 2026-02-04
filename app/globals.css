@@ -204,6 +204,18 @@
   background: #d4d4d8;
 }
 
+/* Light mode - sticky headers with opacity */
+.light-mode .bg-black\/95,
+.light-mode .bg-black\/90,
+.light-mode .bg-black\/80 {
+  background-color: rgba(255, 255, 255, 0.95) !important;
+}
+
+.light-mode header.sticky,
+.light-mode header.fixed {
+  background-color: rgba(255, 255, 255, 0.95) !important;
+}
+
 body {
   background: var(--background) !important;
   color: var(--foreground);
