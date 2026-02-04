@@ -144,8 +144,8 @@ export default function ScheduleClient({ scheduleByDay, completedWorkouts, upcom
       case 'completed': return 'bg-green-500/20 border-green-500/50 text-green-400'
       case 'partial': return 'bg-yellow-500/20 border-yellow-500/50 text-yellow-400'
       case 'skipped': return 'bg-red-500/20 border-red-500/50 text-red-400'
-      case 'upcoming': return 'bg-zinc-700/30 border-zinc-600/50 text-zinc-400'
-      case 'rest': return 'bg-blue-900/20 border-blue-800/40 text-blue-400/70'
+      case 'upcoming': return 'bg-white/10 border-white/30 text-white'
+      case 'rest': return 'bg-zinc-800/30 border-zinc-700/50 text-zinc-500'
       default: return 'bg-zinc-800/50 border-zinc-700 text-zinc-500'
     }
   }
@@ -154,7 +154,7 @@ export default function ScheduleClient({ scheduleByDay, completedWorkouts, upcom
     switch (status) {
       case 'completed': return 'bg-green-500'
       case 'skipped': return 'bg-red-500'
-      case 'upcoming': return 'bg-yellow-500'
+      case 'upcoming': return 'bg-white'
       default: return 'bg-zinc-700'
     }
   }
@@ -377,7 +377,7 @@ export default function ScheduleClient({ scheduleByDay, completedWorkouts, upcom
                 <span className="text-zinc-400 text-xs">Complete</span>
               </div>
               <div className="flex items-center gap-1.5">
-                <div className="w-2.5 h-2.5 rounded-full bg-zinc-500" />
+                <div className="w-2.5 h-2.5 rounded-full bg-white" />
                 <span className="text-zinc-400 text-xs">Upcoming</span>
               </div>
               <div className="flex items-center gap-1.5">
