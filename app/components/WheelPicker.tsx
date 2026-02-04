@@ -9,13 +9,13 @@ interface WheelPickerProps {
   onConfirm: (weight: number | null, reps: number | null) => void
   initialWeight?: number | null
   initialReps?: number | null
-  targetReps?: string // e.g., "8-12" or "10"
+  targetReps?: string
   suggestedWeight?: number | null
   exerciseName?: string
   setNumber?: number
 }
 
-// Single column picker component
+// Single column picker component - COMPACT VERSION
 function PickerColumn({
   values,
   selectedIndex,
@@ -30,12 +30,11 @@ function PickerColumn({
   unit?: string
 }) {
   const containerRef = useRef<HTMLDivElement>(null)
-  const itemHeight = 44 // Height of each item in px
-  const visibleItems = 5 // Number of visible items
+  const itemHeight = 36 // Smaller item height
+  const visibleItems = 5
   const [isScrolling, setIsScrolling] = useState(false)
   const scrollTimeoutRef = useRef<NodeJS.Timeout>(null)
 
-  // Scroll to selected index on mount and when selection changes
   useEffect(() => {
     if (containerRef.current && !isScrolling) {
       const scrollTop = selectedIndex * itemHeight
@@ -51,12 +50,10 @@ function PickerColumn({
     
     setIsScrolling(true)
     
-    // Clear existing timeout
     if (scrollTimeoutRef.current) {
       clearTimeout(scrollTimeoutRef.current)
     }
     
-    // Debounce scroll end detection
     scrollTimeoutRef.current = setTimeout(() => {
       if (!containerRef.current) return
       
@@ -64,7 +61,6 @@ function PickerColumn({
       const newIndex = Math.round(scrollTop / itemHeight)
       const clampedIndex = Math.max(0, Math.min(values.length - 1, newIndex))
       
-      // Snap to nearest item
       containerRef.current.scrollTo({
         top: clampedIndex * itemHeight,
         behavior: 'smooth'
@@ -72,20 +68,20 @@ function PickerColumn({
       
       onSelect(clampedIndex)
       setIsScrolling(false)
-    }, 100)
+    }, 80)
   }, [values.length, itemHeight, onSelect])
 
   return (
     <div className="flex-1 flex flex-col items-center">
-      <div className="text-xs text-zinc-500 uppercase tracking-wider mb-2">{label}</div>
+      <div className="text-[10px] text-zinc-500 uppercase tracking-wider mb-1">{label}</div>
       
       <div className="relative w-full">
         {/* Selection indicator */}
-        <div className="absolute left-0 right-0 top-1/2 -translate-y-1/2 h-11 bg-zinc-800 rounded-xl pointer-events-none z-0" />
+        <div className="absolute left-0 right-0 top-1/2 -translate-y-1/2 h-9 bg-zinc-800 rounded-lg pointer-events-none z-0" />
         
         {/* Gradient overlays */}
-        <div className="absolute top-0 left-0 right-0 h-16 bg-gradient-to-b from-zinc-900 to-transparent pointer-events-none z-10" />
-        <div className="absolute bottom-0 left-0 right-0 h-16 bg-gradient-to-t from-zinc-900 to-transparent pointer-events-none z-10" />
+        <div className="absolute top-0 left-0 right-0 h-12 bg-gradient-to-b from-zinc-900 to-transparent pointer-events-none z-10" />
+        <div className="absolute bottom-0 left-0 right-0 h-12 bg-gradient-to-t from-zinc-900 to-transparent pointer-events-none z-10" />
         
         {/* Scrollable container */}
         <div
@@ -101,7 +97,7 @@ function PickerColumn({
           {values.map((value, index) => {
             const isSelected = index === selectedIndex
             const distance = Math.abs(index - selectedIndex)
-            const opacity = isSelected ? 1 : distance === 1 ? 0.5 : 0.25
+            const opacity = isSelected ? 1 : distance === 1 ? 0.5 : 0.2
             
             return (
               <div
@@ -119,12 +115,12 @@ function PickerColumn({
                 style={{
                   height: itemHeight,
                   opacity,
-                  transform: isSelected ? 'scale(1.1)' : 'scale(1)',
+                  transform: isSelected ? 'scale(1.05)' : 'scale(1)',
                 }}
               >
-                <span className={`text-xl font-semibold ${isSelected ? 'text-white' : 'text-zinc-400'}`}>
+                <span className={`text-base font-semibold ${isSelected ? 'text-white' : 'text-zinc-400'}`}>
                   {value}
-                  {unit && isSelected && <span className="text-sm ml-1 text-zinc-400">{unit}</span>}
+                  {unit && isSelected && <span className="text-xs ml-0.5 text-zinc-400">{unit}</span>}
                 </span>
               </div>
             )
@@ -146,16 +142,14 @@ export default function WheelPicker({
   exerciseName,
   setNumber
 }: WheelPickerProps) {
-  // Generate weight values (0-200 in 0.5 increments, plus common plates)
+  // Weight values (0-200 in 0.5 increments)
   const weightValues = Array.from({ length: 401 }, (_, i) => (i * 0.5).toFixed(1))
   
-  // Generate reps values (0-50)
+  // Reps values (0-50)
   const repsValues = Array.from({ length: 51 }, (_, i) => i)
   
-  // Find initial indices
   const getWeightIndex = (weight: number | null | undefined): number => {
     if (weight === null || weight === undefined) {
-      // Default to suggested weight or 20kg
       const defaultWeight = suggestedWeight ?? 20
       return Math.round(defaultWeight * 2)
     }
@@ -164,7 +158,6 @@ export default function WheelPicker({
   
   const getRepsIndex = (reps: number | null | undefined): number => {
     if (reps === null || reps === undefined) {
-      // Default to target reps (first number if range) or 10
       if (targetReps) {
         const match = targetReps.match(/^(\d+)/)
         if (match) return parseInt(match[1])
@@ -177,13 +170,12 @@ export default function WheelPicker({
   const [weightIndex, setWeightIndex] = useState(getWeightIndex(initialWeight))
   const [repsIndex, setRepsIndex] = useState(getRepsIndex(initialReps))
   
-  // Reset when opened with new values
   useEffect(() => {
     if (isOpen) {
       setWeightIndex(getWeightIndex(initialWeight))
       setRepsIndex(getRepsIndex(initialReps))
     }
-  }, [isOpen, initialWeight, initialReps])
+  }, [isOpen, initialWeight, initialReps, suggestedWeight, targetReps])
   
   if (!isOpen) return null
   
@@ -195,59 +187,51 @@ export default function WheelPicker({
   }
   
   return (
-    <div className="fixed inset-0 z-50 flex items-end justify-center">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
       {/* Backdrop */}
       <div 
-        className="absolute inset-0 bg-black/70 backdrop-blur-sm"
+        className="absolute inset-0 bg-black/60 backdrop-blur-sm"
         onClick={onClose}
       />
       
-      {/* Bottom Sheet */}
-      <div className="relative w-full max-w-md bg-zinc-900 rounded-t-3xl border-t border-zinc-700 animate-slide-up">
-        {/* Header */}
-        <div className="flex items-center justify-between p-4 border-b border-zinc-800">
+      {/* Centered Modal - Compact */}
+      <div className="relative w-full max-w-[280px] bg-zinc-900 rounded-2xl border border-zinc-700 shadow-xl animate-scale-in">
+        {/* Header - Compact */}
+        <div className="flex items-center justify-between px-3 py-2 border-b border-zinc-800">
           <button 
             onClick={onClose}
-            className="p-2 -ml-2 text-zinc-400 hover:text-white transition-colors"
+            className="p-1.5 text-zinc-400 hover:text-white transition-colors"
           >
-            <X className="w-5 h-5" />
+            <X className="w-4 h-4" />
           </button>
           
-          <div className="text-center">
+          <div className="text-center flex-1 mx-2">
             {exerciseName && (
-              <h3 className="text-white font-semibold truncate max-w-[200px]">{exerciseName}</h3>
+              <h3 className="text-white font-semibold text-sm truncate">{exerciseName}</h3>
             )}
             {setNumber && (
-              <p className="text-zinc-500 text-sm">Set {setNumber}</p>
+              <p className="text-zinc-500 text-xs">Set {setNumber}</p>
             )}
           </div>
           
           <button 
             onClick={handleConfirm}
-            className="p-2 -mr-2 text-yellow-400 hover:text-yellow-300 transition-colors"
+            className="p-1.5 text-yellow-400 hover:text-yellow-300 transition-colors"
           >
-            <Check className="w-6 h-6" />
+            <Check className="w-5 h-5" />
           </button>
         </div>
         
-        {/* Target info */}
-        {(targetReps || suggestedWeight) && (
-          <div className="flex justify-center gap-4 py-3 text-sm border-b border-zinc-800/50">
-            {suggestedWeight && (
-              <span className="text-zinc-400">
-                Suggested: <span className="text-green-400 font-medium">{suggestedWeight}kg</span>
-              </span>
-            )}
-            {targetReps && (
-              <span className="text-zinc-400">
-                Target: <span className="text-yellow-400 font-medium">{targetReps} reps</span>
-              </span>
-            )}
+        {/* Target info - Compact */}
+        {targetReps && (
+          <div className="text-center py-1.5 text-xs border-b border-zinc-800/50">
+            <span className="text-zinc-400">Target: </span>
+            <span className="text-yellow-400 font-medium">{targetReps} reps</span>
           </div>
         )}
         
-        {/* Wheel Pickers */}
-        <div className="flex gap-4 px-6 py-6">
+        {/* Wheel Pickers - Compact */}
+        <div className="flex gap-2 px-4 py-4">
           <PickerColumn
             values={weightValues}
             selectedIndex={weightIndex}
@@ -263,11 +247,11 @@ export default function WheelPicker({
           />
         </div>
         
-        {/* Confirm Button */}
-        <div className="p-4 pb-8">
+        {/* Confirm Button - Compact */}
+        <div className="px-4 pb-4">
           <button
             onClick={handleConfirm}
-            className="w-full py-4 bg-yellow-400 hover:bg-yellow-500 text-black font-bold rounded-2xl transition-colors text-lg"
+            className="w-full py-2.5 bg-yellow-400 hover:bg-yellow-500 active:bg-yellow-600 text-black font-bold rounded-xl transition-colors text-sm"
           >
             Log Set
           </button>
@@ -275,16 +259,18 @@ export default function WheelPicker({
       </div>
       
       <style jsx>{`
-        @keyframes slide-up {
+        @keyframes scale-in {
           from {
-            transform: translateY(100%);
+            opacity: 0;
+            transform: scale(0.95);
           }
           to {
-            transform: translateY(0);
+            opacity: 1;
+            transform: scale(1);
           }
         }
-        .animate-slide-up {
-          animation: slide-up 0.3s ease-out;
+        .animate-scale-in {
+          animation: scale-in 0.2s ease-out;
         }
         .scrollbar-hide {
           -ms-overflow-style: none;
