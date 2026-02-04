@@ -124,7 +124,7 @@ export default async function WorkoutDetailPage({
   const oneRMs: Client1RM[] = userOneRMs || []
 
   // Fetch the workout with its exercises
-  const { data: workout } = await supabase
+  const { data: workout, error: workoutError } = await supabase
     .from('program_workouts')
     .select(`
       id,
@@ -160,7 +160,12 @@ export default async function WorkoutDetailPage({
     .eq('id', workoutId)
     .single()
 
+  if (workoutError) {
+    console.error('Workout fetch error:', workoutError, 'workoutId:', workoutId)
+  }
+
   if (!workout) {
+    console.error('Workout not found for ID:', workoutId)
     notFound()
   }
 
