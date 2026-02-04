@@ -123,6 +123,62 @@ export default async function WorkoutDetailPage({
   
   const oneRMs: Client1RM[] = userOneRMs || []
 
+  // Fetch personal bests from historical workout logs
+  const { data: workoutLogs } = await supabase
+    .from('workout_logs')
+    .select('id')
+    .eq('client_id', user.id)
+  
+  const workoutLogIds = workoutLogs?.map(log => log.id) || []
+  
+  // Get all set logs to calculate personal bests
+  const { data: allSetLogs } = await supabase
+    .from('set_logs')
+    .select(`
+      exercise_id,
+      weight_kg,
+      reps_completed
+    `)
+    .in('workout_log_id', workoutLogIds)
+    .not('weight_kg', 'is', null)
+    .not('reps_completed', 'is', null)
+
+  // Get exercise names for set logs
+  const exerciseIds = [...new Set(allSetLogs?.map(log => log.exercise_id) || [])]
+  
+  const { data: exercisesForPBs } = await supabase
+    .from('workout_exercises')
+    .select('id, exercise_name')
+    .in('id', exerciseIds)
+
+  const exerciseNameLookup = new Map(exercisesForPBs?.map(e => [e.id, e.exercise_name]) || [])
+
+  // Calculate personal bests using estimated 1RM (Epley formula)
+  const personalBestsMap = new Map<string, { weight_kg: number; reps: number; estimated1RM: number }>()
+  
+  allSetLogs?.forEach(log => {
+    const exerciseName = exerciseNameLookup.get(log.exercise_id)
+    if (!exerciseName || !log.weight_kg || !log.reps_completed) return
+    
+    const estimated1RM = log.weight_kg * (1 + log.reps_completed / 30)
+    const key = exerciseName.toLowerCase()
+    
+    const existing = personalBestsMap.get(key)
+    if (!existing || estimated1RM > existing.estimated1RM) {
+      personalBestsMap.set(key, {
+        weight_kg: log.weight_kg,
+        reps: log.reps_completed,
+        estimated1RM
+      })
+    }
+  })
+
+  const personalBests = Array.from(personalBestsMap.entries()).map(([name, data]) => ({
+    exercise_name: name,
+    weight_kg: data.weight_kg,
+    reps: data.reps
+  }))
+
   // Fetch the workout with its exercises
   const { data: workout, error: workoutError } = await supabase
     .from('program_workouts')
@@ -376,6 +432,7 @@ export default async function WorkoutDetailPage({
             workoutId={workoutId}
             exercises={exercises}
             oneRMs={oneRMs}
+            personalBests={personalBests}
             clientProgramId={clientProgramId}
             finishers={finishers}
           />

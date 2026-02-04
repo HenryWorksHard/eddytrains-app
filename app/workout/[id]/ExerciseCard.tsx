@@ -1,10 +1,11 @@
 'use client'
 
 import { useState, useEffect, useCallback } from 'react'
-import { ChevronDown, ChevronUp, RefreshCw, X, Check, Clock } from 'lucide-react'
+import { ChevronDown, ChevronUp, RefreshCw, X, Check, Clock, Trophy } from 'lucide-react'
 import TutorialModal from './TutorialModal'
 import { createClient } from '../../lib/supabase/client'
 import WheelPicker from '../../components/WheelPicker'
+import PRCelebration from '../../components/PRCelebration'
 
 interface ExerciseSet {
   set_number: number
@@ -27,6 +28,11 @@ interface Exercise {
   muscle_group: string
 }
 
+interface PersonalBest {
+  weight_kg: number
+  reps: number
+}
+
 interface ExerciseCardProps {
   exerciseId: string
   exerciseName: string
@@ -39,6 +45,7 @@ interface ExerciseCardProps {
   intensitySummary: string
   calculatedWeight?: number | null
   previousLogs?: SetLog[]
+  personalBest?: PersonalBest | null
   onLogUpdate: (exerciseId: string, setNumber: number, weight: number | null, reps: number | null) => void
   onExerciseSwap?: (exerciseId: string, newExerciseName: string, isCustom: boolean) => void
   workoutExerciseId?: string
@@ -291,6 +298,7 @@ export default function ExerciseCard({
   intensitySummary,
   calculatedWeight,
   previousLogs = [],
+  personalBest,
   onLogUpdate,
   onExerciseSwap,
   workoutExerciseId
@@ -308,6 +316,12 @@ export default function ExerciseCard({
     targetReps: string;
     restBracket?: string;
   }>({ open: false, setNumber: 0, targetReps: '' })
+  const [prCelebration, setPRCelebration] = useState<{
+    show: boolean
+    weight: number
+    reps: number
+  }>({ show: false, weight: 0, reps: 0 })
+  const [sessionBest, setSessionBest] = useState<{ weight: number; reps: number } | null>(null)
   const supabase = createClient()
 
   // Get client ID and muscle group on mount
@@ -386,6 +400,31 @@ export default function ExerciseCard({
     }
   }
 
+  // Check if this is a new PR (compare estimated 1RM using Epley formula)
+  const isNewPR = (weight: number, reps: number): boolean => {
+    if (!weight || !reps) return false
+    
+    // Calculate estimated 1RM for this set
+    const estimated1RM = weight * (1 + reps / 30)
+    
+    // Compare to personal best (if exists)
+    if (personalBest) {
+      const bestEstimated1RM = personalBest.weight_kg * (1 + personalBest.reps / 30)
+      if (estimated1RM > bestEstimated1RM) return true
+    }
+    
+    // Compare to session best
+    if (sessionBest) {
+      const sessionEstimated1RM = sessionBest.weight * (1 + sessionBest.reps / 30)
+      if (estimated1RM > sessionEstimated1RM) return true
+    } else if (!personalBest) {
+      // No previous data, any logged set with weight is a PR
+      return weight > 0 && reps > 0
+    }
+    
+    return false
+  }
+
   // Handle wheel picker confirmation
   const handleWheelPickerConfirm = (weight: number | null, reps: number | null) => {
     const setNumber = wheelPicker.setNumber
@@ -399,6 +438,18 @@ export default function ExerciseCard({
       onLogUpdate(exerciseId, setNumber, weight, reps)
       return newMap
     })
+    
+    // Check for PR (only if we have personal best data)
+    if (weight && reps && personalBest && isNewPR(weight, reps)) {
+      setPRCelebration({ show: true, weight, reps })
+      setSessionBest({ weight, reps })
+    } else if (weight && reps) {
+      // Update session best if better
+      const estimated1RM = weight * (1 + reps / 30)
+      if (!sessionBest || estimated1RM > sessionBest.weight * (1 + sessionBest.reps / 30)) {
+        setSessionBest({ weight, reps })
+      }
+    }
     
     // Start rest timer if reps were logged
     if (reps !== null && reps > 0) {
@@ -630,6 +681,16 @@ export default function ExerciseCard({
         suggestedWeight={calculatedWeight}
         exerciseName={currentExerciseName}
         setNumber={wheelPicker.setNumber}
+      />
+      
+      {/* PR Celebration */}
+      <PRCelebration
+        isOpen={prCelebration.show}
+        onClose={() => setPRCelebration({ show: false, weight: 0, reps: 0 })}
+        exerciseName={currentExerciseName}
+        weight={prCelebration.weight}
+        reps={prCelebration.reps}
+        previousBest={personalBest ? { weight: personalBest.weight_kg, reps: personalBest.reps } : undefined}
       />
     </>
   )

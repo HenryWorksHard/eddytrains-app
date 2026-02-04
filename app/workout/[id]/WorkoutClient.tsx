@@ -38,6 +38,12 @@ interface PreviousSetLog {
   reps_completed: number
 }
 
+interface PersonalBest {
+  exercise_name: string
+  weight_kg: number
+  reps: number
+}
+
 // Group exercises by superset
 function groupExercises(exercises: WorkoutExercise[]) {
   const groups: { type: 'single' | 'superset'; exercises: WorkoutExercise[]; supersetGroup?: string }[] = []
@@ -78,6 +84,7 @@ interface WorkoutClientProps {
   workoutId: string
   exercises: WorkoutExercise[]
   oneRMs: { exercise_name: string; weight_kg: number }[]
+  personalBests?: PersonalBest[]
   clientProgramId?: string
   finishers?: Finisher[]
 }
@@ -129,7 +136,7 @@ function formatIntensity(type: string, value: string) {
   }
 }
 
-export default function WorkoutClient({ workoutId, exercises, oneRMs, clientProgramId, finishers = [] }: WorkoutClientProps) {
+export default function WorkoutClient({ workoutId, exercises, oneRMs, personalBests = [], clientProgramId, finishers = [] }: WorkoutClientProps) {
   const [setLogs, setSetLogs] = useState<Map<string, SetLog>>(new Map())
   const [previousLogs, setPreviousLogs] = useState<Map<string, PreviousSetLog[]>>(new Map())
   const [saving, setSaving] = useState(false)
@@ -283,6 +290,11 @@ export default function WorkoutClient({ workoutId, exercises, oneRMs, clientProg
     const intensityValue = exercise.sets[0]?.intensity_value || '2'
     const calculatedWeight = calculateWeight(intensityType, intensityValue, oneRM)
     const prevLogs = previousLogs.get(exercise.id) || []
+    
+    // Find personal best for this exercise
+    const pb = personalBests.find(p => 
+      p.exercise_name.toLowerCase() === displayName.toLowerCase()
+    )
 
     return (
       <ExerciseCard
@@ -298,6 +310,7 @@ export default function WorkoutClient({ workoutId, exercises, oneRMs, clientProg
         intensitySummary={formatIntensity(intensityType, intensityValue)}
         calculatedWeight={calculatedWeight}
         previousLogs={prevLogs}
+        personalBest={pb ? { weight_kg: pb.weight_kg, reps: pb.reps } : null}
         onLogUpdate={handleLogUpdate}
         onExerciseSwap={handleExerciseSwap}
         workoutExerciseId={exercise.id}
