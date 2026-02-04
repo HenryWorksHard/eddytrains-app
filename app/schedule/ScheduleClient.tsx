@@ -353,8 +353,8 @@ export default function ScheduleClient({ scheduleByDay, completedWorkouts, upcom
                     } ${hasWorkouts ? 'border' : 'border border-zinc-800/50'} ${isToday ? 'font-bold ring-2 ring-yellow-400' : ''}`}
                   >
                     <span className={isToday ? 'text-yellow-400' : ''}>{date.getDate()}</span>
-                    {/* Multiple workout indicator dots */}
-                    {hasWorkouts && workouts.length > 1 && (
+                    {/* Workout category indicator dots */}
+                    {hasWorkouts && (
                       <div className="flex gap-0.5 mt-0.5">
                         {workouts.slice(0, 3).map((w, i) => (
                           <div key={i} className={`w-1 h-1 rounded-full ${getCategoryColor(w.programCategory)}`} />
@@ -375,10 +375,6 @@ export default function ScheduleClient({ scheduleByDay, completedWorkouts, upcom
               <div className="flex items-center gap-1.5">
                 <div className="w-2.5 h-2.5 rounded-full bg-green-500" />
                 <span className="text-zinc-400 text-xs">Complete</span>
-              </div>
-              <div className="flex items-center gap-1.5">
-                <div className="w-2.5 h-2.5 rounded-full bg-white" />
-                <span className="text-zinc-400 text-xs">Upcoming</span>
               </div>
               <div className="flex items-center gap-1.5">
                 <div className="w-2.5 h-2.5 rounded-full bg-red-500" />
