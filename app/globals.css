@@ -143,6 +143,67 @@
   background-color: rgba(250, 204, 21, 0.1) !important;
 }
 
+/* Light mode - comprehensive page backgrounds */
+.light-mode .min-h-screen.bg-black,
+.light-mode div.bg-black {
+  background-color: #f4f4f5 !important;
+}
+
+.light-mode .pb-32,
+.light-mode .pb-24,
+.light-mode .pb-20 {
+  background-color: #f4f4f5 !important;
+}
+
+/* Light mode - more text colors */
+.light-mode .text-zinc-300 {
+  color: #3f3f46 !important;
+}
+
+.light-mode .text-zinc-200 {
+  color: #27272a !important;
+}
+
+/* Light mode - more border colors */
+.light-mode .border-zinc-700\/50,
+.light-mode .border-zinc-800\/50 {
+  border-color: rgba(228, 228, 231, 0.5) !important;
+}
+
+/* Light mode - rounded backgrounds in cards */
+.light-mode .rounded-full.bg-zinc-800 {
+  background-color: #e4e4e7 !important;
+}
+
+.light-mode .rounded-2xl.bg-zinc-900,
+.light-mode .rounded-xl.bg-zinc-900,
+.light-mode .rounded-lg.bg-zinc-900 {
+  background-color: #ffffff !important;
+  border-color: #e4e4e7 !important;
+}
+
+/* Light mode - badge/pill backgrounds */
+.light-mode .bg-blue-500\/10 {
+  background-color: rgba(59, 130, 246, 0.1) !important;
+}
+
+.light-mode .bg-purple-500\/10 {
+  background-color: rgba(168, 85, 247, 0.1) !important;
+}
+
+.light-mode .bg-red-500\/10 {
+  background-color: rgba(239, 68, 68, 0.1) !important;
+}
+
+/* Light mode - scrollbar */
+.light-mode ::-webkit-scrollbar-track {
+  background: #f4f4f5;
+}
+
+.light-mode ::-webkit-scrollbar-thumb {
+  background: #d4d4d8;
+}
+
 body {
   background: var(--background);
   color: var(--foreground);
