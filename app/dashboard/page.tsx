@@ -38,6 +38,7 @@ export default async function DashboardPage() {
           name,
           day_of_week,
           order_index,
+          parent_workout_id,
           workout_exercises (
             id,
             exercise_name
@@ -73,6 +74,9 @@ export default async function DashboardPage() {
       
       if (program?.program_workouts) {
         for (const workout of program.program_workouts) {
+          // Skip finisher workouts (they have parent_workout_id set)
+          if ((workout as any).parent_workout_id) continue
+          
           if (workout.day_of_week !== null) {
             workoutsByDay[workout.day_of_week].push({
               id: workout.id,
