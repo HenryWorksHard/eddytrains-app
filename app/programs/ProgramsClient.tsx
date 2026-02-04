@@ -10,6 +10,10 @@ interface ProgramWorkout {
   day_of_week: number | null
   order_index: number
   program_id: string
+  finisher?: {
+    id: string
+    name: string
+  } | null
 }
 
 interface ClientProgram {
@@ -138,24 +142,42 @@ export default function ProgramsClient({ clientPrograms, programWorkoutsMap }: P
             {isExpanded && cpWorkouts.length > 0 && (
               <div className="space-y-2 pl-2 animate-fade-in">
                 {cpWorkouts.map((workout, widx) => (
-                  <Link
-                    key={workout.id}
-                    href={`/workout/${workout.id}?clientProgramId=${cp.id}`}
-                    className="block bg-zinc-900/80 border border-zinc-800 hover:border-yellow-400/50 rounded-xl p-4 transition-colors"
-                  >
-                    <div className="flex items-center gap-3">
-                      <div className="w-8 h-8 rounded-lg bg-yellow-400/10 flex items-center justify-center">
-                        <span className="text-yellow-400 font-bold text-sm">{widx + 1}</span>
+                  <div key={workout.id} className="space-y-1">
+                    {/* Main Workout */}
+                    <Link
+                      href={`/workout/${workout.id}?clientProgramId=${cp.id}`}
+                      className="block bg-zinc-900/80 border border-zinc-800 hover:border-yellow-400/50 rounded-xl p-4 transition-colors"
+                    >
+                      <div className="flex items-center gap-3">
+                        <div className="w-8 h-8 rounded-lg bg-yellow-400/10 flex items-center justify-center">
+                          <span className="text-yellow-400 font-bold text-sm">{widx + 1}</span>
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <p className="text-white font-medium">{workout.name}</p>
+                          {workout.day_of_week !== null && (
+                            <p className="text-zinc-500 text-sm">{daysOfWeek[workout.day_of_week]}</p>
+                          )}
+                        </div>
+                        <span className="text-yellow-400">→</span>
                       </div>
-                      <div className="flex-1 min-w-0">
-                        <p className="text-white font-medium">{workout.name}</p>
-                        {workout.day_of_week !== null && (
-                          <p className="text-zinc-500 text-sm">{daysOfWeek[workout.day_of_week]}</p>
-                        )}
-                      </div>
-                      <span className="text-yellow-400">→</span>
-                    </div>
-                  </Link>
+                    </Link>
+                    
+                    {/* Finisher Sub-workout (nested) */}
+                    {workout.finisher && (
+                      <Link
+                        href={`/workout/${workout.finisher.id}?clientProgramId=${cp.id}`}
+                        className="block ml-6 bg-zinc-800/50 border border-zinc-700 hover:border-orange-400/50 rounded-lg p-3 transition-colors"
+                      >
+                        <div className="flex items-center gap-2">
+                          <div className="w-6 h-6 rounded bg-orange-500/20 flex items-center justify-center">
+                            <span className="text-orange-400 text-xs font-bold">F</span>
+                          </div>
+                          <p className="text-zinc-300 text-sm font-medium">{workout.finisher.name}</p>
+                          <span className="text-orange-400 ml-auto text-sm">→</span>
+                        </div>
+                      </Link>
+                    )}
+                  </div>
                 ))}
               </div>
             )}

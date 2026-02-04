@@ -14,6 +14,10 @@ interface ProgramWorkout {
   day_of_week: number | null
   order_index: number
   program_id: string
+  finisher?: {
+    id: string
+    name: string
+  } | null
 }
 
 export default async function ProgramsPage() {
@@ -77,17 +81,39 @@ export default async function ProgramsPage() {
   if (allProgramIds.length > 0) {
     const { data: workoutsData } = await supabase
       .from('program_workouts')
-      .select('id, name, day_of_week, order_index, program_id')
+      .select('id, name, day_of_week, order_index, program_id, parent_workout_id')
       .in('program_id', allProgramIds)
       .order('order_index')
     
-    // Group workouts by program_id
-    const workouts: ProgramWorkout[] = workoutsData || []
-    workouts.forEach(w => {
+    // Group workouts by program_id, separating main workouts from finishers
+    const allWorkouts = workoutsData || []
+    const finishersByParent: Record<string, typeof allWorkouts> = {}
+    
+    // First pass: identify finishers
+    allWorkouts.forEach(w => {
+      if (w.parent_workout_id) {
+        if (!finishersByParent[w.parent_workout_id]) {
+          finishersByParent[w.parent_workout_id] = []
+        }
+        finishersByParent[w.parent_workout_id].push(w)
+      }
+    })
+    
+    // Second pass: add main workouts with their finishers attached
+    allWorkouts.forEach(w => {
+      // Skip finishers - they'll be nested under parent
+      if (w.parent_workout_id) return
+      
       if (!programWorkoutsMap[w.program_id]) {
         programWorkoutsMap[w.program_id] = []
       }
-      programWorkoutsMap[w.program_id].push(w)
+      
+      // Add finisher info if this workout has one
+      const finishers = finishersByParent[w.id] || []
+      programWorkoutsMap[w.program_id].push({
+        ...w,
+        finisher: finishers[0] || null // Attach first finisher
+      } as any)
     })
   }
   
