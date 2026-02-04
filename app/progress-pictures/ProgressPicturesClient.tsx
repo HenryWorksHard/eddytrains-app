@@ -4,7 +4,7 @@ import { useState, useRef, useEffect, useCallback } from 'react'
 import { createClient } from '../lib/supabase/client'
 import { compressImage } from '../lib/imageUtils'
 import Image from 'next/image'
-import Link from 'next/link'
+import BackButton from '../components/BackButton'
 
 interface ProgressImage {
   id: string
@@ -220,9 +220,7 @@ export default function ProgressPicturesClient({ initialImages }: Props) {
       {/* Header */}
       <header className="sticky top-0 bg-black/95 backdrop-blur-lg border-b border-zinc-800 z-40">
         <div className="px-6 py-4">
-          <Link href="/dashboard" className="text-yellow-400 text-sm font-medium mb-2 inline-block">
-            ← Back
-          </Link>
+          <BackButton className="mb-2" />
           <div className="flex items-center gap-3">
             <h1 className="text-xl font-bold text-white tracking-wide">Progress Pictures</h1>
           </div>

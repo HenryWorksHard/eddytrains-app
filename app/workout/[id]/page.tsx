@@ -1,7 +1,7 @@
 import { createClient } from '../../lib/supabase/server'
 import { redirect, notFound } from 'next/navigation'
 import BottomNav from '../../components/BottomNav'
-import Link from 'next/link'
+import BackButton from '../../components/BackButton'
 import CompleteWorkoutButton from './CompleteWorkoutButton'
 import WorkoutClient from './WorkoutClient'
 
@@ -265,9 +265,7 @@ export default async function WorkoutDetailPage({
       {/* Header */}
       <header className="bg-gradient-to-b from-zinc-900 to-black border-b border-zinc-800">
         <div className="px-6 py-4">
-          <Link href="/dashboard" className="text-yellow-400 text-sm font-medium mb-2 inline-block">
-            ← Back
-          </Link>
+          <BackButton className="mb-2" />
         </div>
         <div className="px-6 pb-6">
           <div className="flex items-start gap-4">
