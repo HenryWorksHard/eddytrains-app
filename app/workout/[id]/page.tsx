@@ -321,8 +321,8 @@ export default async function WorkoutDetailPage({
         )}
       </main>
 
-      {/* Complete Workout Button - appears when scrolled to bottom */}
-      {exercises.length > 0 && (
+      {/* Complete Workout Button - only shows for today's workout */}
+      {exercises.length > 0 && workout.day_of_week === new Date().getDay() && (
         <CompleteWorkoutButton 
           workoutId={workoutId}
           clientProgramId={clientProgramId}
