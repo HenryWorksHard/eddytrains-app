@@ -138,7 +138,7 @@ export interface NutritionPlan {
 export interface ClientNutrition {
   id: string
   client_id: string
-  nutrition_plan_id: string
+  plan_id: string
   custom_calories: number | null
   custom_protein: number | null
   custom_carbs: number | null
