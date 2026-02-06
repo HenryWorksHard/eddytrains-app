@@ -11,6 +11,17 @@ interface ExerciseSet {
   intensity_value: string
   rest_bracket?: string
   notes?: string
+  // Cardio fields
+  cardio_type?: string
+  cardio_value?: string
+  cardio_unit?: string
+  heart_rate_zone?: string
+  // Hyrox fields
+  hyrox_station?: string
+  hyrox_distance?: number
+  hyrox_unit?: string
+  hyrox_target_time?: string
+  hyrox_weight_class?: string
 }
 
 interface WorkoutExercise {
@@ -389,6 +400,40 @@ export default function WorkoutClient({ workoutId, exercises, oneRMs, personalBe
                   )}
                 </div>
               </div>
+              
+              {/* Hyrox Details - show if any exercise has hyrox data */}
+              {finisher.category === 'hyrox' && finisher.exercises.some(ex => ex.sets.some(s => s.hyrox_station || s.hyrox_distance)) && (
+                <div className="mt-2 flex flex-wrap gap-2">
+                  {finisher.exercises.map(ex => {
+                    const hyroxSet = ex.sets.find(s => s.hyrox_station || s.hyrox_distance)
+                    if (!hyroxSet) return null
+                    return (
+                      <div key={ex.id} className="flex flex-wrap items-center gap-2 text-xs">
+                        {hyroxSet.hyrox_station && (
+                          <span className="px-2 py-1 bg-red-500/20 text-red-300 rounded-lg font-medium">
+                            {hyroxSet.hyrox_station}
+                          </span>
+                        )}
+                        {hyroxSet.hyrox_distance && (
+                          <span className="text-zinc-300">
+                            {hyroxSet.hyrox_distance}{hyroxSet.hyrox_unit || 'm'}
+                          </span>
+                        )}
+                        {hyroxSet.hyrox_target_time && (
+                          <span className="text-yellow-400 font-medium">
+                            Target: {hyroxSet.hyrox_target_time}
+                          </span>
+                        )}
+                        {hyroxSet.hyrox_weight_class && (
+                          <span className="px-2 py-1 bg-zinc-700 text-zinc-300 rounded-lg">
+                            {hyroxSet.hyrox_weight_class}
+                          </span>
+                        )}
+                      </div>
+                    )
+                  })}
+                </div>
+              )}
             </div>
             
             {/* Finisher Exercises */}

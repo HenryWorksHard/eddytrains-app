@@ -15,6 +15,17 @@ interface ExerciseSet {
   weight_type?: string
   notes?: string
   is_custom?: boolean
+  // Cardio fields
+  cardio_type?: string
+  cardio_value?: string
+  cardio_unit?: string
+  heart_rate_zone?: string
+  // Hyrox fields
+  hyrox_station?: string
+  hyrox_distance?: number
+  hyrox_unit?: string
+  hyrox_target_time?: string
+  hyrox_weight_class?: string
 }
 
 interface WorkoutExercise {
