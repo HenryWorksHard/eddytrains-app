@@ -468,6 +468,33 @@ export default function ExerciseCard({
   const isStepsExercise = currentExerciseName.toLowerCase().includes('step') || 
                           currentExerciseName.toLowerCase().includes('walk')
 
+  // Get previous set's logged values to pre-fill next set
+  const getPreviousSetValues = (setNumber: number) => {
+    // Try current set first
+    const currentLog = localLogs.get(setNumber)
+    if (currentLog?.weight_kg || currentLog?.reps_completed || currentLog?.steps_completed) {
+      return currentLog
+    }
+    
+    // Try previous set
+    if (setNumber > 1) {
+      const prevLog = localLogs.get(setNumber - 1)
+      if (prevLog?.weight_kg || prevLog?.reps_completed || prevLog?.steps_completed) {
+        return prevLog
+      }
+    }
+    
+    // Try any logged set (first one found)
+    for (let i = 1; i < setNumber; i++) {
+      const log = localLogs.get(i)
+      if (log?.weight_kg || log?.reps_completed || log?.steps_completed) {
+        return log
+      }
+    }
+    
+    return null
+  }
+
   // Open wheel picker for a set
   const openWheelPicker = (setNumber: number, targetReps: string, restBracket?: string) => {
     const mode = isStepsExercise ? 'steps' : 'weight-reps'
@@ -694,20 +721,25 @@ export default function ExerciseCard({
       )}
       
       {/* Wheel Picker Modal */}
-      <WheelPicker
-        isOpen={wheelPicker.open}
-        onClose={() => setWheelPicker({ open: false, setNumber: 0, targetReps: '', mode: 'weight-reps' })}
-        onConfirm={handleWheelPickerConfirm}
-        initialWeight={localLogs.get(wheelPicker.setNumber)?.weight_kg}
-        initialReps={localLogs.get(wheelPicker.setNumber)?.reps_completed}
-        initialSteps={localLogs.get(wheelPicker.setNumber)?.steps_completed}
-        targetReps={wheelPicker.targetReps}
-        targetSteps={wheelPicker.targetReps}
-        suggestedWeight={calculatedWeight}
-        exerciseName={currentExerciseName}
-        setNumber={wheelPicker.setNumber}
-        mode={wheelPicker.mode}
-      />
+      {(() => {
+        const prevValues = getPreviousSetValues(wheelPicker.setNumber)
+        return (
+          <WheelPicker
+            isOpen={wheelPicker.open}
+            onClose={() => setWheelPicker({ open: false, setNumber: 0, targetReps: '', mode: 'weight-reps' })}
+            onConfirm={handleWheelPickerConfirm}
+            initialWeight={prevValues?.weight_kg}
+            initialReps={prevValues?.reps_completed}
+            initialSteps={prevValues?.steps_completed}
+            targetReps={wheelPicker.targetReps}
+            targetSteps={wheelPicker.targetReps}
+            suggestedWeight={calculatedWeight}
+            exerciseName={currentExerciseName}
+            setNumber={wheelPicker.setNumber}
+            mode={wheelPicker.mode}
+          />
+        )
+      })()}
       
       {/* PR Celebration */}
       <PRCelebration
