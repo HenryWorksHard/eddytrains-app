@@ -33,8 +33,11 @@ export default function ScheduleClient({ scheduleByDay, completedWorkouts, upcom
   const [today, setToday] = useState(new Date())
   const [currentMonth, setCurrentMonth] = useState(new Date())
 
-  const daysOfWeek = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
-  const fullDayNames = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday']
+  const daysOfWeek = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']
+  const fullDayNames = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday']
+  
+  // Convert JS getDay() (0=Sun) to Monday-first index (0=Mon)
+  const toMondayFirstIndex = (jsDay: number) => (jsDay + 6) % 7
 
   useEffect(() => {
     setMounted(true)
@@ -99,10 +102,13 @@ export default function ScheduleClient({ scheduleByDay, completedWorkouts, upcom
     }
   }
 
-  // Get week dates starting from current week's Sunday
+  // Get week dates starting from current week's Monday
   const getWeekDates = () => {
     const startOfWeek = new Date(today)
-    startOfWeek.setDate(today.getDate() - today.getDay())
+    const dayOfWeek = today.getDay()
+    // Adjust to Monday: if Sunday (0), go back 6 days; otherwise go back (day - 1) days
+    const daysToMonday = dayOfWeek === 0 ? 6 : dayOfWeek - 1
+    startOfWeek.setDate(today.getDate() - daysToMonday)
     
     const dates = []
     for (let i = 0; i < 7; i++) {
@@ -123,8 +129,9 @@ export default function ScheduleClient({ scheduleByDay, completedWorkouts, upcom
     
     const days: (Date | null)[] = []
     
-    // Add empty slots for days before first of month
-    for (let i = 0; i < firstDay.getDay(); i++) {
+    // Add empty slots for days before first of month (Monday-first)
+    const firstDayMondayIndex = toMondayFirstIndex(firstDay.getDay())
+    for (let i = 0; i < firstDayMondayIndex; i++) {
       days.push(null)
     }
     
@@ -183,7 +190,8 @@ export default function ScheduleClient({ scheduleByDay, completedWorkouts, upcom
           <div className="space-y-3">
             {weekDates.map((date, idx) => {
               const isToday = date.toDateString() === today.toDateString()
-              const dayOfWeek = date.getDay()
+              const dayOfWeek = date.getDay() // 0=Sun for scheduleByDay lookup
+              const dayIndex = toMondayFirstIndex(dayOfWeek) // 0=Mon for display
               const workouts = scheduleByDay[dayOfWeek] || []
               const hasWorkouts = workouts.length > 0
               const status = getDateStatus(date)
@@ -212,7 +220,7 @@ export default function ScheduleClient({ scheduleByDay, completedWorkouts, upcom
                       <div>
                         <div className="flex items-center gap-2">
                           <span className={`font-semibold text-white`}>
-                            {fullDayNames[dayOfWeek]}
+                            {fullDayNames[dayIndex]}
                           </span>
                           {isToday && (
                             <span className="px-2 py-0.5 bg-white text-black text-xs font-bold rounded-full">
