@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import { createClient } from '../../lib/supabase/client'
 import ExerciseCard from './ExerciseCard'
 
@@ -206,9 +206,6 @@ export default function WorkoutClient({ workoutId, exercises, oneRMs, personalBe
       updated.set(key, { exercise_id: exerciseId, set_number: setNumber, weight_kg: weight, reps_completed: reps })
       return updated
     })
-    
-    // Auto-save with debounce
-    debouncedSave()
   }, [])
 
   // Handle exercise swap
@@ -220,16 +217,39 @@ export default function WorkoutClient({ workoutId, exercises, oneRMs, personalBe
     })
   }, [])
 
-  // Debounced save function
-  const debouncedSave = useCallback(
-    debounce(async () => {
-      await saveWorkoutLogs()
-    }, 1500),
-    [setLogs, workoutLogId]
-  )
+  // Auto-save with debounce using useEffect to avoid stale closure issues
+  const saveTimeoutRef = useRef<NodeJS.Timeout | null>(null)
+  const pendingLogsRef = useRef<Map<string, SetLog>>(new Map())
+  
+  // Sync pendingLogsRef with setLogs state
+  useEffect(() => {
+    pendingLogsRef.current = new Map(setLogs)
+  }, [setLogs])
+
+  // Trigger save whenever setLogs changes
+  useEffect(() => {
+    if (setLogs.size === 0) return
+    
+    // Clear existing timeout
+    if (saveTimeoutRef.current) {
+      clearTimeout(saveTimeoutRef.current)
+    }
+    
+    // Set new debounced save
+    saveTimeoutRef.current = setTimeout(() => {
+      saveWorkoutLogs()
+    }, 1500)
+    
+    return () => {
+      if (saveTimeoutRef.current) {
+        clearTimeout(saveTimeoutRef.current)
+      }
+    }
+  }, [setLogs])
 
   const saveWorkoutLogs = async () => {
-    if (setLogs.size === 0) return
+    const logsToProcess = pendingLogsRef.current
+    if (logsToProcess.size === 0) return
     
     setSaving(true)
     try {
@@ -256,7 +276,7 @@ export default function WorkoutClient({ workoutId, exercises, oneRMs, personalBe
       }
 
       // Upsert set logs
-      const logsToSave = Array.from(setLogs.values())
+      const logsToSave = Array.from(logsToProcess.values())
         .filter(log => log.weight_kg !== null || log.reps_completed !== null)
         .map(log => ({
           workout_log_id: logId,
@@ -483,11 +503,4 @@ export default function WorkoutClient({ workoutId, exercises, oneRMs, personalBe
   )
 }
 
-// Debounce helper
-function debounce<T extends (...args: unknown[]) => unknown>(fn: T, ms: number) {
-  let timeoutId: ReturnType<typeof setTimeout>
-  return function (...args: Parameters<T>) {
-    clearTimeout(timeoutId)
-    timeoutId = setTimeout(() => fn(...args), ms)
-  }
-}
+// Debounce is now handled via useEffect in WorkoutClient

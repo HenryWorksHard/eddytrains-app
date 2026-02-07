@@ -154,11 +154,14 @@ export default function ProgramsClient({ clientPrograms, programWorkoutsMap }: P
                 }
               })
 
-              // Sort: days first (0-6), then unassigned (null) at bottom
+              // Sort: Monday-Sunday (1-6,0), then unassigned (null) at bottom
               const sortedDays = Array.from(dayMap.keys()).sort((a, b) => {
                 if (a === null) return 1
                 if (b === null) return -1
-                return a - b
+                // Convert to Monday-first index: Mon=0, Tue=1, ... Sun=6
+                const aIndex = a === 0 ? 6 : a - 1
+                const bIndex = b === 0 ? 6 : b - 1
+                return aIndex - bIndex
               })
 
               sortedDays.forEach(day => {

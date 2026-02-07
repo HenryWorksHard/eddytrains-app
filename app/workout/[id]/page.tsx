@@ -190,7 +190,7 @@ export default async function WorkoutDetailPage({
     reps: data.reps
   }))
 
-  // Fetch the workout with its exercises
+  // Fetch the workout with its exercises (now joined via exercise_uuid FK)
   const { data: workout, error: workoutError } = await supabase
     .from('program_workouts')
     .select(`
@@ -210,9 +210,18 @@ export default async function WorkoutDetailPage({
         id,
         exercise_id,
         exercise_name,
+        exercise_uuid,
         order_index,
         notes,
         superset_group,
+        exercises:exercise_uuid (
+          id,
+          name,
+          tutorial_url,
+          tutorial_steps,
+          muscle_group,
+          category
+        ),
         exercise_sets (
           id,
           set_number,
@@ -236,18 +245,7 @@ export default async function WorkoutDetailPage({
     notFound()
   }
 
-  // Try to fetch exercise tutorials from exercises table
-  const exerciseNames = ((workout.workout_exercises as unknown) as { exercise_name: string }[] || [])
-    .map(e => e.exercise_name)
-  
-  const { data: exerciseData } = await supabase
-    .from('exercises')
-    .select('name, tutorial_url, tutorial_steps')
-    .in('name', exerciseNames)
-  
-  const tutorialMap = new Map(
-    (exerciseData || []).map(e => [e.name.toLowerCase(), { url: e.tutorial_url, steps: e.tutorial_steps }])
-  )
+  // Tutorials are now fetched via the exercise_uuid FK join - no separate query needed
 
   // If we have a clientProgramId, fetch custom exercise sets
   let customSets: Record<string, ExerciseSet[]> = {}
@@ -276,12 +274,14 @@ export default async function WorkoutDetailPage({
     }
   }
 
-  // Merge exercises with custom sets and tutorials
+  // Merge exercises with custom sets and tutorials (now using FK-joined data)
   const exercises: WorkoutExercise[] = ((workout.workout_exercises as unknown) as WorkoutExercise[] || [])
     .sort((a, b) => a.order_index - b.order_index)
     .map(exercise => {
       const exerciseCustomSets = customSets[exercise.id]
-      const tutorial = tutorialMap.get(exercise.exercise_name.toLowerCase())
+      // Get exercise data from the FK join, fall back to stored name
+      const joinedExercise = (exercise as any).exercises
+      const exerciseName = joinedExercise?.name || exercise.exercise_name
       
       let sets: ExerciseSet[]
       if (exerciseCustomSets && exerciseCustomSets.length > 0) {
@@ -298,9 +298,10 @@ export default async function WorkoutDetailPage({
       
       return {
         ...exercise,
+        exercise_name: exerciseName, // Use joined name (auto-updates when exercise changes)
         sets,
-        tutorial_url: tutorial?.url,
-        tutorial_steps: tutorial?.steps
+        tutorial_url: joinedExercise?.tutorial_url || exercise.tutorial_url,
+        tutorial_steps: joinedExercise?.tutorial_steps || exercise.tutorial_steps
       }
     })
 
@@ -318,9 +319,16 @@ export default async function WorkoutDetailPage({
         id,
         exercise_id,
         exercise_name,
+        exercise_uuid,
         order_index,
         notes,
         superset_group,
+        exercises:exercise_uuid (
+          id,
+          name,
+          tutorial_url,
+          tutorial_steps
+        ),
         exercise_sets (
           id,
           set_number,
@@ -358,7 +366,8 @@ export default async function WorkoutDetailPage({
     const finisherExercises: WorkoutExercise[] = ((finisher.workout_exercises as unknown) as WorkoutExercise[] || [])
       .sort((a, b) => a.order_index - b.order_index)
       .map(exercise => {
-        const tutorial = tutorialMap.get(exercise.exercise_name.toLowerCase())
+        const joinedExercise = (exercise as any).exercises
+        const exerciseName = joinedExercise?.name || exercise.exercise_name
         const sets = ((exercise as unknown as { exercise_sets: ExerciseSet[] }).exercise_sets || [])
           .sort((a: ExerciseSet, b: ExerciseSet) => a.set_number - b.set_number)
           .map((s: ExerciseSet) => ({
@@ -369,9 +378,10 @@ export default async function WorkoutDetailPage({
         
         return {
           ...exercise,
+          exercise_name: exerciseName,
           sets,
-          tutorial_url: tutorial?.url,
-          tutorial_steps: tutorial?.steps
+          tutorial_url: joinedExercise?.tutorial_url,
+          tutorial_steps: joinedExercise?.tutorial_steps
         }
       })
 
