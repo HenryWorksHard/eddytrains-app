@@ -34,7 +34,7 @@ export async function middleware(request: NextRequest) {
   const pathname = request.nextUrl.pathname
 
   // Public routes that don't need auth
-  const publicRoutes = ['/login', '/reset-password', '/auth/callback']
+  const publicRoutes = ['/login', '/reset-password', '/auth/callback', '/api/exercise-gif']
   const isPublicRoute = publicRoutes.some(route => pathname.startsWith(route))
 
   // Protected routes - redirect to login if not authenticated
