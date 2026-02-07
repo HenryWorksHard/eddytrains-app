@@ -432,10 +432,6 @@ export default function ExerciseCard({
     const setNumber = wheelPicker.setNumber
     const restBracket = wheelPicker.restBracket
     
-    console.log('[WheelPicker] Confirm called:', { weight, reps, steps, setNumber, exerciseId })
-    // Temporary visual debug
-    alert(`Logged: ${weight}kg × ${reps} reps for set ${setNumber}`)
-    
     setLocalLogs(prev => {
       const current = prev.get(setNumber) || { set_number: setNumber, weight_kg: null, reps_completed: null, steps_completed: null }
       const updated = steps !== undefined && steps !== null
@@ -443,7 +439,6 @@ export default function ExerciseCard({
         : { ...current, weight_kg: weight, reps_completed: reps }
       const newMap = new Map(prev)
       newMap.set(setNumber, updated)
-      console.log('[WheelPicker] Updated log:', updated, 'Map size:', newMap.size)
       onLogUpdate(exerciseId, setNumber, weight, reps)
       return newMap
     })
