@@ -1,7 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
-import Image from 'next/image'
+import { useState } from 'react'
 
 interface TutorialModalProps {
   exerciseName: string
@@ -11,19 +10,6 @@ interface TutorialModalProps {
 
 export default function TutorialModal({ exerciseName, videoUrl, steps }: TutorialModalProps) {
   const [isOpen, setIsOpen] = useState(false)
-  const [gifLoaded, setGifLoaded] = useState(false)
-  const [gifError, setGifError] = useState(false)
-  
-  // Reset gif state when modal opens
-  useEffect(() => {
-    if (isOpen) {
-      setGifLoaded(false)
-      setGifError(false)
-    }
-  }, [isOpen])
-  
-  // Build GIF URL
-  const gifUrl = `/api/exercise-gif?name=${encodeURIComponent(exerciseName)}&resolution=720`
 
   // Convert YouTube URLs to embed format
   const getEmbedUrl = (url: string) => {
@@ -83,25 +69,6 @@ export default function TutorialModal({ exerciseName, videoUrl, steps }: Tutoria
 
             {/* Content */}
             <div className="flex-1 overflow-y-auto">
-              {/* Exercise GIF Animation */}
-              {!gifError && (
-                <div className="relative bg-black aspect-square max-h-[300px] flex items-center justify-center">
-                  {!gifLoaded && (
-                    <div className="absolute inset-0 flex items-center justify-center bg-zinc-900">
-                      <div className="w-8 h-8 border-2 border-yellow-400 border-t-transparent rounded-full animate-spin" />
-                    </div>
-                  )}
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img
-                    src={gifUrl}
-                    alt={`${exerciseName} demonstration`}
-                    className={`max-w-full max-h-[300px] object-contain transition-opacity ${gifLoaded ? 'opacity-100' : 'opacity-0'}`}
-                    onLoad={() => setGifLoaded(true)}
-                    onError={() => setGifError(true)}
-                  />
-                </div>
-              )}
-              
               {/* Video */}
               {embedUrl && (
                 <div className="relative bg-black aspect-video">
@@ -141,8 +108,8 @@ export default function TutorialModal({ exerciseName, videoUrl, steps }: Tutoria
                 </div>
               )}
 
-              {/* No content fallback - only show if no GIF loaded either */}
-              {gifError && !embedUrl && (!steps || steps.length === 0) && (
+              {/* No content fallback */}
+              {!embedUrl && (!steps || steps.length === 0) && (
                 <div className="p-8 text-center">
                   <p className="text-zinc-400">Tutorial content coming soon.</p>
                 </div>
