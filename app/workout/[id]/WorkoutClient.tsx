@@ -220,11 +220,17 @@ export default function WorkoutClient({ workoutId, exercises, oneRMs, personalBe
   // Auto-save with debounce using useEffect to avoid stale closure issues
   const saveTimeoutRef = useRef<NodeJS.Timeout | null>(null)
   const pendingLogsRef = useRef<Map<string, SetLog>>(new Map())
+  const isSavingRef = useRef(false)
+  const workoutLogIdRef = useRef<string | null>(null)
   
-  // Sync pendingLogsRef with setLogs state
+  // Keep refs in sync with state
   useEffect(() => {
     pendingLogsRef.current = new Map(setLogs)
   }, [setLogs])
+  
+  useEffect(() => {
+    workoutLogIdRef.current = workoutLogId
+  }, [workoutLogId])
 
   // Trigger save whenever setLogs changes
   useEffect(() => {
@@ -248,34 +254,56 @@ export default function WorkoutClient({ workoutId, exercises, oneRMs, personalBe
   }, [setLogs])
 
   const saveWorkoutLogs = async () => {
+    // Prevent concurrent saves
+    if (isSavingRef.current) return
+    
     const logsToProcess = pendingLogsRef.current
     if (logsToProcess.size === 0) return
     
+    isSavingRef.current = true
     setSaving(true)
+    
     try {
       const { data: { user } } = await supabase.auth.getUser()
       if (!user) return
 
-      let logId = workoutLogId
+      let logId = workoutLogIdRef.current
 
-      // Create workout log if doesn't exist
+      // Create or get workout log
       if (!logId) {
-        const { data: newLog, error: logError } = await supabase
+        // Use upsert to handle race condition - find existing or create new
+        const { data: existingLog } = await supabase
           .from('workout_logs')
-          .insert({
-            client_id: user.id,
-            workout_id: workoutId,
-            completed_at: new Date().toISOString()
-          })
           .select('id')
+          .eq('client_id', user.id)
+          .eq('workout_id', workoutId)
+          .gte('completed_at', new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString()) // Within last 24h
+          .order('completed_at', { ascending: false })
+          .limit(1)
           .single()
 
-        if (logError) throw logError
-        logId = newLog.id
+        if (existingLog) {
+          logId = existingLog.id
+        } else {
+          const { data: newLog, error: logError } = await supabase
+            .from('workout_logs')
+            .insert({
+              client_id: user.id,
+              workout_id: workoutId,
+              completed_at: new Date().toISOString()
+            })
+            .select('id')
+            .single()
+
+          if (logError) throw logError
+          logId = newLog.id
+        }
+        
         setWorkoutLogId(logId)
+        workoutLogIdRef.current = logId
       }
 
-      // Upsert set logs
+      // Build set logs for upsert
       const logsToSave = Array.from(logsToProcess.values())
         .filter(log => log.weight_kg !== null || log.reps_completed !== null)
         .map(log => ({
@@ -287,21 +315,33 @@ export default function WorkoutClient({ workoutId, exercises, oneRMs, personalBe
         }))
 
       if (logsToSave.length > 0) {
-        // Delete existing logs for this workout and re-insert
-        await supabase
-          .from('set_logs')
-          .delete()
-          .eq('workout_log_id', logId)
-
+        // Use upsert instead of delete+insert for atomicity
         const { error: setError } = await supabase
           .from('set_logs')
-          .insert(logsToSave)
+          .upsert(logsToSave, {
+            onConflict: 'workout_log_id,exercise_id,set_number',
+            ignoreDuplicates: false
+          })
 
-        if (setError) throw setError
+        if (setError) {
+          // Fallback to delete+insert if upsert fails (constraint might not exist yet)
+          console.warn('Upsert failed, falling back to delete+insert:', setError)
+          await supabase
+            .from('set_logs')
+            .delete()
+            .eq('workout_log_id', logId)
+          
+          const { error: insertError } = await supabase
+            .from('set_logs')
+            .insert(logsToSave)
+          
+          if (insertError) throw insertError
+        }
       }
     } catch (err) {
       console.error('Failed to save workout logs:', err)
     } finally {
+      isSavingRef.current = false
       setSaving(false)
     }
   }
