@@ -274,13 +274,19 @@ export default function ExerciseCard({
     init()
   }, [exerciseName])
 
-  // Initialize from previous logs
+  // Initialize from previous logs - merge with existing to avoid losing freshly logged sets
   useEffect(() => {
-    const logMap = new Map<number, SetLog>()
-    previousLogs.forEach(log => {
-      logMap.set(log.set_number, log)
+    setLocalLogs(prev => {
+      const newMap = new Map(prev)
+      previousLogs.forEach(log => {
+        // Only update if we don't have a more recent local entry
+        const existing = newMap.get(log.set_number)
+        if (!existing || (existing.weight_kg === null && existing.reps_completed === null)) {
+          newMap.set(log.set_number, log)
+        }
+      })
+      return newMap
     })
-    setLocalLogs(logMap)
   }, [previousLogs])
 
   const handleWeightChange = (setNumber: number, value: string) => {
