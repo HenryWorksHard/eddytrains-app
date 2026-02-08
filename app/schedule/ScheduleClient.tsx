@@ -32,6 +32,7 @@ export default function ScheduleClient({ scheduleByDay, completedWorkouts, upcom
   const [mounted, setMounted] = useState(false)
   const [today, setToday] = useState(new Date())
   const [currentMonth, setCurrentMonth] = useState(new Date())
+  const [selectedDate, setSelectedDate] = useState<Date | null>(null)
 
   const daysOfWeek = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']
   const fullDayNames = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday']
@@ -352,12 +353,13 @@ export default function ScheduleClient({ scheduleByDay, completedWorkouts, upcom
                 const hasWorkouts = workouts.length > 0
                 
                 return (
-                  <div
+                  <button
                     key={date.toISOString()}
-                    className={`aspect-square rounded-lg flex flex-col items-center justify-center text-sm transition-all ${
+                    onClick={() => setSelectedDate(date)}
+                    className={`aspect-square rounded-lg flex flex-col items-center justify-center text-sm transition-all cursor-pointer hover:scale-105 active:scale-95 ${
                       hasWorkouts
                         ? getStatusColor(status)
-                        : 'bg-zinc-800/30 text-zinc-500'
+                        : 'bg-zinc-800/30 text-zinc-500 hover:bg-zinc-700/50'
                     } ${hasWorkouts ? 'border' : 'border border-zinc-800/50'} ${isToday ? 'font-bold ring-2 ring-yellow-400' : ''}`}
                   >
                     <span className={isToday ? 'text-yellow-400' : ''}>{date.getDate()}</span>
@@ -373,7 +375,7 @@ export default function ScheduleClient({ scheduleByDay, completedWorkouts, upcom
                     {!hasWorkouts && !isToday && (
                       <span className="text-[8px] text-zinc-600 mt-0.5">REST</span>
                     )}
-                  </div>
+                  </button>
                 )
               })}
             </div>
@@ -442,6 +444,117 @@ export default function ScheduleClient({ scheduleByDay, completedWorkouts, upcom
           </section>
         )}
       </main>
+
+      {/* Day Detail Modal */}
+      {selectedDate && (
+        <div 
+          className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-end sm:items-center justify-center"
+          onClick={() => setSelectedDate(null)}
+        >
+          <div 
+            className="bg-zinc-900 border border-zinc-700 rounded-t-3xl sm:rounded-3xl w-full max-w-md max-h-[80vh] overflow-hidden"
+            onClick={e => e.stopPropagation()}
+          >
+            {/* Modal Header */}
+            <div className="p-4 border-b border-zinc-800 flex items-center justify-between">
+              <div>
+                <h3 className="text-lg font-semibold text-white">
+                  {fullDayNames[toMondayFirstIndex(selectedDate.getDay())]}
+                </h3>
+                <p className="text-zinc-400 text-sm">
+                  {selectedDate.toLocaleDateString(undefined, { month: 'long', day: 'numeric', year: 'numeric' })}
+                </p>
+              </div>
+              <button 
+                onClick={() => setSelectedDate(null)}
+                className="p-2 text-zinc-400 hover:text-white transition-colors"
+              >
+                <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+
+            {/* Modal Content */}
+            <div className="p-4 overflow-y-auto max-h-[60vh]">
+              {(() => {
+                const workouts = scheduleByDay[selectedDate.getDay()] || []
+                const status = getDateStatus(selectedDate)
+                const isDateToday = selectedDate.toDateString() === today.toDateString()
+                const isPast = selectedDate < today && !isDateToday
+                
+                if (workouts.length === 0) {
+                  return (
+                    <div className="text-center py-8">
+                      <div className="w-16 h-16 bg-zinc-800 rounded-full flex items-center justify-center mx-auto mb-4">
+                        <svg className="w-8 h-8 text-zinc-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z" />
+                        </svg>
+                      </div>
+                      <h4 className="text-white font-semibold mb-1">Rest Day</h4>
+                      <p className="text-zinc-500 text-sm">No workout scheduled. Recover well!</p>
+                    </div>
+                  )
+                }
+                
+                return (
+                  <div className="space-y-3">
+                    {workouts.map((workout) => {
+                      const workoutCompleted = isWorkoutCompleted(selectedDate, workout)
+                      return (
+                        <div 
+                          key={workout.workoutId}
+                          className={`p-4 rounded-xl border ${
+                            workoutCompleted 
+                              ? 'bg-green-500/10 border-green-500/30' 
+                              : 'bg-zinc-800/50 border-zinc-700'
+                          }`}
+                        >
+                          <div className="flex items-center gap-3 mb-2">
+                            <div className={`w-3 h-3 rounded-full ${getCategoryColor(workout.programCategory)}`} />
+                            <h4 className={`font-semibold ${workoutCompleted ? 'text-green-400' : 'text-white'}`}>
+                              {workout.workoutName}
+                            </h4>
+                            {workoutCompleted && (
+                              <svg className="w-5 h-5 text-green-500 ml-auto" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                              </svg>
+                            )}
+                          </div>
+                          <p className="text-zinc-400 text-sm mb-3">{workout.programName}</p>
+                          
+                          {/* Action button - only show for today or future dates with incomplete workouts */}
+                          {(isDateToday || !isPast) && !workoutCompleted && (
+                            <Link
+                              href={`/workout/${workout.workoutId}?clientProgramId=${workout.clientProgramId}`}
+                              className="block w-full bg-yellow-400 hover:bg-yellow-500 text-black font-semibold py-3 rounded-lg text-center transition-colors"
+                              onClick={() => setSelectedDate(null)}
+                            >
+                              Start Workout →
+                            </Link>
+                          )}
+                          
+                          {workoutCompleted && (
+                            <div className="text-green-400 text-sm font-medium text-center py-2">
+                              ✓ Completed
+                            </div>
+                          )}
+                          
+                          {isPast && !workoutCompleted && (
+                            <div className="text-red-400 text-sm font-medium text-center py-2">
+                              Missed
+                            </div>
+                          )}
+                        </div>
+                      )
+                    })}
+                  </div>
+                )
+              })()}
+            </div>
+          </div>
+        </div>
+      )}
     </>
   )
 }
