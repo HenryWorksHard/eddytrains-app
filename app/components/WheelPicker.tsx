@@ -158,22 +158,26 @@ export default function WheelPicker({
   const stepsValues = Array.from({ length: 501 }, (_, i) => i * 100)
   
   const getWeightIndex = (weight: number | null | undefined): number => {
-    if (weight === null || weight === undefined) {
-      const defaultWeight = suggestedWeight ?? 20
-      return Math.round(defaultWeight * 2)
+    // If we have a logged weight, use it
+    if (weight !== null && weight !== undefined && weight >= 0) {
+      return Math.round(weight * 2)
     }
-    return Math.round(weight * 2)
+    // Fall back to suggested weight or default
+    const defaultWeight = suggestedWeight ?? 20
+    return Math.round(defaultWeight * 2)
   }
   
   const getRepsIndex = (reps: number | null | undefined): number => {
-    if (reps === null || reps === undefined) {
-      if (targetReps) {
-        const match = targetReps.match(/^(\d+)/)
-        if (match) return parseInt(match[1])
-      }
-      return 10
+    // If we have logged reps, use them
+    if (reps !== null && reps !== undefined && reps >= 0) {
+      return reps
     }
-    return reps
+    // Fall back to target reps or default
+    if (targetReps) {
+      const match = targetReps.match(/^(\d+)/)
+      if (match) return parseInt(match[1])
+    }
+    return 10
   }
   
   const getStepsIndex = (steps: number | null | undefined): number => {

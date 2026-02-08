@@ -345,18 +345,21 @@ export default function ExerciseCard({
   // Handle wheel picker confirmation
   const handleWheelPickerConfirm = (weight: number | null, reps: number | null, steps?: number | null) => {
     const setNumber = wheelPicker.setNumber
-    const restBracket = wheelPicker.restBracket
+    if (!setNumber) return // Safety check
     
-    setLocalLogs(prev => {
-      const current = prev.get(setNumber) || { set_number: setNumber, weight_kg: null, reps_completed: null, steps_completed: null }
-      const updated = steps !== undefined && steps !== null
-        ? { ...current, steps_completed: steps }
-        : { ...current, weight_kg: weight, reps_completed: reps }
-      const newMap = new Map(prev)
-      newMap.set(setNumber, updated)
-      onLogUpdate(exerciseId, setNumber, weight, reps)
-      return newMap
-    })
+    // Create updated log
+    const current = localLogs.get(setNumber) || { set_number: setNumber, weight_kg: null, reps_completed: null, steps_completed: null }
+    const updated = (steps !== undefined && steps !== null)
+      ? { ...current, steps_completed: steps }
+      : { ...current, weight_kg: weight, reps_completed: reps }
+    
+    // Update local state immediately
+    const newMap = new Map(localLogs)
+    newMap.set(setNumber, updated)
+    setLocalLogs(newMap)
+    
+    // Notify parent
+    onLogUpdate(exerciseId, setNumber, weight, reps)
     
     // Check for PR (only if we have personal best data and not steps)
     if (weight && reps && personalBest && isNewPR(weight, reps)) {
@@ -379,24 +382,26 @@ export default function ExerciseCard({
 
   // Get previous set's logged values to pre-fill next set
   const getPreviousSetValues = (setNumber: number) => {
-    // Try current set first
+    if (!setNumber) return null
+    
+    // Try current set first (if re-editing)
     const currentLog = localLogs.get(setNumber)
-    if (currentLog?.weight_kg || currentLog?.reps_completed || currentLog?.steps_completed) {
+    if (currentLog && (currentLog.weight_kg !== null || currentLog.reps_completed !== null || currentLog.steps_completed !== null)) {
       return currentLog
     }
     
-    // Try previous set
+    // Try previous set (most common case - use same weight for next set)
     if (setNumber > 1) {
       const prevLog = localLogs.get(setNumber - 1)
-      if (prevLog?.weight_kg || prevLog?.reps_completed || prevLog?.steps_completed) {
+      if (prevLog && (prevLog.weight_kg !== null || prevLog.reps_completed !== null || prevLog.steps_completed !== null)) {
         return prevLog
       }
     }
     
-    // Try any logged set (first one found)
-    for (let i = 1; i < setNumber; i++) {
+    // Try any logged set from most recent to oldest
+    for (let i = setNumber - 1; i >= 1; i--) {
       const log = localLogs.get(i)
-      if (log?.weight_kg || log?.reps_completed || log?.steps_completed) {
+      if (log && (log.weight_kg !== null || log.reps_completed !== null || log.steps_completed !== null)) {
         return log
       }
     }
