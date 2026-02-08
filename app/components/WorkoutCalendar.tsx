@@ -290,50 +290,50 @@ export default function WorkoutCalendar({ scheduleByDay, completedWorkouts, comp
                     {workouts.map((workout) => {
                       const workoutCompleted = isWorkoutCompleted(selectedDate, workout)
                       return (
-                        <div 
+                        <Link
                           key={workout.workoutId}
-                          className={`p-3 rounded-xl border ${
+                          href={`/workout/${workout.workoutId}?clientProgramId=${workout.clientProgramId}`}
+                          onClick={() => setSelectedDate(null)}
+                          className={`block p-3 rounded-xl border transition-all active:scale-98 ${
                             workoutCompleted 
                               ? 'bg-green-500/10 border-green-500/30' 
-                              : 'bg-zinc-800/50 border-zinc-700'
+                              : isPast 
+                                ? 'bg-red-500/5 border-red-500/20'
+                                : 'bg-zinc-800/50 border-zinc-700 hover:border-yellow-400/50'
                           }`}
                         >
                           <div className="flex items-center gap-2 mb-1">
                             <div className={`w-2 h-2 rounded-full ${getCategoryColor(workout.programCategory)}`} />
-                            <h4 className={`font-medium text-sm ${workoutCompleted ? 'text-green-400' : 'text-white'}`}>
+                            <h4 className={`font-medium text-sm flex-1 ${
+                              workoutCompleted ? 'text-green-400' : 
+                              isPast ? 'text-red-400' : 'text-white'
+                            }`}>
                               {workout.workoutName}
                             </h4>
-                            {workoutCompleted && (
-                              <svg className="w-4 h-4 text-green-500 ml-auto" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            {workoutCompleted ? (
+                              <svg className="w-4 h-4 text-green-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                              </svg>
+                            ) : (
+                              <svg className="w-4 h-4 text-zinc-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
                               </svg>
                             )}
                           </div>
-                          <p className="text-zinc-400 text-xs mb-2">{workout.programName}</p>
-                          
-                          {/* Action button - only show for today or future dates with incomplete workouts */}
-                          {(isDateToday || !isPast) && !workoutCompleted && (
-                            <Link
-                              href={`/workout/${workout.workoutId}?clientProgramId=${workout.clientProgramId}`}
-                              className="block w-full bg-yellow-400 hover:bg-yellow-500 text-black font-semibold py-2 rounded-lg text-center text-sm transition-colors"
-                              onClick={() => setSelectedDate(null)}
-                            >
-                              Start Workout →
-                            </Link>
-                          )}
+                          <p className="text-zinc-400 text-xs">{workout.programName}</p>
                           
                           {workoutCompleted && (
-                            <div className="text-green-400 text-xs font-medium text-center py-1">
+                            <div className="text-green-400 text-xs font-medium mt-1">
                               ✓ Completed
                             </div>
                           )}
                           
                           {isPast && !workoutCompleted && (
-                            <div className="text-red-400 text-xs font-medium text-center py-1">
+                            <div className="text-red-400 text-xs font-medium mt-1">
                               Missed
                             </div>
                           )}
-                        </div>
+                        </Link>
                       )
                     })}
                   </div>
