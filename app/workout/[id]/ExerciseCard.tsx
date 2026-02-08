@@ -383,8 +383,8 @@ export default function ExerciseCard({
   }
 
   // Check if exercise is steps-based
-  const isStepsExercise = currentExerciseName.toLowerCase().includes('step') || 
-                          currentExerciseName.toLowerCase().includes('walk')
+  // Only "Steps" exercise uses steps-only mode (not walking/running)
+  const isStepsExercise = currentExerciseName.toLowerCase() === 'steps'
 
   // Get previous set's logged values to pre-fill next set
   const getPreviousSetValues = (setNumber: number) => {
