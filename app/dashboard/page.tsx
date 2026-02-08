@@ -97,7 +97,7 @@ export default async function DashboardPage() {
   const todayDayOfWeek = new Date().getDay()
   const todayWorkouts = workoutsByDay[todayDayOfWeek] || []
   
-  // Get completions for today
+  // Get completions for today (for simple today check)
   const completedWorkoutIds: Set<string> = new Set()
   if (todayWorkouts.length > 0) {
     const { data: completions } = await supabase
@@ -107,13 +107,44 @@ export default async function DashboardPage() {
       .eq('scheduled_date', today)
     
     completions?.forEach(c => {
-      // Create a unique key for workout+program combo
       completedWorkoutIds.add(`${c.workout_id}:${c.client_program_id}`)
     })
   }
   
   // Convert to serializable format
   const completedWorkoutsArray = Array.from(completedWorkoutIds)
+
+  // Get all completions for the current month (for calendar view)
+  const now = new Date()
+  const monthStart = new Date(now.getFullYear(), now.getMonth(), 1).toISOString().split('T')[0]
+  const monthEnd = new Date(now.getFullYear(), now.getMonth() + 1, 0).toISOString().split('T')[0]
+  
+  const { data: monthCompletions } = await supabase
+    .from('workout_completions')
+    .select('workout_id, client_program_id, scheduled_date')
+    .eq('client_id', user.id)
+    .gte('scheduled_date', monthStart)
+    .lte('scheduled_date', monthEnd)
+  
+  // Build calendar completions map: "date:workoutId:clientProgramId" -> true
+  const calendarCompletions: Record<string, boolean> = {}
+  monthCompletions?.forEach(c => {
+    const key = `${c.scheduled_date}:${c.workout_id}:${c.client_program_id}`
+    calendarCompletions[key] = true
+  })
+
+  // Transform workoutsByDay to calendar format (needs dayOfWeek, workoutId, etc.)
+  const scheduleByDay: Record<number, { dayOfWeek: number; workoutId: string; workoutName: string; programName: string; programCategory: string; clientProgramId: string }[]> = {}
+  for (let i = 0; i < 7; i++) {
+    scheduleByDay[i] = (workoutsByDay[i] || []).map(w => ({
+      dayOfWeek: i,
+      workoutId: w.id,
+      workoutName: w.name,
+      programName: w.programName,
+      programCategory: w.programCategory,
+      clientProgramId: w.clientProgramId
+    }))
+  }
 
   const firstName = profile?.full_name?.split(' ')[0] || user.email?.split('@')[0] || 'there'
   const programCount = userPrograms?.length || 0
@@ -125,6 +156,8 @@ export default async function DashboardPage() {
         workoutsByDay={workoutsByDay}
         programCount={programCount}
         completedWorkouts={completedWorkoutsArray}
+        scheduleByDay={scheduleByDay}
+        calendarCompletions={calendarCompletions}
       />
       <BottomNav />
     </div>
