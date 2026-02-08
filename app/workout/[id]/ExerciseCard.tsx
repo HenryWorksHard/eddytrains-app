@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect, useCallback } from 'react'
-import { ChevronDown, ChevronUp, RefreshCw, X, Check, Clock, Trophy } from 'lucide-react'
+import { ChevronDown, ChevronUp, RefreshCw, X, Check, Trophy } from 'lucide-react'
 import TutorialModal from './TutorialModal'
 import { createClient } from '../../lib/supabase/client'
 import WheelPicker from '../../components/WheelPicker'
@@ -50,77 +50,6 @@ interface ExerciseCardProps {
   onLogUpdate: (exerciseId: string, setNumber: number, weight: number | null, reps: number | null) => void
   onExerciseSwap?: (exerciseId: string, newExerciseName: string, isCustom: boolean) => void
   workoutExerciseId?: string
-}
-
-// Rest Timer Component
-function RestTimer({ seconds, onComplete, onSkip }: { seconds: number; onComplete: () => void; onSkip: () => void }) {
-  const [timeLeft, setTimeLeft] = useState(seconds)
-  
-  useEffect(() => {
-    if (timeLeft <= 0) {
-      onComplete()
-      return
-    }
-    
-    const timer = setInterval(() => {
-      setTimeLeft(prev => prev - 1)
-    }, 1000)
-    
-    return () => clearInterval(timer)
-  }, [timeLeft, onComplete])
-  
-  const progress = ((seconds - timeLeft) / seconds) * 100
-  const minutes = Math.floor(timeLeft / 60)
-  const secs = timeLeft % 60
-  
-  return (
-    <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center">
-      <div className="bg-zinc-900 border border-zinc-700 rounded-3xl p-8 text-center max-w-sm mx-4">
-        <div className="flex items-center justify-center gap-2 mb-4">
-          <Clock className="w-5 h-5 text-yellow-400" />
-          <span className="text-zinc-400 text-sm font-medium">Rest Timer</span>
-        </div>
-        
-        {/* Circular Progress */}
-        <div className="relative w-40 h-40 mx-auto mb-6">
-          <svg className="w-full h-full -rotate-90">
-            <circle
-              cx="80"
-              cy="80"
-              r="70"
-              fill="none"
-              stroke="#27272a"
-              strokeWidth="8"
-            />
-            <circle
-              cx="80"
-              cy="80"
-              r="70"
-              fill="none"
-              stroke="#facc15"
-              strokeWidth="8"
-              strokeLinecap="round"
-              strokeDasharray={2 * Math.PI * 70}
-              strokeDashoffset={2 * Math.PI * 70 * (1 - progress / 100)}
-              className="transition-all duration-1000 ease-linear"
-            />
-          </svg>
-          <div className="absolute inset-0 flex items-center justify-center">
-            <span className="text-4xl font-bold text-white">
-              {minutes}:{secs.toString().padStart(2, '0')}
-            </span>
-          </div>
-        </div>
-        
-        <button
-          onClick={onSkip}
-          className="px-6 py-3 bg-zinc-800 hover:bg-zinc-700 text-white rounded-xl font-medium transition-colors"
-        >
-          Skip Rest
-        </button>
-      </div>
-    </div>
-  )
 }
 
 // Exercise Swap Modal Component
@@ -306,7 +235,6 @@ export default function ExerciseCard({
 }: ExerciseCardProps) {
   const [expanded, setExpanded] = useState(false)
   const [localLogs, setLocalLogs] = useState<Map<number, SetLog>>(new Map())
-  const [restTimer, setRestTimer] = useState<{ active: boolean; seconds: number; setNumber: number }>({ active: false, seconds: 0, setNumber: 0 })
   const [showSwapModal, setShowSwapModal] = useState(false)
   const [currentExerciseName, setCurrentExerciseName] = useState(exerciseName)
   const [clientId, setClientId] = useState<string | null>(null)
@@ -355,13 +283,6 @@ export default function ExerciseCard({
     setLocalLogs(logMap)
   }, [previousLogs])
 
-  // Parse rest bracket to get seconds (e.g., "90-120" → 90)
-  const parseRestBracket = (bracket?: string): number => {
-    if (!bracket) return 90 // default
-    const match = bracket.match(/^(\d+)/)
-    return match ? parseInt(match[1]) : 90
-  }
-
   const handleWeightChange = (setNumber: number, value: string) => {
     // Allow empty, numbers, and decimal point
     if (value !== '' && !/^[0-9]*\.?[0-9]*$/.test(value)) return
@@ -394,12 +315,6 @@ export default function ExerciseCard({
       onLogUpdate(exerciseId, setNumber, current.weight_kg, repsToStore)
       return newMap
     })
-    
-    // Start rest timer if reps were logged
-    if (repsToStore !== null && repsToStore > 0) {
-      const restSeconds = parseRestBracket(restBracket)
-      setRestTimer({ active: true, seconds: restSeconds, setNumber })
-    }
   }
 
   // Check if this is a new PR (compare estimated 1RM using Epley formula)
@@ -453,12 +368,6 @@ export default function ExerciseCard({
       if (!sessionBest || estimated1RM > sessionBest.weight * (1 + sessionBest.reps / 30)) {
         setSessionBest({ weight, reps })
       }
-    }
-    
-    // Start rest timer if reps or steps were logged
-    if ((reps !== null && reps > 0) || (steps !== null && steps !== undefined && steps > 0)) {
-      const restSeconds = parseRestBracket(restBracket)
-      setRestTimer({ active: true, seconds: restSeconds, setNumber })
     }
     
     setWheelPicker({ open: false, setNumber: 0, targetReps: '', mode: 'weight-reps' })
@@ -699,15 +608,6 @@ export default function ExerciseCard({
           </div>
         )}
       </div>
-      
-      {/* Rest Timer Overlay */}
-      {restTimer.active && (
-        <RestTimer
-          seconds={restTimer.seconds}
-          onComplete={() => setRestTimer({ active: false, seconds: 0, setNumber: 0 })}
-          onSkip={() => setRestTimer({ active: false, seconds: 0, setNumber: 0 })}
-        />
-      )}
       
       {/* Swap Exercise Modal */}
       {showSwapModal && clientId && (
