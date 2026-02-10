@@ -214,18 +214,18 @@ export default function DashboardClient({ firstName, workoutsByDay, programCount
               
               {/* Tomorrow preview - show when all today's workouts are done */}
               {allTodayCompleted && tomorrowWorkouts.length > 0 && (
-                <div className="bg-zinc-900/50 border border-zinc-800 rounded-lg p-3 mt-3">
-                  <p className="text-zinc-500 text-xs mb-1.5">Tomorrow</p>
+                <div className="bg-zinc-100 dark:bg-zinc-900/50 border border-zinc-200 dark:border-zinc-800 rounded-lg p-3 mt-3">
+                  <p className="text-zinc-500 dark:text-zinc-500 text-xs mb-1.5">Tomorrow</p>
                   {tomorrowWorkouts.map((workout) => (
                     <Link
                       key={`tomorrow-${workout.id}`}
                       href={`/workout/${workout.id}?clientProgramId=${workout.clientProgramId}&preview=true`}
-                      className="flex items-center justify-between py-1.5 hover:bg-zinc-800/50 -mx-1.5 px-1.5 rounded-lg transition-colors"
+                      className="flex items-center justify-between py-1.5 hover:bg-zinc-200/50 dark:hover:bg-zinc-800/50 -mx-1.5 px-1.5 rounded-lg transition-colors"
                     >
-                      <span className="text-white text-sm">{workout.name}</span>
+                      <span className="text-zinc-900 dark:text-white text-sm">{workout.name}</span>
                       <div className="flex items-center gap-2">
                         <span className="text-zinc-500 text-xs">{workout.programName}</span>
-                        <span className="text-yellow-400 text-sm">→</span>
+                        <span className="text-yellow-500 dark:text-yellow-400 text-sm">→</span>
                       </div>
                     </Link>
                   ))}
