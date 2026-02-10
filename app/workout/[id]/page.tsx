@@ -486,6 +486,7 @@ export default async function WorkoutDetailPage({
         <CompleteWorkoutButton 
           workoutId={workoutId}
           clientProgramId={clientProgramId}
+          scheduledDate={scheduledDate}
           isCompleted={isCompletedToday}
         />
       )}

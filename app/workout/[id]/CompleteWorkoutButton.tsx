@@ -8,6 +8,7 @@ import { createClient } from '../../lib/supabase/client'
 interface CompleteWorkoutButtonProps {
   workoutId: string
   clientProgramId?: string
+  scheduledDate?: string
   isCompleted?: boolean
 }
 
@@ -148,6 +149,7 @@ function WorkoutRatingModal({
 export default function CompleteWorkoutButton({ 
   workoutId, 
   clientProgramId,
+  scheduledDate: scheduledDateProp,
   isCompleted: initialCompleted = false 
 }: CompleteWorkoutButtonProps) {
   const [isCompleted, setIsCompleted] = useState(initialCompleted)
@@ -185,9 +187,12 @@ export default function CompleteWorkoutButton({
       const { data: { user } } = await supabase.auth.getUser()
       if (!user) return
 
-      // Format date in local timezone (not UTC)
-      const now = new Date()
-      const today = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`
+      // Use provided scheduledDate or fallback to today in local timezone
+      let scheduledDate = scheduledDateProp
+      if (!scheduledDate) {
+        const now = new Date()
+        scheduledDate = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`
+      }
       
       // Complete the workout
       const response = await fetch('/api/workouts/complete', {
@@ -196,7 +201,7 @@ export default function CompleteWorkoutButton({
         body: JSON.stringify({
           workoutId,
           clientProgramId,
-          scheduledDate: today
+          scheduledDate
         })
       })
 
@@ -206,12 +211,13 @@ export default function CompleteWorkoutButton({
 
       // Save rating to workout_logs if provided
       if (rating && (rating.rating > 0 || rating.difficulty || rating.notes)) {
-        // Find the workout_log for this workout
+        // Find the workout_log for this workout using the same scheduledDate
         const { data: workoutLog } = await supabase
           .from('workout_logs')
           .select('id')
           .eq('client_id', user.id)
           .eq('workout_id', workoutId)
+          .eq('scheduled_date', scheduledDate)
           .order('completed_at', { ascending: false })
           .limit(1)
           .single()
@@ -234,7 +240,7 @@ export default function CompleteWorkoutButton({
               client_id: user.id,
               workout_id: workoutId,
               completed_at: new Date().toISOString(),
-              scheduled_date: today,
+              scheduled_date: scheduledDate,
               rating: rating.rating > 0 ? rating.rating : null,
               difficulty: rating.difficulty,
               notes: rating.notes || null
