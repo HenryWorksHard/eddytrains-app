@@ -359,12 +359,26 @@ export default function ExerciseCard({
       ? { ...current, steps_completed: steps }
       : { ...current, weight_kg: weight, reps_completed: reps }
     
-    // Update local state immediately
+    // Update local state immediately + cascade to subsequent sets (ladder behaviour)
     const newMap = new Map(localLogs)
     newMap.set(setNumber, updated)
+    
+    // Auto-fill subsequent sets with same values (ladder cascade)
+    const totalSets = sets.length
+    for (let i = setNumber + 1; i <= totalSets; i++) {
+      const nextCurrent = newMap.get(i) || { set_number: i, weight_kg: null, reps_completed: null, steps_completed: null }
+      if (steps !== undefined && steps !== null) {
+        newMap.set(i, { ...nextCurrent, steps_completed: steps })
+      } else {
+        newMap.set(i, { ...nextCurrent, weight_kg: weight, reps_completed: reps })
+      }
+      // Also notify parent for each subsequent set
+      onLogUpdate(exerciseId, i, weight, reps)
+    }
+    
     setLocalLogs(newMap)
     
-    // Notify parent
+    // Notify parent for current set
     onLogUpdate(exerciseId, setNumber, weight, reps)
     
     // Check for PR (only if we have personal best data and not steps)
