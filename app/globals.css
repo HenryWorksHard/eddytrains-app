@@ -43,11 +43,11 @@
 }
 
 .light-mode .bg-zinc-800 {
-  background-color: #f4f4f5 !important;
+  background-color: #e4e4e7 !important;
 }
 
 .light-mode .bg-zinc-950\/50 {
-  background-color: rgba(244, 244, 245, 0.5) !important;
+  background-color: rgba(228, 228, 231, 0.6) !important;
 }
 
 .light-mode .border-zinc-800 {
@@ -99,7 +99,8 @@
 
 /* Light mode various backgrounds */
 .light-mode .bg-zinc-800\/50 {
-  background-color: rgba(244, 244, 245, 0.5) !important;
+  background-color: rgba(228, 228, 231, 0.8) !important;
+  border: 1px solid rgba(212, 212, 216, 0.6);
 }
 
 .light-mode .bg-zinc-800\/70 {
@@ -179,7 +180,8 @@
 .light-mode .rounded-xl.bg-zinc-900,
 .light-mode .rounded-lg.bg-zinc-900 {
   background-color: #ffffff !important;
-  border-color: #e4e4e7 !important;
+  border-color: #d4d4d8 !important;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08), 0 1px 2px rgba(0, 0, 0, 0.04) !important;
 }
 
 /* Light mode - badge/pill backgrounds */
