@@ -143,6 +143,7 @@ function formatIntensity(type: string, value: string) {
     case 'rir': return `${value} RIR`
     case 'rpe': return `RPE ${value}`
     case 'percentage': return `${value}%`
+    case 'time': return `${value}s`
     case 'failure': return 'To Failure'
     default: return value
   }
