@@ -71,7 +71,7 @@ export default function ScheduleClient({ scheduleByDay, completedWorkouts, upcom
   }, [])
 
   // Fetch workout details for a completed workout
-  const fetchWorkoutDetails = async (date: Date, workoutId: string) => {
+  const fetchWorkoutDetails = async (date: Date, workoutId: string, clientProgramId: string) => {
     setLoadingDetails(true)
     setViewingWorkoutId(workoutId)
     
@@ -81,36 +81,84 @@ export default function ScheduleClient({ scheduleByDay, completedWorkouts, upcom
       const { data: { user } } = await supabase.auth.getUser()
       if (!user) return
 
-      // Get workout log for this date and workout
-      const { data: workoutLog } = await supabase
-        .from('workout_logs')
-        .select('id, notes, rating')
+      // First check workout_completions for the workout_log_id
+      // Try with client_program_id first, then without (for older records)
+      let completion = null
+      const { data: completionWithProgram } = await supabase
+        .from('workout_completions')
+        .select('workout_log_id')
         .eq('client_id', user.id)
         .eq('workout_id', workoutId)
         .eq('scheduled_date', dateStr)
+        .eq('client_program_id', clientProgramId)
         .single()
+      
+      completion = completionWithProgram
+      
+      if (!completion) {
+        // Fallback: try without client_program_id for older records
+        const { data: completionAny } = await supabase
+          .from('workout_completions')
+          .select('workout_log_id')
+          .eq('client_id', user.id)
+          .eq('workout_id', workoutId)
+          .eq('scheduled_date', dateStr)
+          .order('completed_at', { ascending: false })
+          .limit(1)
+          .single()
+        
+        completion = completionAny
+      }
 
-      if (workoutLog) {
+      // Try to get workout log - either from completion link or direct query
+      let workoutLogId = completion?.workout_log_id
+      
+      if (!workoutLogId) {
+        // Fallback: direct query to workout_logs
+        const { data: directLog } = await supabase
+          .from('workout_logs')
+          .select('id')
+          .eq('client_id', user.id)
+          .eq('workout_id', workoutId)
+          .eq('scheduled_date', dateStr)
+          .single()
+        
+        workoutLogId = directLog?.id
+      }
+
+      if (workoutLogId) {
+        // Get full workout log details
+        const { data: workoutLog } = await supabase
+          .from('workout_logs')
+          .select('id, notes, rating')
+          .eq('id', workoutLogId)
+          .single()
+
         // Get set logs with exercise names
         const { data: setLogs } = await supabase
           .from('set_logs')
           .select('set_number, weight_kg, reps_completed, exercise_id')
-          .eq('workout_log_id', workoutLog.id)
+          .eq('workout_log_id', workoutLogId)
+          .order('exercise_id')
           .order('set_number')
 
         // Get exercise names
         const exerciseIds = [...new Set(setLogs?.map(s => s.exercise_id) || [])]
-        const { data: exercises } = await supabase
-          .from('workout_exercises')
-          .select('id, exercise_name')
-          .in('id', exerciseIds)
+        let exerciseMap = new Map<string, string>()
+        
+        if (exerciseIds.length > 0) {
+          const { data: exercises } = await supabase
+            .from('workout_exercises')
+            .select('id, exercise_name')
+            .in('id', exerciseIds)
 
-        const exerciseMap = new Map(exercises?.map(e => [e.id, e.exercise_name]) || [])
+          exerciseMap = new Map(exercises?.map(e => [e.id, e.exercise_name]) || [])
+        }
 
         setWorkoutDetails({
-          id: workoutLog.id,
-          notes: workoutLog.notes,
-          rating: workoutLog.rating,
+          id: workoutLog?.id || workoutLogId,
+          notes: workoutLog?.notes || null,
+          rating: workoutLog?.rating || null,
           sets: (setLogs || []).map(s => ({
             exercise_name: exerciseMap.get(s.exercise_id) || 'Exercise',
             set_number: s.set_number,
@@ -665,7 +713,7 @@ export default function ScheduleClient({ scheduleByDay, completedWorkouts, upcom
                                 )
                               ) : (
                                 <button
-                                  onClick={() => fetchWorkoutDetails(selectedDate!, workout.workoutId)}
+                                  onClick={() => fetchWorkoutDetails(selectedDate!, workout.workoutId, workout.clientProgramId)}
                                   className="block w-full bg-green-500/20 hover:bg-green-500/30 text-green-400 font-medium py-2 rounded-lg text-center text-sm transition-colors"
                                 >
                                   View Details
