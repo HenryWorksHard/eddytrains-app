@@ -15,6 +15,9 @@ interface Profile {
   email: string
   role: string | null
   profile_picture_url: string | null
+  goals: string | null
+  presenting_condition: string | null
+  medical_history: string | null
 }
 
 interface Client1RM {
@@ -61,6 +64,13 @@ export default function ProfilePage() {
   const [selectedImage, setSelectedImage] = useState<ProgressImage | null>(null)
   const [uploadingPfp, setUploadingPfp] = useState(false)
   const [workoutHistory, setWorkoutHistory] = useState<WorkoutHistoryItem[]>([])
+  
+  // Client info
+  const [editingInfo, setEditingInfo] = useState(false)
+  const [savingInfo, setSavingInfo] = useState(false)
+  const [goals, setGoals] = useState('')
+  const [presentingCondition, setPresentingCondition] = useState('')
+  const [medicalHistory, setMedicalHistory] = useState('')
   const fileInputRef = useRef<HTMLInputElement>(null)
   const pfpInputRef = useRef<HTMLInputElement>(null)
   const router = useRouter()
@@ -88,7 +98,15 @@ export default function ProfilePage() {
         email: user.email || '',
         role: data?.role || null,
         profile_picture_url: data?.profile_picture_url || null,
+        goals: data?.goals || null,
+        presenting_condition: data?.presenting_condition || null,
+        medical_history: data?.medical_history || null,
       })
+      
+      // Set client info state
+      setGoals(data?.goals || '')
+      setPresentingCondition(data?.presenting_condition || '')
+      setMedicalHistory(data?.medical_history || '')
       
       // Load 1RMs
       await load1RMs(user.id)
@@ -353,6 +371,39 @@ export default function ProfilePage() {
     ))
   }
 
+  const saveClientInfo = async () => {
+    if (!profile) return
+    setSavingInfo(true)
+
+    try {
+      const { error } = await supabase
+        .from('profiles')
+        .update({
+          goals: goals || null,
+          presenting_condition: presentingCondition || null,
+          medical_history: medicalHistory || null
+        })
+        .eq('id', profile.id)
+
+      if (error) throw error
+
+      // Update local profile state
+      setProfile(prev => prev ? {
+        ...prev,
+        goals: goals || null,
+        presenting_condition: presentingCondition || null,
+        medical_history: medicalHistory || null
+      } : null)
+      
+      setEditingInfo(false)
+    } catch (err) {
+      console.error('Failed to save info:', err)
+      alert('Failed to save. Please try again.')
+    } finally {
+      setSavingInfo(false)
+    }
+  }
+
   const handleLogout = async () => {
     await supabase.auth.signOut()
     router.push('/login')
@@ -431,6 +482,95 @@ export default function ProfilePage() {
             <div className="px-4 py-4">
               <p className="text-zinc-500 text-sm">Member since</p>
               <p className="text-white mt-1">2025</p>
+            </div>
+          </div>
+        </section>
+
+        {/* My Info Section */}
+        <section>
+          <div className="flex items-center justify-between mb-3">
+            <h2 className="text-sm font-medium text-zinc-500 uppercase tracking-wider">My Info</h2>
+            {editingInfo ? (
+              <div className="flex gap-2">
+                <button
+                  onClick={saveClientInfo}
+                  disabled={savingInfo}
+                  className="px-3 py-1 bg-yellow-400 hover:bg-yellow-500 text-black text-sm font-medium rounded-lg transition-colors disabled:opacity-50"
+                >
+                  {savingInfo ? '...' : 'Save'}
+                </button>
+                <button
+                  onClick={() => {
+                    setEditingInfo(false)
+                    setGoals(profile?.goals || '')
+                    setPresentingCondition(profile?.presenting_condition || '')
+                    setMedicalHistory(profile?.medical_history || '')
+                  }}
+                  className="px-3 py-1 bg-zinc-800 hover:bg-zinc-700 text-white text-sm rounded-lg transition-colors"
+                >
+                  Cancel
+                </button>
+              </div>
+            ) : (
+              <button
+                onClick={() => setEditingInfo(true)}
+                className="px-3 py-1 bg-zinc-800 hover:bg-zinc-700 text-white text-sm rounded-lg transition-colors"
+              >
+                Edit
+              </button>
+            )}
+          </div>
+          <div className="bg-zinc-900 border border-zinc-800 rounded-2xl overflow-hidden">
+            {/* Goals */}
+            <div className="px-4 py-4 border-b border-zinc-800">
+              <p className="text-zinc-500 text-sm mb-2">Goals</p>
+              {editingInfo ? (
+                <textarea
+                  value={goals}
+                  onChange={(e) => setGoals(e.target.value)}
+                  placeholder="What are your fitness goals?"
+                  rows={2}
+                  className="w-full px-3 py-2 bg-zinc-800 border border-zinc-700 rounded-lg text-white placeholder-zinc-500 focus:outline-none focus:ring-2 focus:ring-yellow-400 resize-none text-sm"
+                />
+              ) : (
+                <p className="text-white text-sm">
+                  {profile?.goals || <span className="text-zinc-600">Not set</span>}
+                </p>
+              )}
+            </div>
+            {/* Presenting Condition */}
+            <div className="px-4 py-4 border-b border-zinc-800">
+              <p className="text-zinc-500 text-sm mb-2">Presenting Condition</p>
+              {editingInfo ? (
+                <textarea
+                  value={presentingCondition}
+                  onChange={(e) => setPresentingCondition(e.target.value)}
+                  placeholder="Current physical condition, injuries, limitations..."
+                  rows={2}
+                  className="w-full px-3 py-2 bg-zinc-800 border border-zinc-700 rounded-lg text-white placeholder-zinc-500 focus:outline-none focus:ring-2 focus:ring-yellow-400 resize-none text-sm"
+                />
+              ) : (
+                <p className="text-white text-sm">
+                  {profile?.presenting_condition || <span className="text-zinc-600">Not set</span>}
+                </p>
+              )}
+            </div>
+            {/* Medical History */}
+            <div className="px-4 py-4">
+              <p className="text-zinc-500 text-sm mb-2">Medical History</p>
+              {editingInfo ? (
+                <textarea
+                  value={medicalHistory}
+                  onChange={(e) => setMedicalHistory(e.target.value)}
+                  placeholder="Relevant medical history, surgeries, conditions..."
+                  rows={2}
+                  className="w-full px-3 py-2 bg-zinc-800 border border-zinc-700 rounded-lg text-white placeholder-zinc-500 focus:outline-none focus:ring-2 focus:ring-yellow-400 resize-none text-sm"
+                />
+              ) : (
+                <p className="text-white text-sm">
+                  {profile?.medical_history || <span className="text-zinc-600">Not set</span>}
+                </p>
+              )}
             </div>
           </div>
         </section>
