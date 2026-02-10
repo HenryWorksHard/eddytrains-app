@@ -234,6 +234,7 @@ export default function CompleteWorkoutButton({
               client_id: user.id,
               workout_id: workoutId,
               completed_at: new Date().toISOString(),
+              scheduled_date: today,
               rating: rating.rating > 0 ? rating.rating : null,
               difficulty: rating.difficulty,
               notes: rating.notes || null

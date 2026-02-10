@@ -97,6 +97,7 @@ interface WorkoutClientProps {
   oneRMs: { exercise_name: string; weight_kg: number }[]
   personalBests?: PersonalBest[]
   clientProgramId?: string
+  scheduledDate?: string
   finishers?: Finisher[]
 }
 
@@ -147,7 +148,7 @@ function formatIntensity(type: string, value: string) {
   }
 }
 
-export default function WorkoutClient({ workoutId, exercises, oneRMs, personalBests = [], clientProgramId, finishers = [] }: WorkoutClientProps) {
+export default function WorkoutClient({ workoutId, exercises, oneRMs, personalBests = [], clientProgramId, scheduledDate, finishers = [] }: WorkoutClientProps) {
   const [setLogs, setSetLogs] = useState<Map<string, SetLog>>(new Map())
   const [previousLogs, setPreviousLogs] = useState<Map<string, PreviousSetLog[]>>(new Map())
   const [saving, setSaving] = useState(false)
@@ -290,7 +291,8 @@ export default function WorkoutClient({ workoutId, exercises, oneRMs, personalBe
             .insert({
               client_id: user.id,
               workout_id: workoutId,
-              completed_at: new Date().toISOString()
+              completed_at: new Date().toISOString(),
+              scheduled_date: scheduledDate || new Date().toISOString().split('T')[0]
             })
             .select('id')
             .single()

@@ -96,10 +96,10 @@ export default async function WorkoutDetailPage({
   searchParams 
 }: { 
   params: Promise<{ id: string }>
-  searchParams: Promise<{ clientProgramId?: string }>
+  searchParams: Promise<{ clientProgramId?: string; scheduledDate?: string }>
 }) {
   const { id: workoutId } = await params
-  const { clientProgramId } = await searchParams
+  const { clientProgramId, scheduledDate } = await searchParams
   const supabase = await createClient()
   
   const { data: { user } } = await supabase.auth.getUser()
@@ -455,6 +455,7 @@ export default async function WorkoutDetailPage({
             oneRMs={oneRMs}
             personalBests={personalBests}
             clientProgramId={clientProgramId}
+            scheduledDate={scheduledDate}
             finishers={finishers}
           />
         ) : (

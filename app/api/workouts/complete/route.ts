@@ -15,7 +15,18 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'Missing required fields' }, { status: 400 })
   }
 
-  // Insert completion record
+  // Find any workout_log for this workout from today's session
+  const { data: workoutLog } = await supabase
+    .from('workout_logs')
+    .select('id')
+    .eq('client_id', user.id)
+    .eq('workout_id', workoutId)
+    .eq('scheduled_date', scheduledDate)
+    .order('created_at', { ascending: false })
+    .limit(1)
+    .single()
+
+  // Insert completion record with link to workout_log if found
   const { data, error } = await supabase
     .from('workout_completions')
     .upsert({
@@ -23,7 +34,8 @@ export async function POST(request: NextRequest) {
       workout_id: workoutId,
       client_program_id: clientProgramId || null,
       scheduled_date: scheduledDate,
-      completed_at: new Date().toISOString()
+      completed_at: new Date().toISOString(),
+      workout_log_id: workoutLog?.id || null
     }, {
       onConflict: 'client_id,workout_id,scheduled_date'
     })

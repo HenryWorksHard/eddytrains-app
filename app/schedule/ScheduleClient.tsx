@@ -372,7 +372,7 @@ export default function ScheduleClient({ scheduleByDay, completedWorkouts, upcom
                         return (
                           <Link
                             key={workout.workoutId}
-                            href={`/workout/${workout.workoutId}?clientProgramId=${workout.clientProgramId}`}
+                            href={`/workout/${workout.workoutId}?clientProgramId=${workout.clientProgramId}&scheduledDate=${formatDateLocal(date)}`}
                             className="flex items-center justify-between bg-yellow-400 hover:bg-yellow-500 text-black font-bold py-3 px-4 rounded-lg transition-colors"
                           >
                             <div className="flex items-center gap-2">
@@ -614,7 +614,7 @@ export default function ScheduleClient({ scheduleByDay, completedWorkouts, upcom
                           {/* Action button - only show for today or future dates with incomplete workouts */}
                           {(isDateToday || !isPast) && !workoutCompleted && (
                             <Link
-                              href={`/workout/${workout.workoutId}?clientProgramId=${workout.clientProgramId}`}
+                              href={`/workout/${workout.workoutId}?clientProgramId=${workout.clientProgramId}&scheduledDate=${formatDateLocal(selectedDate!)}`}
                               className="block w-full bg-yellow-400 hover:bg-yellow-500 text-black font-semibold py-3 rounded-lg text-center transition-colors"
                               onClick={() => setSelectedDate(null)}
                             >
