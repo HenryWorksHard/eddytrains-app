@@ -565,18 +565,19 @@ export default function ExerciseCard({
                       {isStepsExercise ? `${set.reps} steps` : `${set.reps} @ ${formatIntensity(set.intensity_type, set.intensity_value)}`}
                     </div>
                     
-                    {/* Tappable log button */}
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation()
-                        openWheelPicker(set.set_number, set.reps, set.rest_bracket)
-                      }}
-                      className={`flex items-center gap-2 px-3 py-2 rounded-lg transition-all active:scale-95 ${
-                        isLogged 
-                          ? 'bg-green-500/20 border border-green-500/30' 
-                          : 'bg-yellow-400/10 border border-yellow-400/30 hover:bg-yellow-400/20'
-                      }`}
-                    >
+                    {/* Tappable log button with last weight */}
+                    <div className="flex flex-col items-end">
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          openWheelPicker(set.set_number, set.reps, set.rest_bracket)
+                        }}
+                        className={`flex items-center gap-2 px-3 py-2 rounded-lg transition-all active:scale-95 ${
+                          isLogged 
+                            ? 'bg-green-500/20 border border-green-500/30' 
+                            : 'bg-yellow-400/10 border border-yellow-400/30 hover:bg-yellow-400/20'
+                        }`}
+                      >
                       {isStepsExercise ? (
                         /* Steps display */
                         <div className="text-center min-w-[60px]">
@@ -605,7 +606,15 @@ export default function ExerciseCard({
                           </div>
                         </>
                       )}
-                    </button>
+                      </button>
+                      {/* Show last used weight */}
+                      {(() => {
+                        const prevLog = previousLogs.find(p => p.set_number === set.set_number)
+                        return prevLog?.weight_kg ? (
+                          <span className="text-[9px] text-zinc-500 mt-0.5">Last: {prevLog.weight_kg}kg</span>
+                        ) : null
+                      })()}
+                    </div>
                   </div>
                 </div>
               )
