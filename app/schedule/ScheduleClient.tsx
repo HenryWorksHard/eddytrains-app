@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import Link from 'next/link'
+import { createClient } from '../lib/supabase/client'
 
 interface WorkoutSchedule {
   dayOfWeek: number
@@ -22,6 +23,18 @@ interface UpcomingProgram {
   phaseName: string | null
 }
 
+interface WorkoutLogDetails {
+  id: string
+  notes: string | null
+  rating: number | null
+  sets: {
+    exercise_name: string
+    set_number: number
+    weight_kg: number | null
+    reps_completed: number | null
+  }[]
+}
+
 interface ScheduleClientProps {
   scheduleByDay: Record<number, WorkoutSchedule[]>
   completedWorkouts: Record<string, boolean>
@@ -33,6 +46,10 @@ export default function ScheduleClient({ scheduleByDay, completedWorkouts, upcom
   const [today, setToday] = useState(new Date())
   const [currentMonth, setCurrentMonth] = useState(new Date())
   const [selectedDate, setSelectedDate] = useState<Date | null>(null)
+  const [workoutDetails, setWorkoutDetails] = useState<WorkoutLogDetails | null>(null)
+  const [loadingDetails, setLoadingDetails] = useState(false)
+  const [viewingWorkoutId, setViewingWorkoutId] = useState<string | null>(null)
+  const supabase = createClient()
 
   const daysOfWeek = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']
   const fullDayNames = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday']
@@ -45,6 +62,70 @@ export default function ScheduleClient({ scheduleByDay, completedWorkouts, upcom
     setToday(new Date())
     setCurrentMonth(new Date())
   }, [])
+
+  // Fetch workout details for a completed workout
+  const fetchWorkoutDetails = async (date: Date, workoutId: string) => {
+    setLoadingDetails(true)
+    setViewingWorkoutId(workoutId)
+    
+    const dateStr = formatDateLocal(date)
+    
+    try {
+      const { data: { user } } = await supabase.auth.getUser()
+      if (!user) return
+
+      // Get workout log for this date and workout
+      const { data: workoutLog } = await supabase
+        .from('workout_logs')
+        .select('id, notes, rating')
+        .eq('client_id', user.id)
+        .eq('workout_id', workoutId)
+        .eq('scheduled_date', dateStr)
+        .single()
+
+      if (workoutLog) {
+        // Get set logs with exercise names
+        const { data: setLogs } = await supabase
+          .from('set_logs')
+          .select('set_number, weight_kg, reps_completed, workout_exercise_id')
+          .eq('workout_log_id', workoutLog.id)
+          .order('set_number')
+
+        // Get exercise names
+        const exerciseIds = [...new Set(setLogs?.map(s => s.workout_exercise_id) || [])]
+        const { data: exercises } = await supabase
+          .from('workout_exercises')
+          .select('id, exercise_name')
+          .in('id', exerciseIds)
+
+        const exerciseMap = new Map(exercises?.map(e => [e.id, e.exercise_name]) || [])
+
+        setWorkoutDetails({
+          id: workoutLog.id,
+          notes: workoutLog.notes,
+          rating: workoutLog.rating,
+          sets: (setLogs || []).map(s => ({
+            exercise_name: exerciseMap.get(s.workout_exercise_id) || 'Exercise',
+            set_number: s.set_number,
+            weight_kg: s.weight_kg,
+            reps_completed: s.reps_completed
+          }))
+        })
+      } else {
+        setWorkoutDetails(null)
+      }
+    } catch (err) {
+      console.error('Failed to fetch workout details:', err)
+      setWorkoutDetails(null)
+    } finally {
+      setLoadingDetails(false)
+    }
+  }
+
+  const closeDetails = () => {
+    setWorkoutDetails(null)
+    setViewingWorkoutId(null)
+  }
 
   // Format date to YYYY-MM-DD in local timezone (not UTC)
   const formatDateLocal = (date: Date): string => {
@@ -535,9 +616,55 @@ export default function ScheduleClient({ scheduleByDay, completedWorkouts, upcom
                           )}
                           
                           {workoutCompleted && (
-                            <div className="text-green-400 text-sm font-medium text-center py-2">
-                              ✓ Completed
-                            </div>
+                            <>
+                              {viewingWorkoutId === workout.workoutId ? (
+                                loadingDetails ? (
+                                  <div className="text-center py-3">
+                                    <div className="w-5 h-5 border-2 border-green-400 border-t-transparent rounded-full animate-spin mx-auto" />
+                                  </div>
+                                ) : workoutDetails ? (
+                                  <div className="mt-3 pt-3 border-t border-zinc-700 space-y-2">
+                                    {workoutDetails.notes && (
+                                      <p className="text-sm text-zinc-400 italic">{workoutDetails.notes}</p>
+                                    )}
+                                    {(() => {
+                                      const groups = workoutDetails.sets.reduce((acc, s) => {
+                                        if (!acc[s.exercise_name]) acc[s.exercise_name] = []
+                                        acc[s.exercise_name].push(s)
+                                        return acc
+                                      }, {} as Record<string, typeof workoutDetails.sets>)
+                                      
+                                      return Object.entries(groups).map(([name, sets]) => (
+                                        <div key={name} className="bg-zinc-800/50 rounded-lg p-2">
+                                          <p className="text-xs text-yellow-400 font-medium mb-1">{name}</p>
+                                          {sets.map(s => (
+                                            <div key={s.set_number} className="flex justify-between text-xs">
+                                              <span className="text-zinc-500">Set {s.set_number}</span>
+                                              <span className="text-white">{s.weight_kg ?? '—'}kg × {s.reps_completed ?? '—'}</span>
+                                            </div>
+                                          ))}
+                                        </div>
+                                      ))
+                                    })()}
+                                    <button
+                                      onClick={() => closeDetails()}
+                                      className="text-zinc-500 text-xs w-full py-1"
+                                    >
+                                      Hide Details
+                                    </button>
+                                  </div>
+                                ) : (
+                                  <p className="text-zinc-500 text-sm text-center py-2">No data recorded</p>
+                                )
+                              ) : (
+                                <button
+                                  onClick={() => fetchWorkoutDetails(selectedDate!, workout.workoutId)}
+                                  className="block w-full bg-green-500/20 hover:bg-green-500/30 text-green-400 font-medium py-2 rounded-lg text-center text-sm transition-colors"
+                                >
+                                  View Details
+                                </button>
+                              )}
+                            </>
                           )}
                           
                           {isPast && !workoutCompleted && (
