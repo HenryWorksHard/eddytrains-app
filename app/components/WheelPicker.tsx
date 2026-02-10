@@ -148,31 +148,23 @@ export default function WheelPicker({
   setNumber,
   mode = 'weight-reps'
 }: WheelPickerProps) {
-  // Weight values (0-200 in 0.5 increments)
-  const weightValues = Array.from({ length: 401 }, (_, i) => (i * 0.5).toFixed(1))
-  
   // Reps values (0-50)
   const repsValues = Array.from({ length: 51 }, (_, i) => i)
   
   // Steps values (0-50000 in 100 increments)
   const stepsValues = Array.from({ length: 501 }, (_, i) => i * 100)
   
-  const getWeightIndex = (weight: number | null | undefined): number => {
-    // If we have a logged weight, use it
+  const getInitialWeight = (weight: number | null | undefined): string => {
     if (weight !== null && weight !== undefined && weight >= 0) {
-      return Math.round(weight * 2)
+      return weight.toString()
     }
-    // Fall back to suggested weight or default
-    const defaultWeight = suggestedWeight ?? 20
-    return Math.round(defaultWeight * 2)
+    return suggestedWeight?.toString() ?? '20'
   }
   
   const getRepsIndex = (reps: number | null | undefined): number => {
-    // If we have logged reps, use them
     if (reps !== null && reps !== undefined && reps >= 0) {
       return reps
     }
-    // Fall back to target reps or default
     if (targetReps) {
       const match = targetReps.match(/^(\d+)/)
       if (match) return parseInt(match[1])
@@ -186,22 +178,30 @@ export default function WheelPicker({
         const match = targetSteps.match(/^(\d+)/)
         if (match) return Math.round(parseInt(match[1]) / 100)
       }
-      return 50 // Default to 5000 steps
+      return 50
     }
     return Math.round(steps / 100)
   }
   
-  const [weightIndex, setWeightIndex] = useState(getWeightIndex(initialWeight))
+  const [weightInput, setWeightInput] = useState(getInitialWeight(initialWeight))
   const [repsIndex, setRepsIndex] = useState(getRepsIndex(initialReps))
   const [stepsIndex, setStepsIndex] = useState(getStepsIndex(initialSteps))
+  const weightInputRef = useRef<HTMLInputElement>(null)
   
   useEffect(() => {
     if (isOpen) {
-      setWeightIndex(getWeightIndex(initialWeight))
+      setWeightInput(getInitialWeight(initialWeight))
       setRepsIndex(getRepsIndex(initialReps))
       setStepsIndex(getStepsIndex(initialSteps))
+      // Focus weight input after a short delay
+      setTimeout(() => {
+        if (mode === 'weight-reps' && weightInputRef.current) {
+          weightInputRef.current.focus()
+          weightInputRef.current.select()
+        }
+      }, 100)
     }
-  }, [isOpen, initialWeight, initialReps, initialSteps, suggestedWeight, targetReps, targetSteps])
+  }, [isOpen, initialWeight, initialReps, initialSteps, suggestedWeight, targetReps, targetSteps, mode])
   
   if (!isOpen) return null
   
@@ -210,7 +210,7 @@ export default function WheelPicker({
       const steps = stepsValues[stepsIndex]
       onConfirm(null, null, steps)
     } else {
-      const weight = parseFloat(weightValues[weightIndex])
+      const weight = parseFloat(weightInput) || 0
       const reps = repsValues[repsIndex]
       onConfirm(weight, reps, null)
     }
@@ -263,8 +263,8 @@ export default function WheelPicker({
           </div>
         )}
         
-        {/* Wheel Pickers - Compact */}
-        <div className="flex gap-2 px-4 py-4">
+        {/* Input Area */}
+        <div className="flex gap-4 px-4 py-4">
           {mode === 'steps' ? (
             <PickerColumn
               values={stepsValues}
@@ -274,13 +274,27 @@ export default function WheelPicker({
             />
           ) : (
             <>
-              <PickerColumn
-                values={weightValues}
-                selectedIndex={weightIndex}
-                onSelect={setWeightIndex}
-                label="Weight"
-                unit="kg"
-              />
+              {/* Weight - Text Input */}
+              <div className="flex-1 flex flex-col items-center">
+                <div className="text-[10px] text-zinc-500 uppercase tracking-wider mb-2">Weight</div>
+                <div className="relative w-full">
+                  <input
+                    ref={weightInputRef}
+                    type="number"
+                    inputMode="decimal"
+                    step="0.5"
+                    min="0"
+                    max="500"
+                    value={weightInput}
+                    onChange={(e) => setWeightInput(e.target.value)}
+                    className="w-full h-16 text-center text-2xl font-bold text-white bg-zinc-800 border-2 border-zinc-700 rounded-xl focus:outline-none focus:border-yellow-400 transition-colors"
+                    placeholder="0"
+                  />
+                  <span className="absolute right-3 top-1/2 -translate-y-1/2 text-zinc-500 text-sm">kg</span>
+                </div>
+              </div>
+              
+              {/* Reps - Scroll Picker */}
               <PickerColumn
                 values={repsValues}
                 selectedIndex={repsIndex}
