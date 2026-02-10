@@ -47,6 +47,115 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'Failed to complete workout' }, { status: 500 })
   }
 
+  // Update client_streaks
+  try {
+    // Get user's scheduled workout days from their active program
+    const { data: clientPrograms } = await supabase
+      .from('client_programs')
+      .select(`
+        id,
+        program:programs (
+          id,
+          program_workouts (
+            day_of_week
+          )
+        )
+      `)
+      .eq('client_id', user.id)
+      .eq('is_active', true)
+      .limit(1)
+      .single()
+
+    // Get the scheduled days (0-6, Sunday = 0)
+    const scheduledDays = new Set<number>()
+    if (clientPrograms?.program) {
+      const program = Array.isArray(clientPrograms.program) 
+        ? clientPrograms.program[0] 
+        : clientPrograms.program
+      program?.program_workouts?.forEach((w: { day_of_week: number | null }) => {
+        if (w.day_of_week !== null) {
+          scheduledDays.add(w.day_of_week)
+        }
+      })
+    }
+
+    // Default to Mon-Fri if no schedule
+    if (scheduledDays.size === 0) {
+      [1, 2, 3, 4, 5].forEach(d => scheduledDays.add(d))
+    }
+
+    // Get all completions in the last 90 days
+    const ninetyDaysAgo = new Date()
+    ninetyDaysAgo.setDate(ninetyDaysAgo.getDate() - 90)
+    
+    const { data: completions } = await supabase
+      .from('workout_completions')
+      .select('scheduled_date')
+      .eq('client_id', user.id)
+      .gte('scheduled_date', ninetyDaysAgo.toISOString().split('T')[0])
+      .order('scheduled_date', { ascending: false })
+
+    const completedDates = new Set(completions?.map(c => c.scheduled_date) || [])
+
+    // Calculate streak
+    let streak = 0
+    const today = new Date()
+    today.setHours(0, 0, 0, 0)
+    
+    // Start checking from today
+    let checkDate = new Date(today)
+    
+    // Check if today is completed (it should be, we just completed it)
+    if (scheduledDays.has(today.getDay())) {
+      const todayStr = today.toISOString().split('T')[0]
+      if (completedDates.has(todayStr)) {
+        streak = 1
+      }
+    }
+
+    // Go back day by day checking scheduled days
+    checkDate.setDate(checkDate.getDate() - 1)
+    for (let i = 0; i < 365; i++) {
+      const dayOfWeek = checkDate.getDay()
+      
+      if (scheduledDays.has(dayOfWeek)) {
+        const dateStr = checkDate.toISOString().split('T')[0]
+        
+        if (completedDates.has(dateStr)) {
+          streak++
+        } else {
+          break
+        }
+      }
+      
+      checkDate.setDate(checkDate.getDate() - 1)
+    }
+
+    // Get existing streak record to check longest_streak
+    const { data: existingStreak } = await supabase
+      .from('client_streaks')
+      .select('longest_streak')
+      .eq('client_id', user.id)
+      .single()
+
+    const longestStreak = Math.max(streak, existingStreak?.longest_streak || 0)
+
+    // Upsert client_streaks
+    await supabase
+      .from('client_streaks')
+      .upsert({
+        client_id: user.id,
+        current_streak: streak,
+        longest_streak: longestStreak,
+        last_workout_date: scheduledDate
+      }, {
+        onConflict: 'client_id'
+      })
+  } catch (streakError) {
+    console.error('Error updating streak:', streakError)
+    // Don't fail the request if streak update fails
+  }
+
   return NextResponse.json({ success: true, completion: data })
 }
 
