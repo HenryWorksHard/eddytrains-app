@@ -41,6 +41,11 @@ interface ScheduleClientProps {
   upcomingPrograms: UpcomingProgram[]
 }
 
+interface WorkoutPreview {
+  name: string
+  sets: { set_number: number; reps: string; intensity: string }[]
+}
+
 export default function ScheduleClient({ scheduleByDay, completedWorkouts, upcomingPrograms }: ScheduleClientProps) {
   const [mounted, setMounted] = useState(false)
   const [today, setToday] = useState(new Date())
@@ -49,6 +54,8 @@ export default function ScheduleClient({ scheduleByDay, completedWorkouts, upcom
   const [workoutDetails, setWorkoutDetails] = useState<WorkoutLogDetails | null>(null)
   const [loadingDetails, setLoadingDetails] = useState(false)
   const [viewingWorkoutId, setViewingWorkoutId] = useState<string | null>(null)
+  const [workoutPreview, setWorkoutPreview] = useState<Record<string, WorkoutPreview[]>>({})
+  const [loadingPreview, setLoadingPreview] = useState<string | null>(null)
   const supabase = createClient()
 
   const daysOfWeek = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']
@@ -87,12 +94,12 @@ export default function ScheduleClient({ scheduleByDay, completedWorkouts, upcom
         // Get set logs with exercise names
         const { data: setLogs } = await supabase
           .from('set_logs')
-          .select('set_number, weight_kg, reps_completed, workout_exercise_id')
+          .select('set_number, weight_kg, reps_completed, exercise_id')
           .eq('workout_log_id', workoutLog.id)
           .order('set_number')
 
         // Get exercise names
-        const exerciseIds = [...new Set(setLogs?.map(s => s.workout_exercise_id) || [])]
+        const exerciseIds = [...new Set(setLogs?.map(s => s.exercise_id) || [])]
         const { data: exercises } = await supabase
           .from('workout_exercises')
           .select('id, exercise_name')
@@ -105,7 +112,7 @@ export default function ScheduleClient({ scheduleByDay, completedWorkouts, upcom
           notes: workoutLog.notes,
           rating: workoutLog.rating,
           sets: (setLogs || []).map(s => ({
-            exercise_name: exerciseMap.get(s.workout_exercise_id) || 'Exercise',
+            exercise_name: exerciseMap.get(s.exercise_id) || 'Exercise',
             set_number: s.set_number,
             weight_kg: s.weight_kg,
             reps_completed: s.reps_completed
