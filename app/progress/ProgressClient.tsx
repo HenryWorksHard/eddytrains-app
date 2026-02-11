@@ -30,6 +30,7 @@ interface ProgressClientProps {
 }
 
 type TonnagePeriod = 'day' | 'week' | 'month' | 'year'
+type ProgressionPeriod = 'week' | 'month' | '3months' | 'year'
 
 export default function ProgressClient({ 
   oneRMs, 
@@ -45,6 +46,7 @@ export default function ProgressClient({
   // Exercise progression
   const [allExercises, setAllExercises] = useState<string[]>([])
   const [selectedExercise, setSelectedExercise] = useState<string>('')
+  const [progressionPeriod, setProgressionPeriod] = useState<ProgressionPeriod>('month')
   const [progressionData, setProgressionData] = useState<ProgressPoint[]>([])
   const [loadingProgression, setLoadingProgression] = useState(false)
   const [exerciseDropdownOpen, setExerciseDropdownOpen] = useState(false)
@@ -60,9 +62,9 @@ export default function ProgressClient({
 
   useEffect(() => {
     if (selectedExercise) {
-      fetchProgression(selectedExercise)
+      fetchProgression(selectedExercise, progressionPeriod)
     }
-  }, [selectedExercise])
+  }, [selectedExercise, progressionPeriod])
 
   const fetchStreak = async () => {
     try {
@@ -113,11 +115,11 @@ export default function ProgressClient({
     }
   }
 
-  const fetchProgression = async (exerciseName: string) => {
+  const fetchProgression = async (exerciseName: string, period: ProgressionPeriod) => {
     setLoadingProgression(true)
     try {
       const tz = Intl.DateTimeFormat().resolvedOptions().timeZone
-      const response = await fetch(`/api/progress/progression?exercise=${encodeURIComponent(exerciseName)}&period=month&tz=${encodeURIComponent(tz)}`)
+      const response = await fetch(`/api/progress/progression?exercise=${encodeURIComponent(exerciseName)}&period=${period}&tz=${encodeURIComponent(tz)}`)
       if (response.ok) {
         const data = await response.json()
         const points = (data.progression || []).map((p: { date: string; weight: number; reps: number }) => ({
@@ -251,6 +253,22 @@ export default function ProgressClient({
           <div className="flex items-center gap-2">
             <TrendingUp className="w-5 h-5 text-green-400" />
             <h3 className="text-sm font-medium text-white">Exercise Progress</h3>
+          </div>
+          {/* Period Selector */}
+          <div className="flex gap-1">
+            {(['week', 'month', '3months', 'year'] as ProgressionPeriod[]).map((period) => (
+              <button
+                key={period}
+                onClick={() => setProgressionPeriod(period)}
+                className={`px-2 py-1 text-xs rounded-lg transition-colors ${
+                  progressionPeriod === period
+                    ? 'bg-yellow-400 text-black font-medium'
+                    : 'bg-zinc-800 text-zinc-400 hover:text-white'
+                }`}
+              >
+                {period === '3months' ? '3M' : period.charAt(0).toUpperCase() + period.slice(1)}
+              </button>
+            ))}
           </div>
         </div>
         

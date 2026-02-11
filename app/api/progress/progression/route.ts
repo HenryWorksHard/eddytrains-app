@@ -1,6 +1,9 @@
 import { createClient } from '@/app/lib/supabase/server'
 import { NextRequest, NextResponse } from 'next/server'
 
+// Disable caching
+export const dynamic = 'force-dynamic'
+
 export async function GET(request: NextRequest) {
   try {
     const supabase = await createClient()
@@ -130,7 +133,11 @@ export async function GET(request: NextRequest) {
         reps: item.maxReps
       }))
 
-    return NextResponse.json({ progression })
+    return NextResponse.json({ progression }, {
+      headers: {
+        'Cache-Control': 'no-store, no-cache, must-revalidate',
+      }
+    })
   } catch (error) {
     console.error('Progression fetch error:', error)
     return NextResponse.json({ error: 'Failed to fetch progression' }, { status: 500 })
