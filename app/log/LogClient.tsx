@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
-import { ChevronLeft, ChevronRight, Calendar, Check, Dumbbell } from 'lucide-react'
+import { ChevronLeft, ChevronRight, Calendar, Check, Dumbbell, ArrowLeft } from 'lucide-react'
 import { createClient } from '../lib/supabase/client'
 import ExerciseLogger from './ExerciseLogger'
 
@@ -282,7 +282,19 @@ export default function LogClient({ scheduleByDay }: LogClientProps) {
     >
       {/* Header with date navigation */}
       <header className="sticky top-0 bg-black/95 backdrop-blur-lg border-b border-zinc-800 z-40">
-        <div className="flex items-center justify-between px-4 py-3">
+        {/* Back button row */}
+        <div className="flex items-center px-4 pt-3 pb-1">
+          <button 
+            onClick={() => router.push('/workouts')}
+            className="flex items-center gap-1 text-zinc-400 hover:text-white transition-colors"
+          >
+            <ArrowLeft className="w-5 h-5" />
+            <span className="text-sm">Back</span>
+          </button>
+        </div>
+        
+        {/* Date navigation */}
+        <div className="flex items-center justify-between px-4 py-2">
           <button 
             onClick={goToPreviousDay}
             className="p-2 text-zinc-400 hover:text-white transition-colors"
