@@ -589,10 +589,25 @@ export default function ExerciseCard({
           {/* Bottom Row: Sets × Reps | Intensity | Weight (or duration for cardio) */}
           <div className="flex items-center gap-1.5 mt-1.5 ml-9 text-xs flex-wrap">
             {isCardioExercise ? (
-              /* Cardio: just show duration/distance */
-              <span className="text-yellow-400 font-medium">
-                {sets[0]?.cardio_value ? `${sets[0].cardio_value} ${sets[0].cardio_unit || 'min'}` : 'Complete'}
-              </span>
+              /* Cardio: show duration/distance + zone if set */
+              <>
+                {sets[0]?.cardio_value && (
+                  <span className="text-yellow-400 font-medium">
+                    {sets[0].cardio_value} {sets[0].cardio_unit || 'min'}
+                  </span>
+                )}
+                {sets[0]?.heart_rate_zone && (
+                  <>
+                    {sets[0]?.cardio_value && <span className="text-zinc-600">•</span>}
+                    <span className="text-orange-400 font-medium">
+                      {sets[0].heart_rate_zone}
+                    </span>
+                  </>
+                )}
+                {!sets[0]?.cardio_value && !sets[0]?.heart_rate_zone && (
+                  <span className="text-yellow-400 font-medium">Complete</span>
+                )}
+              </>
             ) : (
               /* Strength: show sets × reps · intensity · weight */
               <>
@@ -627,10 +642,16 @@ export default function ExerciseCard({
             {isCardioExercise && (
               <div className="px-3 py-4">
                 <div className="flex items-center justify-between">
-                  <div className="text-zinc-400 text-sm">
-                    {sets[0]?.cardio_value ? (
+                  <div className="text-zinc-400 text-sm flex items-center gap-2">
+                    {sets[0]?.cardio_value && (
                       <span>{sets[0].cardio_value} {sets[0].cardio_unit || 'min'}</span>
-                    ) : (
+                    )}
+                    {sets[0]?.heart_rate_zone && (
+                      <span className="px-2 py-0.5 bg-orange-500/20 text-orange-400 rounded text-xs font-medium">
+                        {sets[0].heart_rate_zone}
+                      </span>
+                    )}
+                    {!sets[0]?.cardio_value && !sets[0]?.heart_rate_zone && (
                       <span>Complete workout</span>
                     )}
                   </div>
