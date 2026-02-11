@@ -221,7 +221,7 @@ export default function ProgressClient({
         <div className="flex items-center justify-between mb-3">
           <div className="flex items-center gap-2">
             <Weight className="w-5 h-5 text-blue-400" />
-            <h3 className="text-sm font-medium text-white">Total Volume</h3>
+            <h3 className="text-sm font-medium text-white">Tonnage</h3>
           </div>
           <div className="flex gap-1">
             {(['day', 'week', 'month', 'year'] as TonnagePeriod[]).map((period) => (

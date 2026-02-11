@@ -27,11 +27,10 @@ export async function GET(request: NextRequest) {
     
     const todayStr = formatDate(nowInTz)
     let startDateStr: string
-    let endDateStr: string | null = null
+    let endDateStr: string = todayStr
     
     switch (period) {
       case 'day':
-        // Only today - exact match
         startDateStr = todayStr
         endDateStr = todayStr
         break
@@ -41,63 +40,59 @@ export async function GET(request: NextRequest) {
         const weekStart = new Date(nowInTz)
         weekStart.setDate(nowInTz.getDate() - daysFromMonday)
         startDateStr = formatDate(weekStart)
-        endDateStr = todayStr
         break
       case 'month':
         startDateStr = `${nowInTz.getFullYear()}-${String(nowInTz.getMonth() + 1).padStart(2, '0')}-01`
-        endDateStr = todayStr
         break
       case 'year':
         startDateStr = `${nowInTz.getFullYear()}-01-01`
-        endDateStr = todayStr
         break
       default:
         const defaultStart = new Date(nowInTz)
         defaultStart.setDate(nowInTz.getDate() - 7)
         startDateStr = formatDate(defaultStart)
-        endDateStr = todayStr
     }
 
-    // Query using scheduled_date with proper range
-    let query = supabase
+    // Get ALL workout logs for this user, then filter by date
+    // This handles both scheduled_date and completed_at scenarios
+    const { data: allLogs } = await supabase
       .from('workout_logs')
       .select('id, scheduled_date, completed_at')
       .eq('client_id', user.id)
-      .gte('scheduled_date', startDateStr)
-    
-    if (endDateStr) {
-      query = query.lte('scheduled_date', endDateStr)
-    }
-    
-    let { data: workoutLogs } = await query
+      .order('completed_at', { ascending: false })
+      .limit(200)
 
-    // If no results with scheduled_date, try completed_at with date extraction
-    if (!workoutLogs || workoutLogs.length === 0) {
-      // Get all logs and filter by date manually
-      const { data: allLogs } = await supabase
-        .from('workout_logs')
-        .select('id, scheduled_date, completed_at')
-        .eq('client_id', user.id)
-        .order('completed_at', { ascending: false })
-        .limit(100)
+    if (!allLogs || allLogs.length === 0) {
+      return NextResponse.json({ tonnage: 0, debug: { startDateStr, endDateStr, period, logsFound: 0 } })
+    }
+
+    // Filter logs by date range
+    // Use scheduled_date if available, otherwise extract date from completed_at
+    const filteredLogs = allLogs.filter(log => {
+      // Get the effective date for this log
+      let logDate: string | null = null
       
-      // Filter by completed_at date (extract date part)
-      workoutLogs = allLogs?.filter(log => {
-        const logDate = log.scheduled_date || (log.completed_at ? log.completed_at.split('T')[0] : null)
-        if (!logDate) return false
-        
-        if (period === 'day') {
-          return logDate === todayStr
-        }
-        return logDate >= startDateStr && (!endDateStr || logDate <= endDateStr)
-      }) || []
+      if (log.scheduled_date) {
+        logDate = log.scheduled_date
+      } else if (log.completed_at) {
+        // Extract date from completed_at timestamp
+        // Convert to user's timezone first
+        const completedDate = new Date(log.completed_at)
+        const completedInTz = new Date(completedDate.toLocaleString('en-US', { timeZone: timezone }))
+        logDate = formatDate(completedInTz)
+      }
+      
+      if (!logDate) return false
+      
+      // Check if within range
+      return logDate >= startDateStr && logDate <= endDateStr
+    })
+
+    if (filteredLogs.length === 0) {
+      return NextResponse.json({ tonnage: 0, debug: { startDateStr, endDateStr, period, logsFound: allLogs.length, filteredCount: 0 } })
     }
 
-    if (!workoutLogs || workoutLogs.length === 0) {
-      return NextResponse.json({ tonnage: 0 })
-    }
-
-    const workoutLogIds = workoutLogs.map(log => log.id)
+    const workoutLogIds = filteredLogs.map(log => log.id)
 
     // Get all set_logs for those workout_logs
     const { data: setLogs } = await supabase
@@ -105,8 +100,8 @@ export async function GET(request: NextRequest) {
       .select('weight_kg, reps_completed')
       .in('workout_log_id', workoutLogIds)
 
-    if (!setLogs) {
-      return NextResponse.json({ tonnage: 0 })
+    if (!setLogs || setLogs.length === 0) {
+      return NextResponse.json({ tonnage: 0, debug: { startDateStr, endDateStr, workoutLogIds, setLogsFound: 0 } })
     }
 
     // Calculate total tonnage (weight × reps for each set)
@@ -114,7 +109,10 @@ export async function GET(request: NextRequest) {
       return sum + ((set.weight_kg || 0) * (set.reps_completed || 0))
     }, 0)
 
-    return NextResponse.json({ tonnage: Math.round(totalTonnage) })
+    return NextResponse.json({ 
+      tonnage: Math.round(totalTonnage),
+      debug: { startDateStr, endDateStr, period, workoutLogIds, setLogsCount: setLogs.length }
+    })
   } catch (error) {
     console.error('Tonnage fetch error:', error)
     return NextResponse.json({ error: 'Failed to fetch tonnage' }, { status: 500 })
