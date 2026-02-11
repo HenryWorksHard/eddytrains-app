@@ -33,6 +33,7 @@ interface ExerciseLoggerProps {
   scheduledDate: string
   getOrCreateWorkoutLog: (workoutId: string) => Promise<string | null>
   existingLogId?: string
+  onDataChange?: () => void
 }
 
 export default function ExerciseLogger({
@@ -41,7 +42,8 @@ export default function ExerciseLogger({
   workoutId,
   scheduledDate,
   getOrCreateWorkoutLog,
-  existingLogId
+  existingLogId,
+  onDataChange
 }: ExerciseLoggerProps) {
   const supabase = createClient()
   const [expanded, setExpanded] = useState(false)
@@ -103,6 +105,9 @@ export default function ExerciseLogger({
       newLogs.set(setNumber, { setNumber, weight, reps })
       return newLogs
     })
+    
+    // Notify parent of data change
+    onDataChange?.()
 
     // Debounced save to database
     setSaving(true)

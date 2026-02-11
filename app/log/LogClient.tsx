@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
-import { ChevronLeft, ChevronRight, Calendar, Check, Dumbbell, ArrowLeft } from 'lucide-react'
+import { ChevronLeft, ChevronRight, Calendar, Check, Dumbbell, ArrowLeft, Pencil } from 'lucide-react'
 import { createClient } from '../lib/supabase/client'
 import ExerciseLogger from './ExerciseLogger'
 
@@ -90,6 +90,10 @@ export default function LogClient({ scheduleByDay }: LogClientProps) {
   const [completedWorkouts, setCompletedWorkouts] = useState<Record<string, boolean>>({})
   const [workoutLogIds, setWorkoutLogIds] = useState<Record<string, string>>({})
   const [saving, setSaving] = useState(false)
+  const [workoutsWithChanges, setWorkoutsWithChanges] = useState<Record<string, boolean>>({})
+  
+  // Check if selected date is today
+  const isToday = formatDate(selectedDate) === formatDate(new Date())
   
   // Swipe handling
   const touchStartX = useRef<number | null>(null)
@@ -140,6 +144,7 @@ export default function LogClient({ scheduleByDay }: LogClientProps) {
   // Navigation - update URL when date changes
   const navigateToDate = (date: Date) => {
     setSelectedDate(date)
+    setWorkoutsWithChanges({}) // Reset changes when navigating to new date
     const dateStr = formatDate(date)
     router.replace(`/log?date=${dateStr}`, { scroll: false })
   }
@@ -388,27 +393,48 @@ export default function LogClient({ scheduleByDay }: LogClientProps) {
                         scheduledDate={dateStr}
                         getOrCreateWorkoutLog={getOrCreateWorkoutLog}
                         existingLogId={workoutLogIds[workout.workoutId]}
+                        onDataChange={() => setWorkoutsWithChanges(prev => ({ ...prev, [workout.workoutId]: true }))}
                       />
                     ))}
                   </div>
 
-                  {/* Complete button */}
+                  {/* Complete/Edit button */}
                   {!isCompleted && workout.exercises.length > 0 && (
                     <div className="p-4 border-t border-zinc-800">
-                      <button
-                        onClick={() => completeWorkout(workout.workoutId, workout.clientProgramId)}
-                        disabled={saving}
-                        className="w-full py-3 bg-yellow-400 hover:bg-yellow-500 disabled:bg-yellow-400/50 text-black font-bold rounded-xl transition-colors flex items-center justify-center gap-2"
-                      >
-                        {saving ? (
-                          <div className="w-5 h-5 border-2 border-black border-t-transparent rounded-full animate-spin" />
-                        ) : (
-                          <>
-                            <Check className="w-5 h-5" />
-                            Complete Workout
-                          </>
-                        )}
-                      </button>
+                      {isToday ? (
+                        // Today: Complete Workout button
+                        <button
+                          onClick={() => completeWorkout(workout.workoutId, workout.clientProgramId)}
+                          disabled={saving}
+                          className="w-full py-3 bg-yellow-400 hover:bg-yellow-500 disabled:bg-yellow-400/50 text-black font-bold rounded-xl transition-colors flex items-center justify-center gap-2"
+                        >
+                          {saving ? (
+                            <div className="w-5 h-5 border-2 border-black border-t-transparent rounded-full animate-spin" />
+                          ) : (
+                            <>
+                              <Check className="w-5 h-5" />
+                              Complete Workout
+                            </>
+                          )}
+                        </button>
+                      ) : (
+                        // Other days: Edit Workout button (grey until changes made)
+                        <button
+                          onClick={() => {
+                            // Just mark as "saved" by clearing the changes flag
+                            setWorkoutsWithChanges(prev => ({ ...prev, [workout.workoutId]: false }))
+                          }}
+                          disabled={!workoutsWithChanges[workout.workoutId]}
+                          className={`w-full py-3 font-bold rounded-xl transition-colors flex items-center justify-center gap-2 ${
+                            workoutsWithChanges[workout.workoutId]
+                              ? 'bg-yellow-400 hover:bg-yellow-500 text-black'
+                              : 'bg-zinc-700 text-zinc-400 cursor-not-allowed'
+                          }`}
+                        >
+                          <Pencil className="w-5 h-5" />
+                          {workoutsWithChanges[workout.workoutId] ? 'Save Changes' : 'Edit Workout'}
+                        </button>
+                      )}
                     </div>
                   )}
                 </div>
