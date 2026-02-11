@@ -145,6 +145,8 @@ export default function LogClient({ scheduleByDay }: LogClientProps) {
   const navigateToDate = (date: Date) => {
     setSelectedDate(date)
     setWorkoutsWithChanges({}) // Reset changes when navigating to new date
+    setWorkoutLogIds({}) // Reset log IDs to force fresh fetch
+    setCompletedWorkouts({}) // Reset completions
     const dateStr = formatDate(date)
     router.replace(`/log?date=${dateStr}`, { scroll: false })
   }

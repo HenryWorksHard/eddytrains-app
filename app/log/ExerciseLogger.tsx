@@ -49,14 +49,17 @@ export default function ExerciseLogger({
   const [expanded, setExpanded] = useState(false)
   const [logs, setLogs] = useState<Map<number, SetLog>>(new Map())
   const [saving, setSaving] = useState(false)
-  const [loadedExisting, setLoadedExisting] = useState(false)
 
-  // Load existing logs when we have a workout log ID
+  // Reset state and load existing logs when date or log ID changes
   useEffect(() => {
-    if (existingLogId && !loadedExisting) {
+    // Reset state for new date
+    setLogs(new Map())
+    setExpanded(false)
+    
+    if (existingLogId) {
       loadExistingLogs(existingLogId)
     }
-  }, [existingLogId])
+  }, [existingLogId, scheduledDate])
 
   const loadExistingLogs = async (logId: string) => {
     const { data: existingSetLogs } = await supabase
@@ -77,7 +80,6 @@ export default function ExerciseLogger({
       setLogs(newLogs)
       setExpanded(true) // Auto-expand if has data
     }
-    setLoadedExisting(true)
   }
 
   // Count logged sets
