@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react'
 import Link from 'next/link'
 import { createClient } from '../lib/supabase/client'
+import { SlideOutMenu, HamburgerButton } from '../components/SlideOutMenu'
 
 interface WorkoutSchedule {
   dayOfWeek: number
@@ -57,6 +58,7 @@ export default function ScheduleClient({ scheduleByDay, completedWorkouts, upcom
   const [viewingWorkoutId, setViewingWorkoutId] = useState<string | null>(null)
   const [workoutPreview, setWorkoutPreview] = useState<Record<string, WorkoutPreview[]>>({})
   const [loadingPreview, setLoadingPreview] = useState<string | null>(null)
+  const [menuOpen, setMenuOpen] = useState(false)
   const supabase = createClient()
 
   const daysOfWeek = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']
@@ -326,14 +328,15 @@ export default function ScheduleClient({ scheduleByDay, completedWorkouts, upcom
 
   return (
     <>
+      {/* Slide Out Menu */}
+      <SlideOutMenu isOpen={menuOpen} onClose={() => setMenuOpen(false)} />
+      
       {/* Header */}
       <header className="sticky top-0 bg-black/95 backdrop-blur-lg border-b border-zinc-800 z-40">
-        <div className="px-6 py-4">
-          <div className="flex items-center gap-3">
-            <h1 className="text-xl font-bold text-white tracking-widest">SCHEDULE</h1>
-            <div className="w-8 h-1 bg-yellow-400"></div>
-          </div>
-          <p className="text-zinc-500 text-sm mt-1">Your training week at a glance</p>
+        <div className="flex items-center justify-between px-4 h-14">
+          <HamburgerButton onClick={() => setMenuOpen(true)} />
+          <h1 className="text-lg font-semibold text-white">Schedule</h1>
+          <div className="w-10" />
         </div>
       </header>
 

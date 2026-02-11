@@ -2,6 +2,7 @@ import { createClient } from '../lib/supabase/server'
 import { redirect } from 'next/navigation'
 import { getUserPermissions, hasAccess } from '../lib/permissions'
 import BottomNav from '../components/BottomNav'
+import PageHeader from '../components/PageHeader'
 import Link from 'next/link'
 import ProgramsClient from './ProgramsClient'
 
@@ -34,11 +35,7 @@ export default async function ProgramsPage() {
   if (!hasAccess(permissions, 'can_access_strength')) {
     return (
       <div className="min-h-screen bg-black pb-32">
-        <header className="bg-zinc-900 border-b border-zinc-800">
-          <div className="px-6 py-6">
-            <h1 className="text-2xl font-bold text-white">Programs</h1>
-          </div>
-        </header>
+        <PageHeader title="Programs" />
         <main className="px-6 py-6">
           <div className="bg-zinc-900 border border-zinc-800 rounded-2xl p-8 text-center">
             <div className="w-16 h-16 bg-zinc-800 rounded-full flex items-center justify-center mx-auto mb-4">
@@ -159,16 +156,7 @@ export default async function ProgramsPage() {
 
   return (
     <div className="min-h-screen bg-black pb-24">
-      {/* Header - Industrial Minimal */}
-      <header className="sticky top-0 bg-black/95 backdrop-blur-lg border-b border-zinc-800 z-40">
-        <div className="px-6 py-4">
-          <div className="flex items-center gap-3">
-            <h1 className="text-xl font-bold text-white tracking-widest" style={{ fontFamily: 'Sora, sans-serif' }}>YOUR PROGRAMS</h1>
-            <div className="w-8 h-1 bg-yellow-400"></div>
-          </div>
-          <p className="text-zinc-500 text-sm mt-1">Active training programs</p>
-        </div>
-      </header>
+      <PageHeader title="Programs" />
 
       <main className="px-6 py-6">
         {clientPrograms.length > 0 ? (

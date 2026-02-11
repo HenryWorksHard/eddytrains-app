@@ -2,7 +2,7 @@ import { redirect } from 'next/navigation'
 import { createClient } from '../lib/supabase/server'
 import HistoryClient from './HistoryClient'
 import BottomNav from '../components/BottomNav'
-import BackButton from '../components/BackButton'
+import PageHeader from '../components/PageHeader'
 
 export default async function HistoryPage() {
   const supabase = await createClient()
@@ -96,13 +96,7 @@ export default async function HistoryPage() {
 
   return (
     <div className="min-h-screen bg-black pb-20">
-      {/* Header */}
-      <header className="bg-zinc-900 border-b border-zinc-800 sticky top-0 z-40">
-        <div className="flex items-center gap-3 px-4 py-3">
-          <BackButton />
-          <h1 className="text-lg font-bold text-white">Workout History</h1>
-        </div>
-      </header>
+      <PageHeader title="History" />
 
       <HistoryClient history={history} />
       <BottomNav />
