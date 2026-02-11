@@ -424,7 +424,7 @@ export default function LogClient({ scheduleByDay }: LogClientProps) {
                 navigateToDate(new Date(e.target.value + 'T12:00:00'))
                 setShowDatePicker(false)
               }}
-              className="w-full p-3 bg-zinc-800 border border-zinc-700 rounded-xl text-white text-center text-lg"
+              className="w-full p-3 bg-zinc-800 border border-zinc-700 rounded-xl text-white text-center text-lg [color-scheme:dark]"
             />
             <button
               onClick={() => {

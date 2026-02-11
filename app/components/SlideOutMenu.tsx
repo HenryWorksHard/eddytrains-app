@@ -12,7 +12,7 @@ interface SlideOutMenuProps {
 
 const menuItems = [
   { href: '/dashboard', label: 'Home', icon: Home },
-  { href: '/log', label: 'Log Workout', icon: ClipboardList },
+  { href: '/log', label: 'Workout Log', icon: ClipboardList },
   { href: '/programs', label: 'Programs', icon: Dumbbell },
   { href: '/schedule', label: 'Schedule', icon: Calendar },
   { href: '/progress', label: 'Progress', icon: TrendingUp },
