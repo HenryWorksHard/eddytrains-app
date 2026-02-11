@@ -429,8 +429,12 @@ export default async function WorkoutDetailPage({
         </div>
         <div className="px-6 pb-6">
           <div className="flex items-start gap-4">
-            <div className="w-16 h-16 bg-zinc-800 rounded-2xl flex items-center justify-center text-3xl">
-              
+            <div className="w-16 h-16 bg-yellow-400/20 rounded-2xl flex items-center justify-center">
+              <span className="text-yellow-400 font-bold text-xl">
+                {workout.day_of_week !== null 
+                  ? ['SU', 'MO', 'TU', 'WE', 'TH', 'FR', 'SA'][workout.day_of_week]
+                  : '—'}
+              </span>
             </div>
             <div className="flex-1">
               <h1 className="text-2xl font-bold text-white">{workout.name}</h1>
