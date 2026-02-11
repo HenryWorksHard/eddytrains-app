@@ -1,7 +1,6 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { createClient } from '../lib/supabase/client'
 import Image from 'next/image'
 import Link from 'next/link'
 import { Flame, Weight, Camera, Dumbbell, ChevronRight, TrendingUp, ChevronDown } from 'lucide-react'
@@ -28,8 +27,6 @@ interface ProgressClientProps {
   oneRMs: OneRM[]
   progressImages: ProgressImage[]
   weeklyTonnage: number
-  exerciseNames: string[]
-  clientId: string
 }
 
 type TonnagePeriod = 'day' | 'week' | 'month' | 'year'
@@ -37,9 +34,7 @@ type TonnagePeriod = 'day' | 'week' | 'month' | 'year'
 export default function ProgressClient({ 
   oneRMs, 
   progressImages, 
-  weeklyTonnage: initialTonnage,
-  exerciseNames,
-  clientId 
+  weeklyTonnage: initialTonnage
 }: ProgressClientProps) {
   const [streak, setStreak] = useState({ current: 0, longest: 0 })
   const [selectedImage, setSelectedImage] = useState<ProgressImage | null>(null)
@@ -53,8 +48,6 @@ export default function ProgressClient({
   const [progressionData, setProgressionData] = useState<ProgressPoint[]>([])
   const [loadingProgression, setLoadingProgression] = useState(false)
   const [exerciseDropdownOpen, setExerciseDropdownOpen] = useState(false)
-  
-  const supabase = createClient()
 
   useEffect(() => {
     fetchStreak()
@@ -89,80 +82,30 @@ export default function ProgressClient({
   const fetchTonnage = async (period: TonnagePeriod) => {
     setLoadingTonnage(true)
     try {
-      const now = new Date()
-      let startDate: Date
-      
-      switch (period) {
-        case 'day':
-          startDate = new Date(now.getFullYear(), now.getMonth(), now.getDate())
-          break
-        case 'week':
-          startDate = new Date(now)
-          startDate.setDate(startDate.getDate() - 7)
-          break
-        case 'month':
-          startDate = new Date(now)
-          startDate.setMonth(startDate.getMonth() - 1)
-          break
-        case 'year':
-          startDate = new Date(now)
-          startDate.setFullYear(startDate.getFullYear() - 1)
-          break
-      }
-
-      const { data: logs } = await supabase
-        .from('workout_logs')
-        .select('id')
-        .eq('client_id', clientId)
-        .gte('completed_at', startDate.toISOString())
-
-      const logIds = logs?.map(l => l.id) || []
-      
-      if (logIds.length > 0) {
-        const { data: setLogs } = await supabase
-          .from('set_logs')
-          .select('weight_kg, reps_completed')
-          .in('workout_log_id', logIds)
-
-        const total = setLogs?.reduce((sum, s) => {
-          return sum + ((s.weight_kg || 0) * (s.reps_completed || 0))
-        }, 0) || 0
-        
-        setTonnage(total)
+      const tz = Intl.DateTimeFormat().resolvedOptions().timeZone
+      const response = await fetch(`/api/progress/tonnage?period=${period}&tz=${encodeURIComponent(tz)}`)
+      if (response.ok) {
+        const data = await response.json()
+        setTonnage(data.tonnage || 0)
       } else {
         setTonnage(0)
       }
     } catch (err) {
       console.error('Failed to fetch tonnage:', err)
+      setTonnage(0)
     }
     setLoadingTonnage(false)
   }
 
   const fetchAllExercises = async () => {
     try {
-      // Get all unique exercises the user has logged
-      const { data: logs } = await supabase
-        .from('workout_logs')
-        .select('id')
-        .eq('client_id', clientId)
-        .order('completed_at', { ascending: false })
-        .limit(50)
-
-      const logIds = logs?.map(l => l.id) || []
-      
-      if (logIds.length > 0) {
-        const { data: setLogs } = await supabase
-          .from('set_logs')
-          .select('exercise_id, workout_exercises(exercise_name)')
-          .in('workout_log_id', logIds)
-
-        const names = [...new Set(
-          setLogs?.map(s => (s.workout_exercises as any)?.exercise_name).filter(Boolean) || []
-        )].sort()
-        
-        setAllExercises(names)
-        if (names.length > 0 && !selectedExercise) {
-          setSelectedExercise(names[0])
+      const response = await fetch('/api/progress/exercises')
+      if (response.ok) {
+        const data = await response.json()
+        const exercises = data.exercises || []
+        setAllExercises(exercises.map((e: { name: string }) => e.name))
+        if (exercises.length > 0 && !selectedExercise) {
+          setSelectedExercise(exercises[0].name)
         }
       }
     } catch (err) {
@@ -173,46 +116,22 @@ export default function ProgressClient({
   const fetchProgression = async (exerciseName: string) => {
     setLoadingProgression(true)
     try {
-      // Get workout logs with this exercise
-      const { data: logs } = await supabase
-        .from('workout_logs')
-        .select(`
-          id,
-          completed_at,
-          set_logs (
-            weight_kg,
-            reps_completed,
-            workout_exercises (exercise_name)
-          )
-        `)
-        .eq('client_id', clientId)
-        .order('completed_at', { ascending: true })
-        .limit(30)
-
-      const points: ProgressPoint[] = []
-      
-      logs?.forEach(log => {
-        const exerciseSets = (log.set_logs as any[])?.filter(
-          s => s.workout_exercises?.exercise_name === exerciseName && s.weight_kg > 0
-        ) || []
-        
-        if (exerciseSets.length > 0) {
-          // Get best set (highest weight)
-          const bestSet = exerciseSets.reduce((best, s) => 
-            s.weight_kg > best.weight_kg ? s : best
-          , exerciseSets[0])
-          
-          points.push({
-            date: new Date(log.completed_at).toLocaleDateString(undefined, { month: 'short', day: 'numeric' }),
-            weight: bestSet.weight_kg,
-            reps: bestSet.reps_completed || 0
-          })
-        }
-      })
-      
-      setProgressionData(points)
+      const tz = Intl.DateTimeFormat().resolvedOptions().timeZone
+      const response = await fetch(`/api/progress/progression?exercise=${encodeURIComponent(exerciseName)}&period=month&tz=${encodeURIComponent(tz)}`)
+      if (response.ok) {
+        const data = await response.json()
+        const points = (data.progression || []).map((p: { date: string; weight: number; reps: number }) => ({
+          date: new Date(p.date).toLocaleDateString(undefined, { month: 'short', day: 'numeric' }),
+          weight: p.weight,
+          reps: p.reps
+        }))
+        setProgressionData(points)
+      } else {
+        setProgressionData([])
+      }
     } catch (err) {
       console.error('Failed to fetch progression:', err)
+      setProgressionData([])
     }
     setLoadingProgression(false)
   }

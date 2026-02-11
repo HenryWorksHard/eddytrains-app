@@ -54,17 +54,6 @@ export default async function ProgressPage() {
     }, 0) || 0
   }
 
-  // Get exercises user has logged for progression tracking
-  const { data: exerciseData } = await supabase
-    .from('set_logs')
-    .select('exercise_id, workout_exercises(exercise_name)')
-    .eq('workout_log_id', logIds[0] || '')
-    .limit(20)
-  
-  const exerciseNames = [...new Set(
-    exerciseData?.map(e => (e.workout_exercises as any)?.exercise_name).filter(Boolean) || []
-  )]
-
   return (
     <div className="min-h-screen bg-black pb-24">
       <PageHeader title="Progress" />
@@ -72,8 +61,6 @@ export default async function ProgressPage() {
         oneRMs={oneRMs || []}
         progressImages={progressImages || []}
         weeklyTonnage={weeklyTonnage}
-        exerciseNames={exerciseNames}
-        clientId={user.id}
       />
       <BottomNav />
     </div>
