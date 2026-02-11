@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import Link from 'next/link'
+import { createClient } from '../lib/supabase/client'
 
 interface WorkoutSchedule {
   dayOfWeek: number
@@ -19,11 +20,21 @@ interface WorkoutCalendarProps {
   programStartDate?: string // Earliest active program start date
 }
 
+interface WorkoutLogDetail {
+  id: string
+  exerciseName: string
+  sets: { setNumber: number; weight: number; reps: number }[]
+}
+
 export default function WorkoutCalendar({ scheduleByDay, completedWorkouts, compact = false, programStartDate }: WorkoutCalendarProps) {
   const [mounted, setMounted] = useState(false)
   const [today, setToday] = useState(new Date())
   const [currentMonth, setCurrentMonth] = useState(new Date())
   const [selectedDate, setSelectedDate] = useState<Date | null>(null)
+  const [workoutDetails, setWorkoutDetails] = useState<WorkoutLogDetail[] | null>(null)
+  const [loadingDetails, setLoadingDetails] = useState(false)
+  const [showingDetailsFor, setShowingDetailsFor] = useState<string | null>(null)
+  const supabase = createClient()
 
   const daysOfWeek = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']
   const fullDayNames = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday']
@@ -132,6 +143,102 @@ export default function WorkoutCalendar({ scheduleByDay, completedWorkouts, comp
       case 'rest': return 'bg-zinc-800/30 border-zinc-700/50 text-zinc-500'
       default: return 'bg-zinc-800/50 border-zinc-700 text-zinc-500'
     }
+  }
+
+  // Fetch workout log details for a completed workout
+  const fetchWorkoutDetails = async (date: Date, workoutId: string) => {
+    setLoadingDetails(true)
+    setShowingDetailsFor(workoutId)
+    setWorkoutDetails(null)
+    
+    try {
+      const dateStr = formatDateLocal(date)
+      
+      // Get workout log for this date
+      const { data: workoutLog } = await supabase
+        .from('workout_logs')
+        .select('id')
+        .eq('workout_id', workoutId)
+        .eq('scheduled_date', dateStr)
+        .single()
+      
+      if (!workoutLog) {
+        // Try with completed_at date
+        const { data: fallbackLog } = await supabase
+          .from('workout_logs')
+          .select('id, completed_at')
+          .eq('workout_id', workoutId)
+          .gte('completed_at', `${dateStr}T00:00:00`)
+          .lte('completed_at', `${dateStr}T23:59:59`)
+          .single()
+        
+        if (!fallbackLog) {
+          setWorkoutDetails([])
+          setLoadingDetails(false)
+          return
+        }
+        
+        // Use fallback log
+        await fetchSetLogs(fallbackLog.id)
+        return
+      }
+      
+      await fetchSetLogs(workoutLog.id)
+    } catch (err) {
+      console.error('Failed to fetch workout details:', err)
+      setWorkoutDetails([])
+    }
+    
+    setLoadingDetails(false)
+  }
+
+  const fetchSetLogs = async (workoutLogId: string) => {
+    const { data: setLogs } = await supabase
+      .from('set_logs')
+      .select(`
+        exercise_id,
+        set_number,
+        weight_kg,
+        reps_completed,
+        workout_exercises (exercise_name)
+      `)
+      .eq('workout_log_id', workoutLogId)
+      .order('exercise_id')
+      .order('set_number')
+    
+    if (!setLogs || setLogs.length === 0) {
+      setWorkoutDetails([])
+      return
+    }
+    
+    // Group by exercise
+    const exerciseMap = new Map<string, WorkoutLogDetail>()
+    
+    setLogs.forEach(log => {
+      const exerciseName = (log.workout_exercises as any)?.exercise_name || 'Unknown'
+      const exerciseId = log.exercise_id
+      
+      if (!exerciseMap.has(exerciseId)) {
+        exerciseMap.set(exerciseId, {
+          id: exerciseId,
+          exerciseName,
+          sets: []
+        })
+      }
+      
+      exerciseMap.get(exerciseId)!.sets.push({
+        setNumber: log.set_number,
+        weight: log.weight_kg || 0,
+        reps: log.reps_completed || 0
+      })
+    })
+    
+    setWorkoutDetails(Array.from(exerciseMap.values()))
+  }
+
+  const closeDetails = () => {
+    setShowingDetailsFor(null)
+    setWorkoutDetails(null)
   }
 
   if (!mounted) {
@@ -306,17 +413,17 @@ export default function WorkoutCalendar({ scheduleByDay, completedWorkouts, comp
                   <div className="space-y-2">
                     {workouts.map((workout) => {
                       const workoutCompleted = isWorkoutCompleted(selectedDate, workout)
+                      const isShowingDetails = showingDetailsFor === workout.workoutId
+                      
                       return (
-                        <Link
+                        <div
                           key={workout.workoutId}
-                          href={`/workout/${workout.workoutId}?clientProgramId=${workout.clientProgramId}`}
-                          onClick={() => setSelectedDate(null)}
-                          className={`block p-3 rounded-xl border transition-all active:scale-98 ${
+                          className={`p-3 rounded-xl border transition-all ${
                             workoutCompleted 
                               ? 'bg-green-500/10 border-green-500/30' 
                               : isPast 
                                 ? 'bg-red-500/5 border-red-500/20'
-                                : 'bg-zinc-800/50 border-zinc-700 hover:border-yellow-400/50'
+                                : 'bg-zinc-800/50 border-zinc-700'
                           }`}
                         >
                           <div className="flex items-center gap-2 mb-1">
@@ -327,13 +434,9 @@ export default function WorkoutCalendar({ scheduleByDay, completedWorkouts, comp
                             }`}>
                               {workout.workoutName}
                             </h4>
-                            {workoutCompleted ? (
+                            {workoutCompleted && (
                               <svg className="w-4 h-4 text-green-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                              </svg>
-                            ) : (
-                              <svg className="w-4 h-4 text-zinc-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
                               </svg>
                             )}
                           </div>
@@ -350,7 +453,54 @@ export default function WorkoutCalendar({ scheduleByDay, completedWorkouts, comp
                               Missed
                             </div>
                           )}
-                        </Link>
+                          
+                          {/* Action Buttons */}
+                          <div className="flex gap-2 mt-3">
+                            <Link
+                              href={`/workout/${workout.workoutId}?clientProgramId=${workout.clientProgramId}`}
+                              onClick={() => setSelectedDate(null)}
+                              className="flex-1 text-center py-2 bg-zinc-800 hover:bg-zinc-700 text-white text-xs font-medium rounded-lg transition-colors"
+                            >
+                              {workoutCompleted ? 'View Workout' : 'Start Workout'}
+                            </Link>
+                            
+                            {workoutCompleted && (
+                              <button
+                                onClick={() => isShowingDetails ? closeDetails() : fetchWorkoutDetails(selectedDate, workout.workoutId)}
+                                className="flex-1 py-2 bg-green-500/20 hover:bg-green-500/30 text-green-400 text-xs font-medium rounded-lg transition-colors"
+                              >
+                                {loadingDetails && isShowingDetails ? 'Loading...' : isShowingDetails ? 'Hide Details' : 'View Log'}
+                              </button>
+                            )}
+                          </div>
+                          
+                          {/* Workout Details */}
+                          {isShowingDetails && workoutDetails && (
+                            <div className="mt-3 pt-3 border-t border-zinc-700 space-y-3">
+                              {workoutDetails.length === 0 ? (
+                                <p className="text-zinc-500 text-xs text-center">No sets logged</p>
+                              ) : (
+                                workoutDetails.map((exercise) => (
+                                  <div key={exercise.id}>
+                                    <p className="text-white text-xs font-medium mb-1">{exercise.exerciseName}</p>
+                                    <div className="space-y-1">
+                                      {exercise.sets.map((set) => (
+                                        <div key={set.setNumber} className="flex items-center gap-2 text-xs">
+                                          <span className="w-5 h-5 bg-zinc-800 rounded flex items-center justify-center text-zinc-400">
+                                            {set.setNumber}
+                                          </span>
+                                          <span className="text-white">{set.weight}kg</span>
+                                          <span className="text-zinc-500">×</span>
+                                          <span className="text-white">{set.reps} reps</span>
+                                        </div>
+                                      ))}
+                                    </div>
+                                  </div>
+                                ))
+                              )}
+                            </div>
+                          )}
+                        </div>
                       )
                     })}
                   </div>
