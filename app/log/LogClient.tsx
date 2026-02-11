@@ -290,7 +290,7 @@ export default function LogClient({ scheduleByDay }: LogClientProps) {
         {/* Back button row */}
         <div className="flex items-center px-4 pt-3 pb-1">
           <button 
-            onClick={() => router.push('/workouts')}
+            onClick={() => router.push('/dashboard')}
             className="flex items-center gap-1 text-zinc-400 hover:text-white transition-colors"
           >
             <ArrowLeft className="w-5 h-5" />
