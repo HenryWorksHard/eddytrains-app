@@ -586,21 +586,31 @@ export default function ExerciseCard({
             </button>
           </div>
           
-          {/* Bottom Row: Sets × Reps | Intensity | Weight */}
+          {/* Bottom Row: Sets × Reps | Intensity | Weight (or duration for cardio) */}
           <div className="flex items-center gap-1.5 mt-1.5 ml-9 text-xs flex-wrap">
-            <span className="text-white font-medium">
-              {sets.length} × {sets[0]?.reps || '-'}
-            </span>
-            <span className="text-zinc-600">•</span>
-            <span className="text-yellow-400">
-              {intensitySummary}
-            </span>
-            {calculatedWeight && (
+            {isCardioExercise ? (
+              /* Cardio: just show duration/distance */
+              <span className="text-yellow-400 font-medium">
+                {sets[0]?.cardio_value ? `${sets[0].cardio_value} ${sets[0].cardio_unit || 'min'}` : 'Complete'}
+              </span>
+            ) : (
+              /* Strength: show sets × reps · intensity · weight */
               <>
-                <span className="text-zinc-600">•</span>
-                <span className="text-green-400 font-medium">
-                  {calculatedWeight}kg
+                <span className="text-white font-medium">
+                  {sets.length} × {sets[0]?.reps || '-'}
                 </span>
+                <span className="text-zinc-600">•</span>
+                <span className="text-yellow-400">
+                  {intensitySummary}
+                </span>
+                {calculatedWeight && (
+                  <>
+                    <span className="text-zinc-600">•</span>
+                    <span className="text-green-400 font-medium">
+                      {calculatedWeight}kg
+                    </span>
+                  </>
+                )}
               </>
             )}
           </div>
