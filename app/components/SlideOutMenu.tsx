@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { Menu, X, Home, Dumbbell, Calendar, Clock, Settings, HelpCircle, Instagram } from 'lucide-react'
+import { Menu, X, Home, Dumbbell, Calendar, TrendingUp, Settings, HelpCircle, Instagram } from 'lucide-react'
 
 interface SlideOutMenuProps {
   isOpen: boolean
@@ -14,7 +14,7 @@ const menuItems = [
   { href: '/dashboard', label: 'Home', icon: Home },
   { href: '/programs', label: 'Programs', icon: Dumbbell },
   { href: '/schedule', label: 'Schedule', icon: Calendar },
-  { href: '/history', label: 'History', icon: Clock },
+  { href: '/progress', label: 'Progress', icon: TrendingUp },
 ]
 
 const bottomItems = [
