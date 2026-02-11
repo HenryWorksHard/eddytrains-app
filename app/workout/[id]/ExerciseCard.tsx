@@ -13,7 +13,13 @@ interface ExerciseSet {
   intensity_type: string
   intensity_value: string
   rest_bracket?: string
+  weight_type?: string
   notes?: string
+  // Cardio fields
+  cardio_type?: string
+  cardio_value?: string
+  cardio_unit?: string
+  heart_rate_zone?: string
 }
 
 interface SetLog {
@@ -435,6 +441,22 @@ export default function ExerciseCard({
   // Check if exercise is steps-based
   // Only "Steps" exercise uses steps-only mode (not walking/running)
   const isStepsExercise = currentExerciseName.toLowerCase() === 'steps'
+  
+  // Check if exercise is cardio-based (duration/distance, no weight tracking)
+  // Cardio exercises: have cardio_type set OR are bodyweight cardio activities
+  const isCardioExercise = (() => {
+    // Check if any set has cardio_type
+    const hasCardioType = sets.some(s => s.cardio_type && s.cardio_type !== '')
+    if (hasCardioType) return true
+    
+    // Check if bodyweight cardio exercise (running, cycling, rowing, etc.)
+    const cardioKeywords = ['running', 'run', 'cycling', 'bike', 'rowing', 'row machine', 'treadmill', 'elliptical', 'walking', 'swim', 'cardio']
+    const nameLower = currentExerciseName.toLowerCase()
+    const isCardioName = cardioKeywords.some(k => nameLower.includes(k))
+    const isBodyweight = sets.some(s => s.weight_type === 'bodyweight')
+    
+    return isCardioName && isBodyweight
+  })()
 
   // Get previous set's logged values to pre-fill next set
   const getPreviousSetValues = (setNumber: number) => {
@@ -591,8 +613,51 @@ export default function ExerciseCard({
         {/* Expanded Sets */}
         {expanded && (
           <div className="border-t border-zinc-800 bg-zinc-950/50">
-            {/* Set Rows */}
-            {sets.map((set) => {
+            {/* Cardio-only display - single completion button instead of multiple sets */}
+            {isCardioExercise && (
+              <div className="px-3 py-4">
+                <div className="flex items-center justify-between">
+                  <div className="text-zinc-400 text-sm">
+                    {sets[0]?.cardio_value ? (
+                      <span>{sets[0].cardio_value} {sets[0].cardio_unit || 'min'}</span>
+                    ) : (
+                      <span>Complete workout</span>
+                    )}
+                  </div>
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      // Mark as done by setting reps to 1
+                      const log = localLogs.get(1)
+                      const newValue = log?.reps_completed ? null : 1
+                      setLocalLogs(prev => {
+                        const newMap = new Map(prev)
+                        newMap.set(1, { set_number: 1, weight_kg: null, reps_completed: newValue })
+                        return newMap
+                      })
+                      onLogUpdate(exerciseId, 1, null, newValue)
+                    }}
+                    className={`px-6 py-3 rounded-xl font-semibold transition-all active:scale-95 ${
+                      localLogs.get(1)?.reps_completed
+                        ? 'bg-green-500/20 border border-green-500/30 text-green-400'
+                        : 'bg-yellow-400 text-black'
+                    }`}
+                  >
+                    {localLogs.get(1)?.reps_completed ? (
+                      <span className="flex items-center gap-2">
+                        <Check className="w-5 h-5" />
+                        Done
+                      </span>
+                    ) : (
+                      'Mark Complete'
+                    )}
+                  </button>
+                </div>
+              </div>
+            )}
+            
+            {/* Regular Set Rows (non-cardio) */}
+            {!isCardioExercise && sets.map((set) => {
               const log = localLogs.get(set.set_number)
               const isLogged = isStepsExercise 
                 ? (log?.steps_completed !== null && log?.steps_completed !== undefined)

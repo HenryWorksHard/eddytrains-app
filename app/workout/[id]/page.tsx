@@ -229,7 +229,13 @@ export default async function WorkoutDetailPage({
           intensity_type,
           intensity_value,
           rest_seconds,
-          notes
+          rest_bracket,
+          weight_type,
+          notes,
+          cardio_type,
+          cardio_value,
+          cardio_unit,
+          heart_rate_zone
         )
       )
     `)
