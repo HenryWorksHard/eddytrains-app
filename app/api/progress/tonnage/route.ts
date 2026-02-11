@@ -25,11 +25,15 @@ export async function GET(request: NextRequest) {
       return `${year}-${month}-${day}`
     }
     
+    const todayStr = formatDate(nowInTz)
     let startDateStr: string
+    let endDateStr: string | null = null
     
     switch (period) {
       case 'day':
-        startDateStr = formatDate(nowInTz)
+        // Only today - exact match
+        startDateStr = todayStr
+        endDateStr = todayStr
         break
       case 'week':
         const dayOfWeek = nowInTz.getDay()
@@ -37,35 +41,56 @@ export async function GET(request: NextRequest) {
         const weekStart = new Date(nowInTz)
         weekStart.setDate(nowInTz.getDate() - daysFromMonday)
         startDateStr = formatDate(weekStart)
+        endDateStr = todayStr
         break
       case 'month':
         startDateStr = `${nowInTz.getFullYear()}-${String(nowInTz.getMonth() + 1).padStart(2, '0')}-01`
+        endDateStr = todayStr
         break
       case 'year':
         startDateStr = `${nowInTz.getFullYear()}-01-01`
+        endDateStr = todayStr
         break
       default:
         const defaultStart = new Date(nowInTz)
         defaultStart.setDate(nowInTz.getDate() - 7)
         startDateStr = formatDate(defaultStart)
+        endDateStr = todayStr
     }
 
-    // Try scheduled_date first, fall back to completed_at if no results
-    let { data: workoutLogs } = await supabase
+    // Query using scheduled_date with proper range
+    let query = supabase
       .from('workout_logs')
       .select('id, scheduled_date, completed_at')
       .eq('client_id', user.id)
       .gte('scheduled_date', startDateStr)
+    
+    if (endDateStr) {
+      query = query.lte('scheduled_date', endDateStr)
+    }
+    
+    let { data: workoutLogs } = await query
 
-    // If no results with scheduled_date, try completed_at
+    // If no results with scheduled_date, try completed_at with date extraction
     if (!workoutLogs || workoutLogs.length === 0) {
-      const { data: fallbackLogs } = await supabase
+      // Get all logs and filter by date manually
+      const { data: allLogs } = await supabase
         .from('workout_logs')
         .select('id, scheduled_date, completed_at')
         .eq('client_id', user.id)
-        .gte('completed_at', `${startDateStr}T00:00:00`)
+        .order('completed_at', { ascending: false })
+        .limit(100)
       
-      workoutLogs = fallbackLogs
+      // Filter by completed_at date (extract date part)
+      workoutLogs = allLogs?.filter(log => {
+        const logDate = log.scheduled_date || (log.completed_at ? log.completed_at.split('T')[0] : null)
+        if (!logDate) return false
+        
+        if (period === 'day') {
+          return logDate === todayStr
+        }
+        return logDate >= startDateStr && (!endDateStr || logDate <= endDateStr)
+      }) || []
     }
 
     if (!workoutLogs || workoutLogs.length === 0) {
