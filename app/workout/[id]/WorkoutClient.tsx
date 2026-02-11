@@ -40,6 +40,7 @@ interface SetLog {
   set_number: number
   weight_kg: number | null
   reps_completed: number | null
+  swapped_exercise_name?: string | null
 }
 
 interface PreviousSetLog {
@@ -258,6 +259,7 @@ export default function WorkoutClient({ workoutId, exercises, oneRMs, personalBe
   const pendingLogsRef = useRef<Map<string, SetLog>>(new Map())
   const isSavingRef = useRef(false)
   const workoutLogIdRef = useRef<string | null>(null)
+  const swappedExercisesRef = useRef<Map<string, SwappedExercise>>(new Map())
   
   // Keep refs in sync with state
   useEffect(() => {
@@ -267,6 +269,10 @@ export default function WorkoutClient({ workoutId, exercises, oneRMs, personalBe
   useEffect(() => {
     workoutLogIdRef.current = workoutLogId
   }, [workoutLogId])
+  
+  useEffect(() => {
+    swappedExercisesRef.current = new Map(swappedExercises)
+  }, [swappedExercises])
 
   // Trigger save whenever setLogs changes
   useEffect(() => {
@@ -343,13 +349,18 @@ export default function WorkoutClient({ workoutId, exercises, oneRMs, personalBe
       // Build set logs for upsert
       const logsToSave = Array.from(logsToProcess.values())
         .filter(log => log.weight_kg !== null || log.reps_completed !== null)
-        .map(log => ({
-          workout_log_id: logId,
-          exercise_id: log.exercise_id,
-          set_number: log.set_number,
-          weight_kg: log.weight_kg,
-          reps_completed: log.reps_completed
-        }))
+        .map(log => {
+          // Check if this exercise was swapped
+          const swapped = swappedExercisesRef.current.get(log.exercise_id)
+          return {
+            workout_log_id: logId,
+            exercise_id: log.exercise_id,
+            set_number: log.set_number,
+            weight_kg: log.weight_kg,
+            reps_completed: log.reps_completed,
+            swapped_exercise_name: swapped?.newName || null
+          }
+        })
 
       if (logsToSave.length > 0) {
         // Use upsert instead of delete+insert for atomicity
