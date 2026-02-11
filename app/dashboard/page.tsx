@@ -126,11 +126,15 @@ export default async function DashboardPage() {
     .gte('scheduled_date', monthStart)
     .lte('scheduled_date', monthEnd)
   
-  // Build calendar completions map: "date:workoutId:clientProgramId" -> true
+  // Build calendar completions map with both key formats for backwards compatibility
   const calendarCompletions: Record<string, boolean> = {}
   monthCompletions?.forEach(c => {
-    const key = `${c.scheduled_date}:${c.workout_id}:${c.client_program_id}`
-    calendarCompletions[key] = true
+    // Key with program ID
+    const keyWithProgram = `${c.scheduled_date}:${c.workout_id}:${c.client_program_id}`
+    calendarCompletions[keyWithProgram] = true
+    // Key without program ID (for old completions with null program_id)
+    const keyWithoutProgram = `${c.scheduled_date}:${c.workout_id}`
+    calendarCompletions[keyWithoutProgram] = true
   })
 
   // Transform workoutsByDay to calendar format (needs dayOfWeek, workoutId, etc.)

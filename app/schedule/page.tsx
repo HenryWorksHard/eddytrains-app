@@ -47,22 +47,16 @@ export default async function SchedulePage() {
   // Get active client program IDs
   const activeClientProgramIds = clientPrograms?.map(cp => cp.id) || []
 
-  // Get workout completions for the lookback period, filtered by active program assignments
+  // Get workout completions for the lookback period
+  // Include ALL completions (even from old/null programs) so historical data shows as green
   const lookbackDate = new Date()
   lookbackDate.setDate(lookbackDate.getDate() - COMPLETION_LOOKBACK_DAYS)
   
-  let completionsQuery = supabase
+  const { data: completions } = await supabase
     .from('workout_completions')
     .select('workout_id, scheduled_date, completed_at, client_program_id')
     .eq('client_id', user.id)
     .gte('scheduled_date', lookbackDate.toISOString().split('T')[0])
-  
-  // Only show completions for current active program assignments
-  if (activeClientProgramIds.length > 0) {
-    completionsQuery = completionsQuery.in('client_program_id', activeClientProgramIds)
-  }
-  
-  const { data: completions } = await completionsQuery
 
   // Build schedule data - supports multiple workouts per day
   interface WorkoutSchedule {
@@ -112,11 +106,16 @@ export default async function SchedulePage() {
   }
 
   // Format completions for client - supports multiple completions per date
-  // Key format: "date:workoutId:clientProgramId" to track each workout separately
+  // Create keys both with and without client_program_id for backwards compatibility
+  // This ensures old completions (with null program_id) still show as green
   const completedWorkouts: Record<string, boolean> = {}
   completions?.forEach(c => {
-    const key = `${c.scheduled_date}:${c.workout_id}:${c.client_program_id}`
-    completedWorkouts[key] = true
+    // Key with program ID (for current program tracking)
+    const keyWithProgram = `${c.scheduled_date}:${c.workout_id}:${c.client_program_id}`
+    completedWorkouts[keyWithProgram] = true
+    // Key without program ID (for any completion on that date/workout)
+    const keyWithoutProgram = `${c.scheduled_date}:${c.workout_id}`
+    completedWorkouts[keyWithoutProgram] = true
   })
 
   // Separate current/active programs from future programs
