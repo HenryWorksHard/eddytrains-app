@@ -3,11 +3,21 @@
 import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { Menu, X, Home, Dumbbell, Calendar, TrendingUp, Settings, HelpCircle, Instagram } from 'lucide-react'
+import { Menu, X, Home, Dumbbell, Calendar, TrendingUp, Settings, HelpCircle, Instagram, Clock, ChevronRight } from 'lucide-react'
+import { createClient } from '../lib/supabase/client'
 
 interface SlideOutMenuProps {
   isOpen: boolean
   onClose: () => void
+}
+
+interface RecentWorkout {
+  id: string
+  workoutId: string
+  workoutName: string
+  programName: string
+  completedAt: string
+  scheduledDate: string
 }
 
 const menuItems = [
@@ -23,8 +33,82 @@ const bottomItems = [
   { href: 'https://www.instagram.com/eddytrains/', label: 'Follow on Instagram', icon: Instagram, external: true },
 ]
 
+// Format relative time
+function formatRelativeTime(dateStr: string): string {
+  const date = new Date(dateStr)
+  const now = new Date()
+  const diffMs = now.getTime() - date.getTime()
+  const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24))
+  
+  if (diffDays === 0) return 'Today'
+  if (diffDays === 1) return 'Yesterday'
+  if (diffDays < 7) return `${diffDays} days ago`
+  
+  return date.toLocaleDateString(undefined, { month: 'short', day: 'numeric' })
+}
+
 export function SlideOutMenu({ isOpen, onClose }: SlideOutMenuProps) {
   const pathname = usePathname()
+  const [recentWorkouts, setRecentWorkouts] = useState<RecentWorkout[]>([])
+  const [loadingRecent, setLoadingRecent] = useState(false)
+  const supabase = createClient()
+
+  // Fetch recent workouts when menu opens
+  useEffect(() => {
+    if (isOpen && recentWorkouts.length === 0) {
+      fetchRecentWorkouts()
+    }
+  }, [isOpen])
+
+  const fetchRecentWorkouts = async () => {
+    setLoadingRecent(true)
+    try {
+      const { data: { user } } = await supabase.auth.getUser()
+      if (!user) return
+
+      // Get recent completions with workout names
+      const { data: completions } = await supabase
+        .from('workout_completions')
+        .select('id, workout_id, scheduled_date, completed_at, client_program_id')
+        .eq('client_id', user.id)
+        .order('completed_at', { ascending: false })
+        .limit(5)
+
+      if (!completions || completions.length === 0) {
+        setRecentWorkouts([])
+        return
+      }
+
+      // Get workout names
+      const workoutIds = [...new Set(completions.map(c => c.workout_id))]
+      const { data: workouts } = await supabase
+        .from('program_workouts')
+        .select('id, name, program_id, programs(name)')
+        .in('id', workoutIds)
+
+      const workoutMap = new Map(workouts?.map(w => [w.id, w]) || [])
+
+      const recent: RecentWorkout[] = completions.map(c => {
+        const workout = workoutMap.get(c.workout_id)
+        const programData = workout?.programs as { name: string } | { name: string }[] | null
+        const programName = Array.isArray(programData) ? programData[0]?.name : programData?.name
+        return {
+          id: c.id,
+          workoutId: c.workout_id,
+          workoutName: workout?.name || 'Workout',
+          programName: programName || 'Program',
+          completedAt: c.completed_at,
+          scheduledDate: c.scheduled_date
+        }
+      })
+
+      setRecentWorkouts(recent)
+    } catch (err) {
+      console.error('Failed to fetch recent workouts:', err)
+    } finally {
+      setLoadingRecent(false)
+    }
+  }
 
   // Close on escape key
   useEffect(() => {
@@ -98,6 +182,52 @@ export function SlideOutMenu({ isOpen, onClose }: SlideOutMenuProps) {
             )
           })}
         </nav>
+        
+        {/* Divider */}
+        <div className="mx-4 my-2 border-t border-zinc-800" />
+        
+        {/* Recent Workouts */}
+        <div className="px-3 py-2">
+          <div className="flex items-center gap-2 px-4 py-2 text-zinc-500">
+            <Clock className="w-4 h-4" />
+            <span className="text-xs font-medium uppercase tracking-wider">Recent Workouts</span>
+          </div>
+          
+          {loadingRecent ? (
+            <div className="px-4 py-3">
+              <div className="h-4 bg-zinc-800 rounded animate-pulse" />
+            </div>
+          ) : recentWorkouts.length === 0 ? (
+            <p className="px-4 py-2 text-zinc-600 text-sm">No completed workouts yet</p>
+          ) : (
+            <div className="space-y-1">
+              {recentWorkouts.map((workout) => (
+                <Link
+                  key={workout.id}
+                  href={`/workout/${workout.workoutId}`}
+                  onClick={onClose}
+                  className="flex items-center justify-between px-4 py-2.5 rounded-xl text-zinc-300 hover:bg-zinc-800 hover:text-white transition-colors group"
+                >
+                  <div className="min-w-0 flex-1">
+                    <p className="font-medium text-sm truncate">{workout.workoutName}</p>
+                    <p className="text-zinc-500 text-xs truncate">{formatRelativeTime(workout.completedAt)}</p>
+                  </div>
+                  <ChevronRight className="w-4 h-4 text-zinc-600 group-hover:text-zinc-400 flex-shrink-0" />
+                </Link>
+              ))}
+              
+              {/* See All Link */}
+              <Link
+                href="/history"
+                onClick={onClose}
+                className="flex items-center justify-center gap-1 px-4 py-2 text-yellow-400 hover:text-yellow-300 text-xs font-medium transition-colors"
+              >
+                See All History
+                <ChevronRight className="w-3 h-3" />
+              </Link>
+            </div>
+          )}
+        </div>
         
         {/* Divider */}
         <div className="mx-4 my-2 border-t border-zinc-800" />
