@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react'
 import Link from 'next/link'
 import { SlideOutMenu, HamburgerButton } from '../components/SlideOutMenu'
+import WorkoutCalendar from '../components/WorkoutCalendar'
 
 interface Workout {
   id: string
@@ -277,6 +278,17 @@ export default function DashboardClient({ firstName, workoutsByDay, programCount
             </div>
           </section>
         )}
+
+        {/* Monthly Calendar */}
+        <section className="mt-4">
+          <h2 className="text-xs font-medium text-zinc-500 uppercase tracking-wider mb-2">This Month</h2>
+          <WorkoutCalendar 
+            scheduleByDay={scheduleByDay}
+            completedWorkouts={calendarCompletions}
+            compact={true}
+            programStartDate={programStartDate}
+          />
+        </section>
       </main>
     </>
   )
