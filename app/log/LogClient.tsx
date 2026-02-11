@@ -225,8 +225,7 @@ export default function LogClient({ scheduleByDay }: LogClientProps) {
 
   // Get or create workout log for saving sets - accepts scheduledDate explicitly to avoid stale closures
   const getOrCreateWorkoutLog = useCallback(async (workoutId: string, scheduledDate: string): Promise<string | null> => {
-    // Check if we already have one cached for this date
-    const cacheKey = `${workoutId}_${scheduledDate}`
+    // Check if we already have one cached
     if (workoutLogIds[workoutId]) {
       return workoutLogIds[workoutId]
     }
@@ -234,41 +233,52 @@ export default function LogClient({ scheduleByDay }: LogClientProps) {
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) return null
 
-    // Use upsert to prevent duplicates - if one exists, just return it
-    const { data: log, error } = await supabase
+    // ALWAYS check for existing first to prevent duplicates
+    const { data: existing } = await supabase
       .from('workout_logs')
-      .upsert({
+      .select('id')
+      .eq('client_id', user.id)
+      .eq('workout_id', workoutId)
+      .eq('scheduled_date', scheduledDate)
+      .maybeSingle()
+
+    if (existing) {
+      setWorkoutLogIds(prev => ({ ...prev, [workoutId]: existing.id }))
+      return existing.id
+    }
+
+    // Only create if none exists
+    const { data: newLog, error } = await supabase
+      .from('workout_logs')
+      .insert({
         client_id: user.id,
         workout_id: workoutId,
         scheduled_date: scheduledDate,
         completed_at: new Date().toISOString()
-      }, {
-        onConflict: 'client_id,workout_id,scheduled_date',
-        ignoreDuplicates: false
       })
       .select('id')
       .single()
 
     if (error) {
-      // If upsert fails, try to fetch existing
-      const { data: existing } = await supabase
+      // Race condition - another request might have created it, check again
+      const { data: raceCheck } = await supabase
         .from('workout_logs')
         .select('id')
         .eq('client_id', user.id)
         .eq('workout_id', workoutId)
         .eq('scheduled_date', scheduledDate)
-        .single()
+        .maybeSingle()
       
-      if (existing) {
-        setWorkoutLogIds(prev => ({ ...prev, [workoutId]: existing.id }))
-        return existing.id
+      if (raceCheck) {
+        setWorkoutLogIds(prev => ({ ...prev, [workoutId]: raceCheck.id }))
+        return raceCheck.id
       }
-      console.error('Failed to create/get workout log:', error)
+      console.error('Failed to create workout log:', error)
       return null
     }
 
-    setWorkoutLogIds(prev => ({ ...prev, [workoutId]: log.id }))
-    return log.id
+    setWorkoutLogIds(prev => ({ ...prev, [workoutId]: newLog.id }))
+    return newLog.id
   }, [workoutLogIds])
 
   // Category colors
