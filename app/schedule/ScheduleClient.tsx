@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
+import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { createClient } from '../lib/supabase/client'
 import { SlideOutMenu, HamburgerButton } from '../components/SlideOutMenu'
@@ -24,18 +25,6 @@ interface UpcomingProgram {
   phaseName: string | null
 }
 
-interface WorkoutLogDetails {
-  id: string
-  notes: string | null
-  rating: number | null
-  sets: {
-    exercise_name: string
-    set_number: number
-    weight_kg: number | null
-    reps_completed: number | null
-  }[]
-}
-
 interface ScheduleClientProps {
   scheduleByDay: Record<number, WorkoutSchedule[]>
   completedWorkouts: Record<string, boolean>
@@ -43,23 +32,21 @@ interface ScheduleClientProps {
   programStartDate?: string  // Earliest active program start date
 }
 
-interface WorkoutPreview {
-  name: string
-  sets: { set_number: number; reps: string; intensity: string }[]
-}
-
 export default function ScheduleClient({ scheduleByDay, completedWorkouts, upcomingPrograms, programStartDate }: ScheduleClientProps) {
+  const router = useRouter()
   const [mounted, setMounted] = useState(false)
   const [today, setToday] = useState(new Date())
   const [currentMonth, setCurrentMonth] = useState(new Date())
-  const [selectedDate, setSelectedDate] = useState<Date | null>(null)
-  const [workoutDetails, setWorkoutDetails] = useState<WorkoutLogDetails | null>(null)
-  const [loadingDetails, setLoadingDetails] = useState(false)
-  const [viewingWorkoutId, setViewingWorkoutId] = useState<string | null>(null)
-  const [workoutPreview, setWorkoutPreview] = useState<Record<string, WorkoutPreview[]>>({})
-  const [loadingPreview, setLoadingPreview] = useState<string | null>(null)
   const [menuOpen, setMenuOpen] = useState(false)
   const supabase = createClient()
+  
+  // Navigate to log page with selected date
+  const goToLogDate = (date: Date) => {
+    const year = date.getFullYear()
+    const month = String(date.getMonth() + 1).padStart(2, '0')
+    const day = String(date.getDate()).padStart(2, '0')
+    router.push(`/log?date=${year}-${month}-${day}`)
+  }
 
   const daysOfWeek = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']
   const fullDayNames = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday']
@@ -72,118 +59,6 @@ export default function ScheduleClient({ scheduleByDay, completedWorkouts, upcom
     setToday(new Date())
     setCurrentMonth(new Date())
   }, [])
-
-  // Fetch workout details for a completed workout
-  const fetchWorkoutDetails = async (date: Date, workoutId: string, clientProgramId: string) => {
-    setLoadingDetails(true)
-    setViewingWorkoutId(workoutId)
-    
-    const dateStr = formatDateLocal(date)
-    
-    try {
-      const { data: { user } } = await supabase.auth.getUser()
-      if (!user) return
-
-      // First check workout_completions for the workout_log_id
-      // Try with client_program_id first, then without (for older records)
-      let completion = null
-      const { data: completionWithProgram } = await supabase
-        .from('workout_completions')
-        .select('workout_log_id')
-        .eq('client_id', user.id)
-        .eq('workout_id', workoutId)
-        .eq('scheduled_date', dateStr)
-        .eq('client_program_id', clientProgramId)
-        .single()
-      
-      completion = completionWithProgram
-      
-      if (!completion) {
-        // Fallback: try without client_program_id for older records
-        const { data: completionAny } = await supabase
-          .from('workout_completions')
-          .select('workout_log_id')
-          .eq('client_id', user.id)
-          .eq('workout_id', workoutId)
-          .eq('scheduled_date', dateStr)
-          .order('completed_at', { ascending: false })
-          .limit(1)
-          .single()
-        
-        completion = completionAny
-      }
-
-      // Try to get workout log - either from completion link or direct query
-      let workoutLogId = completion?.workout_log_id
-      
-      if (!workoutLogId) {
-        // Fallback: direct query to workout_logs
-        const { data: directLog } = await supabase
-          .from('workout_logs')
-          .select('id')
-          .eq('client_id', user.id)
-          .eq('workout_id', workoutId)
-          .eq('scheduled_date', dateStr)
-          .single()
-        
-        workoutLogId = directLog?.id
-      }
-
-      if (workoutLogId) {
-        // Get full workout log details
-        const { data: workoutLog } = await supabase
-          .from('workout_logs')
-          .select('id, notes, rating')
-          .eq('id', workoutLogId)
-          .single()
-
-        // Get set logs with exercise names
-        const { data: setLogs } = await supabase
-          .from('set_logs')
-          .select('set_number, weight_kg, reps_completed, exercise_id')
-          .eq('workout_log_id', workoutLogId)
-          .order('exercise_id')
-          .order('set_number')
-
-        // Get exercise names
-        const exerciseIds = [...new Set(setLogs?.map(s => s.exercise_id) || [])]
-        let exerciseMap = new Map<string, string>()
-        
-        if (exerciseIds.length > 0) {
-          const { data: exercises } = await supabase
-            .from('workout_exercises')
-            .select('id, exercise_name')
-            .in('id', exerciseIds)
-
-          exerciseMap = new Map(exercises?.map(e => [e.id, e.exercise_name]) || [])
-        }
-
-        setWorkoutDetails({
-          id: workoutLog?.id || workoutLogId,
-          notes: workoutLog?.notes || null,
-          rating: workoutLog?.rating || null,
-          sets: (setLogs || []).map(s => ({
-            exercise_name: exerciseMap.get(s.exercise_id) || 'Exercise',
-            set_number: s.set_number,
-            weight_kg: s.weight_kg,
-            reps_completed: s.reps_completed
-          }))
-        })
-      } else {
-        setWorkoutDetails(null)
-      }
-    } catch (err) {
-      console.error('Failed to fetch workout details:', err)
-      setWorkoutDetails(null)
-    } finally {
-      setLoadingDetails(false)
-    }
-  }
-
-  const closeDetails = () => {
-    setWorkoutDetails(null)
-    setViewingWorkoutId(null)
-  }
 
   // Format date to YYYY-MM-DD in local timezone (not UTC)
   const formatDateLocal = (date: Date): string => {
@@ -511,7 +386,7 @@ export default function ScheduleClient({ scheduleByDay, completedWorkouts, upcom
                 return (
                   <button
                     key={date.toISOString()}
-                    onClick={() => setSelectedDate(date)}
+                    onClick={() => goToLogDate(date)}
                     className={`aspect-square rounded-lg flex flex-col items-center justify-center text-sm transition-all cursor-pointer hover:scale-105 active:scale-95 ${
                       hasWorkouts
                         ? getStatusColor(status)
@@ -601,169 +476,6 @@ export default function ScheduleClient({ scheduleByDay, completedWorkouts, upcom
         )}
       </main>
 
-      {/* Day Detail Modal */}
-      {selectedDate && (
-        <div 
-          className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4"
-          onClick={() => setSelectedDate(null)}
-        >
-          <div 
-            className="bg-zinc-900 border border-zinc-700 rounded-3xl w-full max-w-md max-h-[80vh] overflow-hidden"
-            onClick={e => e.stopPropagation()}
-          >
-            {/* Modal Header */}
-            <div className="p-4 border-b border-zinc-800 flex items-center justify-between">
-              <div>
-                <h3 className="text-lg font-semibold text-white">
-                  {fullDayNames[toMondayFirstIndex(selectedDate.getDay())]}
-                </h3>
-                <p className="text-zinc-400 text-sm">
-                  {selectedDate.toLocaleDateString(undefined, { month: 'long', day: 'numeric', year: 'numeric' })}
-                </p>
-              </div>
-              <button 
-                onClick={() => setSelectedDate(null)}
-                className="p-2 text-zinc-400 hover:text-white transition-colors"
-              >
-                <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                </svg>
-              </button>
-            </div>
-
-            {/* Modal Content */}
-            <div className="p-4 overflow-y-auto max-h-[60vh]">
-              {(() => {
-                const workouts = scheduleByDay[selectedDate.getDay()] || []
-                const status = getDateStatus(selectedDate)
-                const isDateToday = selectedDate.toDateString() === today.toDateString()
-                const isPast = selectedDate < today && !isDateToday
-                
-                if (workouts.length === 0) {
-                  return (
-                    <div className="text-center py-8">
-                      <div className="w-16 h-16 bg-zinc-800 rounded-full flex items-center justify-center mx-auto mb-4">
-                        <svg className="w-8 h-8 text-zinc-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z" />
-                        </svg>
-                      </div>
-                      <h4 className="text-white font-semibold mb-1">Rest Day</h4>
-                      <p className="text-zinc-500 text-sm">No workout scheduled. Recover well!</p>
-                    </div>
-                  )
-                }
-                
-                return (
-                  <div className="space-y-3">
-                    {workouts.map((workout) => {
-                      const workoutCompleted = isWorkoutCompleted(selectedDate, workout)
-                      return (
-                        <div 
-                          key={workout.workoutId}
-                          className={`p-4 rounded-xl border ${
-                            workoutCompleted 
-                              ? 'bg-green-500/10 border-green-500/30' 
-                              : 'bg-zinc-800/50 border-zinc-700'
-                          }`}
-                        >
-                          <div className="flex items-center gap-3 mb-2">
-                            <div className={`w-3 h-3 rounded-full ${getCategoryColor(workout.programCategory)}`} />
-                            <h4 className={`font-semibold ${workoutCompleted ? 'text-green-400' : 'text-white'}`}>
-                              {workout.workoutName}
-                            </h4>
-                            {workoutCompleted && (
-                              <svg className="w-5 h-5 text-green-500 ml-auto" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                              </svg>
-                            )}
-                          </div>
-                          <p className="text-zinc-400 text-sm mb-3">{workout.programName}</p>
-                          
-                          {/* Action button - only show for today or future dates with incomplete workouts */}
-                          {(isDateToday || !isPast) && !workoutCompleted && (
-                            <Link
-                              href={`/workout/${workout.workoutId}?clientProgramId=${workout.clientProgramId}&scheduledDate=${formatDateLocal(selectedDate!)}`}
-                              className="block w-full bg-yellow-400 hover:bg-yellow-500 text-black font-semibold py-3 rounded-lg text-center transition-colors"
-                              onClick={() => setSelectedDate(null)}
-                            >
-                              Start Workout →
-                            </Link>
-                          )}
-                          
-                          {workoutCompleted && (
-                            <>
-                              {/* Action buttons - View Workout + View Log */}
-                              <div className="flex gap-2 mt-3">
-                                <Link
-                                  href={`/workout/${workout.workoutId}?clientProgramId=${workout.clientProgramId}`}
-                                  onClick={() => setSelectedDate(null)}
-                                  className="flex-1 text-center py-2 bg-zinc-800 hover:bg-zinc-700 text-white text-xs font-medium rounded-lg transition-colors"
-                                >
-                                  View Workout
-                                </Link>
-                                <button
-                                  onClick={() => viewingWorkoutId === workout.workoutId ? closeDetails() : fetchWorkoutDetails(selectedDate!, workout.workoutId, workout.clientProgramId)}
-                                  className="flex-1 py-2 bg-green-500/20 hover:bg-green-500/30 text-green-400 text-xs font-medium rounded-lg transition-colors"
-                                >
-                                  {loadingDetails && viewingWorkoutId === workout.workoutId ? 'Loading...' : viewingWorkoutId === workout.workoutId ? 'Hide Log' : 'View Log'}
-                                </button>
-                              </div>
-                              
-                              {/* Workout log details */}
-                              {viewingWorkoutId === workout.workoutId && !loadingDetails && (
-                                <div className="mt-3 pt-3 border-t border-zinc-700 space-y-2">
-                                  {workoutDetails ? (
-                                    <>
-                                      {workoutDetails.notes && (
-                                        <p className="text-sm text-zinc-400 italic">{workoutDetails.notes}</p>
-                                      )}
-                                      {workoutDetails.sets.length === 0 ? (
-                                        <p className="text-zinc-500 text-xs text-center">No sets logged</p>
-                                      ) : (
-                                        (() => {
-                                          const groups = workoutDetails.sets.reduce((acc, s) => {
-                                            if (!acc[s.exercise_name]) acc[s.exercise_name] = []
-                                            acc[s.exercise_name].push(s)
-                                            return acc
-                                          }, {} as Record<string, typeof workoutDetails.sets>)
-                                          
-                                          return Object.entries(groups).map(([name, sets]) => (
-                                            <div key={name} className="bg-zinc-800/50 rounded-lg p-2">
-                                              <p className="text-xs text-yellow-400 font-medium mb-1">{name}</p>
-                                              {sets.map(s => (
-                                                <div key={s.set_number} className="flex justify-between text-xs">
-                                                  <span className="text-zinc-500">Set {s.set_number}</span>
-                                                  <span className="text-white">{s.weight_kg ?? '—'}kg × {s.reps_completed ?? '—'}</span>
-                                                </div>
-                                              ))}
-                                            </div>
-                                          ))
-                                        })()
-                                      )}
-                                    </>
-                                  ) : (
-                                    <p className="text-zinc-500 text-xs text-center">No data recorded</p>
-                                  )}
-                                </div>
-                              )}
-                            </>
-                          )}
-                          
-                          {isPast && !workoutCompleted && (
-                            <div className="text-red-400 text-sm font-medium text-center py-2">
-                              Missed
-                            </div>
-                          )}
-                        </div>
-                      )
-                    })}
-                  </div>
-                )
-              })()}
-            </div>
-          </div>
-        </div>
-      )}
     </>
   )
 }

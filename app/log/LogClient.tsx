@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect, useRef, useCallback } from 'react'
-import { useRouter } from 'next/navigation'
+import { useRouter, useSearchParams } from 'next/navigation'
 import { ChevronLeft, ChevronRight, Calendar, Check, Dumbbell } from 'lucide-react'
 import { createClient } from '../lib/supabase/client'
 import ExerciseLogger from './ExerciseLogger'
@@ -70,8 +70,22 @@ function getDayName(date: Date): string {
 
 export default function LogClient({ scheduleByDay }: LogClientProps) {
   const router = useRouter()
+  const searchParams = useSearchParams()
   const supabase = createClient()
-  const [selectedDate, setSelectedDate] = useState(new Date())
+  
+  // Initialize date from URL param or default to today
+  const getInitialDate = () => {
+    const dateParam = searchParams.get('date')
+    if (dateParam) {
+      const parsed = new Date(dateParam + 'T12:00:00')
+      if (!isNaN(parsed.getTime())) {
+        return parsed
+      }
+    }
+    return new Date()
+  }
+  
+  const [selectedDate, setSelectedDate] = useState(getInitialDate)
   const [showDatePicker, setShowDatePicker] = useState(false)
   const [completedWorkouts, setCompletedWorkouts] = useState<Record<string, boolean>>({})
   const [workoutLogIds, setWorkoutLogIds] = useState<Record<string, string>>({})
@@ -123,21 +137,27 @@ export default function LogClient({ scheduleByDay }: LogClientProps) {
     setWorkoutLogIds(logIds)
   }
 
-  // Navigation
+  // Navigation - update URL when date changes
+  const navigateToDate = (date: Date) => {
+    setSelectedDate(date)
+    const dateStr = formatDate(date)
+    router.replace(`/log?date=${dateStr}`, { scroll: false })
+  }
+
   const goToPreviousDay = () => {
     const prev = new Date(selectedDate)
     prev.setDate(prev.getDate() - 1)
-    setSelectedDate(prev)
+    navigateToDate(prev)
   }
 
   const goToNextDay = () => {
     const next = new Date(selectedDate)
     next.setDate(next.getDate() + 1)
-    setSelectedDate(next)
+    navigateToDate(next)
   }
 
   const goToToday = () => {
-    setSelectedDate(new Date())
+    navigateToDate(new Date())
   }
 
   // Swipe handlers
@@ -401,7 +421,7 @@ export default function LogClient({ scheduleByDay }: LogClientProps) {
               type="date"
               value={formatDate(selectedDate)}
               onChange={(e) => {
-                setSelectedDate(new Date(e.target.value + 'T12:00:00'))
+                navigateToDate(new Date(e.target.value + 'T12:00:00'))
                 setShowDatePicker(false)
               }}
               className="w-full p-3 bg-zinc-800 border border-zinc-700 rounded-xl text-white text-center text-lg"
