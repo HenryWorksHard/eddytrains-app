@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react'
 import Link from 'next/link'
 import WorkoutCalendar from '../components/WorkoutCalendar'
+import { SlideOutMenu, HamburgerButton } from '../components/SlideOutMenu'
 
 interface Workout {
   id: string
@@ -39,6 +40,7 @@ export default function DashboardClient({ firstName, workoutsByDay, programCount
   const [todayDayOfWeek, setTodayDayOfWeek] = useState(new Date().getDay())
   const [todayDateStr, setTodayDateStr] = useState('')
   const [streak, setStreak] = useState(0)
+  const [menuOpen, setMenuOpen] = useState(false)
 
   const daysOfWeek = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday']
   const dayAbbrev = ['SU', 'MO', 'TU', 'WE', 'TH', 'FR', 'SA']
@@ -112,16 +114,24 @@ export default function DashboardClient({ firstName, workoutsByDay, programCount
 
   return (
     <>
+      {/* Slide Out Menu */}
+      <SlideOutMenu isOpen={menuOpen} onClose={() => setMenuOpen(false)} />
+      
       {/* Header */}
       <header className="bg-gradient-to-b from-zinc-900 to-black border-b border-zinc-800">
         <div className="px-4 py-4">
           <div className="flex items-center justify-between mb-3">
-            <div>
+            {/* Left - Hamburger */}
+            <HamburgerButton onClick={() => setMenuOpen(true)} />
+            
+            {/* Center - Greeting */}
+            <div className="text-center">
               <p className="text-zinc-500 text-xs">{greeting},</p>
               <h1 className="text-xl font-bold text-white">{firstName}</h1>
             </div>
-            <div className="flex items-center gap-3">
-              {/* Streak Badge - inline */}
+            
+            {/* Right - Streak & Logo */}
+            <div className="flex items-center gap-2">
               {streak > 0 && (
                 <div className="flex items-center gap-1 px-2 py-1 bg-orange-500/10 border border-orange-500/20 rounded-full">
                   <svg className="w-3.5 h-3.5 text-orange-400" fill="currentColor" viewBox="0 0 20 20">
@@ -130,10 +140,6 @@ export default function DashboardClient({ firstName, workoutsByDay, programCount
                   <span className="text-orange-400 font-semibold text-xs">{streak}</span>
                 </div>
               )}
-              <div className="flex items-center gap-1.5">
-                <div className="w-1.5 h-1.5 bg-yellow-400 rounded-full"></div>
-                <span className="text-sm font-bold tracking-wider text-white">CMPD</span>
-              </div>
             </div>
           </div>
           
