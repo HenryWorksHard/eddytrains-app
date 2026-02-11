@@ -9,7 +9,6 @@ export default function BottomNav() {
 
   const isProfileActive = pathname === '/profile' || pathname.startsWith('/profile/')
   const isNutritionActive = pathname === '/nutrition' || pathname.startsWith('/nutrition/')
-  const isWorkoutActive = pathname.startsWith('/workout') || pathname === '/dashboard'
 
   return (
     <nav className="fixed bottom-0 left-0 right-0 bg-zinc-900/95 backdrop-blur-lg border-t border-zinc-800 z-40 safe-area-bottom">
@@ -29,14 +28,10 @@ export default function BottomNav() {
 
         {/* Today's Workout - Center (Prominent) */}
         <Link
-          href="/dashboard"
+          href="/workout/today"
           className={`flex items-center justify-center -mt-4 transition-transform active:scale-95`}
         >
-          <div className={`w-14 h-14 rounded-full flex items-center justify-center shadow-lg ${
-            isWorkoutActive 
-              ? 'bg-yellow-400 text-black' 
-              : 'bg-yellow-400 text-black'
-          }`}>
+          <div className="w-14 h-14 rounded-full flex items-center justify-center shadow-lg bg-yellow-400 text-black">
             <Dumbbell className="w-6 h-6" />
           </div>
         </Link>

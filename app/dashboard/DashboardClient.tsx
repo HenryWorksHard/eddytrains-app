@@ -2,7 +2,6 @@
 
 import { useEffect, useState } from 'react'
 import Link from 'next/link'
-import WorkoutCalendar from '../components/WorkoutCalendar'
 import { SlideOutMenu, HamburgerButton } from '../components/SlideOutMenu'
 
 interface Workout {
@@ -252,113 +251,32 @@ export default function DashboardClient({ firstName, workoutsByDay, programCount
           )}
         </section>
 
-        {/* Monthly Calendar */}
-        <section>
-          <h2 className="text-xs font-medium text-zinc-500 uppercase tracking-wider mb-2">This Month</h2>
-          <WorkoutCalendar 
-            scheduleByDay={scheduleByDay}
-            completedWorkouts={calendarCompletions}
-            compact={true}
-            programStartDate={programStartDate}
-          />
-        </section>
-
-        {/* Quick Actions */}
-        <section>
-          <h2 className="text-xs font-medium text-zinc-500 uppercase tracking-wider mb-2">Quick Actions</h2>
-          <div className="grid grid-cols-4 gap-2">
-            <Link
-              href="/programs"
-              className="bg-zinc-900 border border-zinc-800 hover:border-yellow-400/50 rounded-xl p-2.5 flex flex-col items-center text-center transition-colors"
-            >
-              <div className="w-9 h-9 bg-yellow-400/10 rounded-lg flex items-center justify-center mb-1.5">
-                <svg className="w-4.5 h-4.5 text-yellow-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01" />
-                </svg>
-              </div>
-              <span className="text-white font-medium text-xs">Programs</span>
-            </Link>
-            
-            <Link
-              href="/schedule"
-              className="bg-zinc-900 border border-zinc-800 hover:border-blue-400/50 rounded-xl p-2.5 flex flex-col items-center text-center transition-colors"
-            >
-              <div className="w-9 h-9 bg-blue-500/10 rounded-lg flex items-center justify-center mb-1.5">
-                <svg className="w-4.5 h-4.5 text-blue-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
-                </svg>
-              </div>
-              <span className="text-white font-medium text-xs">Schedule</span>
-            </Link>
-            
-            <Link
-              href="/nutrition"
-              className="bg-zinc-900 border border-zinc-800 hover:border-green-400/50 rounded-xl p-2.5 flex flex-col items-center text-center transition-colors"
-            >
-              <div className="w-9 h-9 bg-green-500/10 rounded-lg flex items-center justify-center mb-1.5">
-                <svg className="w-4.5 h-4.5 text-green-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z" />
-                </svg>
-              </div>
-              <span className="text-white font-medium text-xs">Nutrition</span>
-            </Link>
-            
-            <Link
-              href="/profile"
-              className="bg-zinc-900 border border-zinc-800 hover:border-purple-400/50 rounded-xl p-2.5 flex flex-col items-center text-center transition-colors"
-            >
-              <div className="w-9 h-9 bg-purple-500/10 rounded-lg flex items-center justify-center mb-1.5">
-                <svg className="w-4.5 h-4.5 text-purple-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
-                </svg>
-              </div>
-              <span className="text-white font-medium text-xs">Profile</span>
-            </Link>
-          </div>
-        </section>
-
-        {/* Progress Tracker */}
-        <section>
-          <h2 className="text-xs font-medium text-zinc-500 uppercase tracking-wider mb-2">Progress</h2>
-          <div className="grid grid-cols-3 gap-2">
-            <Link
-              href="/history"
-              className="bg-zinc-900 border border-zinc-800 hover:border-zinc-700 rounded-xl p-2.5 flex flex-col items-center text-center transition-colors"
-            >
-              <div className="w-9 h-9 bg-green-500/10 rounded-lg flex items-center justify-center mb-1.5">
-                <svg className="w-4.5 h-4.5 text-green-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-                </svg>
-              </div>
-              <span className="text-white font-medium text-xs">History</span>
-            </Link>
-            
-            <Link
-              href="/progress-pictures"
-              className="bg-zinc-900 border border-zinc-800 hover:border-zinc-700 rounded-xl p-2.5 flex flex-col items-center text-center transition-colors"
-            >
-              <div className="w-9 h-9 bg-purple-500/10 rounded-lg flex items-center justify-center mb-1.5">
-                <svg className="w-4.5 h-4.5 text-purple-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" />
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 13a3 3 0 11-6 0 3 3 0 016 0z" />
-                </svg>
-              </div>
-              <span className="text-white font-medium text-xs">Photos</span>
-            </Link>
-            
-            <Link
-              href="/1rm-tracking"
-              className="bg-zinc-900 border border-zinc-800 hover:border-zinc-700 rounded-xl p-2.5 flex flex-col items-center text-center transition-colors"
-            >
-              <div className="w-9 h-9 bg-orange-500/10 rounded-lg flex items-center justify-center mb-1.5">
-                <svg className="w-4.5 h-4.5 text-orange-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
-                </svg>
-              </div>
-              <span className="text-white font-medium text-xs">1RM</span>
-            </Link>
-          </div>
-        </section>
+        {/* Tomorrow Preview - always show if there's a workout */}
+        {tomorrowWorkouts.length > 0 && (
+          <section className="mt-4">
+            <h2 className="text-xs font-medium text-zinc-500 uppercase tracking-wider mb-2">Tomorrow</h2>
+            <div className="bg-zinc-900/50 border border-zinc-800 rounded-xl p-3">
+              {tomorrowWorkouts.map((workout) => (
+                <div
+                  key={`tomorrow-${workout.id}`}
+                  className="flex items-center justify-between"
+                >
+                  <div className="flex items-center gap-3">
+                    <div className="w-8 h-8 bg-zinc-800 rounded-lg flex items-center justify-center">
+                      <span className="text-xs font-medium text-zinc-400">
+                        {dayAbbrev[(todayDayOfWeek + 1) % 7]}
+                      </span>
+                    </div>
+                    <div>
+                      <p className="text-white text-sm font-medium">{workout.name}</p>
+                      <p className="text-zinc-500 text-xs">{workout.exerciseCount} exercises</p>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </section>
+        )}
       </main>
     </>
   )
