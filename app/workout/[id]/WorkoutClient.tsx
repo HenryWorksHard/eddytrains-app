@@ -546,7 +546,7 @@ export default function WorkoutClient({ workoutId, exercises, oneRMs, personalBe
                         <span className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold ${colors.bg} ${colors.text}`}>
                           {idx + 1}
                         </span>
-                        <span className="text-white font-medium flex-1">{exercise.name}</span>
+                        <span className="text-white font-medium flex-1">{exercise.exercise_name}</span>
                         <span className="text-zinc-400 text-sm">
                           {firstSet?.cardio_value && firstSet?.cardio_unit 
                             ? `${firstSet.cardio_value} ${firstSet.cardio_unit}`
