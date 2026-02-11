@@ -29,9 +29,10 @@ interface DashboardClientProps {
   completedWorkouts: string[] // Array of "workoutId:clientProgramId" strings
   scheduleByDay: Record<number, WorkoutSchedule[]>
   calendarCompletions: Record<string, boolean>
+  programStartDate?: string
 }
 
-export default function DashboardClient({ firstName, workoutsByDay, programCount, completedWorkouts, scheduleByDay, calendarCompletions }: DashboardClientProps) {
+export default function DashboardClient({ firstName, workoutsByDay, programCount, completedWorkouts, scheduleByDay, calendarCompletions, programStartDate }: DashboardClientProps) {
   const completedSet = new Set(completedWorkouts)
   const [mounted, setMounted] = useState(false)
   const [greeting, setGreeting] = useState('Hello')
@@ -252,6 +253,7 @@ export default function DashboardClient({ firstName, workoutsByDay, programCount
             scheduleByDay={scheduleByDay}
             completedWorkouts={calendarCompletions}
             compact={true}
+            programStartDate={programStartDate}
           />
         </section>
 

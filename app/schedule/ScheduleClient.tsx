@@ -39,6 +39,7 @@ interface ScheduleClientProps {
   scheduleByDay: Record<number, WorkoutSchedule[]>
   completedWorkouts: Record<string, boolean>
   upcomingPrograms: UpcomingProgram[]
+  programStartDate?: string  // Earliest active program start date
 }
 
 interface WorkoutPreview {
@@ -46,7 +47,7 @@ interface WorkoutPreview {
   sets: { set_number: number; reps: string; intensity: string }[]
 }
 
-export default function ScheduleClient({ scheduleByDay, completedWorkouts, upcomingPrograms }: ScheduleClientProps) {
+export default function ScheduleClient({ scheduleByDay, completedWorkouts, upcomingPrograms, programStartDate }: ScheduleClientProps) {
   const [mounted, setMounted] = useState(false)
   const [today, setToday] = useState(new Date())
   const [currentMonth, setCurrentMonth] = useState(new Date())
@@ -209,6 +210,14 @@ export default function ScheduleClient({ scheduleByDay, completedWorkouts, upcom
     todayStart.setHours(0, 0, 0, 0)
     const dateStart = new Date(date)
     dateStart.setHours(0, 0, 0, 0)
+    
+    // If date is before program started, treat as rest (not skipped)
+    if (programStartDate) {
+      const programStart = new Date(programStartDate + 'T00:00:00')
+      if (dateStart < programStart) {
+        return 'rest'
+      }
+    }
     
     // Check how many workouts are completed for this date
     const completedCount = workouts.filter(w => isWorkoutCompleted(date, w)).length

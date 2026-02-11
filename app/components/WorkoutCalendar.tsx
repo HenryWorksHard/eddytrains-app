@@ -16,9 +16,10 @@ interface WorkoutCalendarProps {
   scheduleByDay: Record<number, WorkoutSchedule[]>
   completedWorkouts: Record<string, boolean>
   compact?: boolean // For home screen - smaller version
+  programStartDate?: string // Earliest active program start date
 }
 
-export default function WorkoutCalendar({ scheduleByDay, completedWorkouts, compact = false }: WorkoutCalendarProps) {
+export default function WorkoutCalendar({ scheduleByDay, completedWorkouts, compact = false, programStartDate }: WorkoutCalendarProps) {
   const [mounted, setMounted] = useState(false)
   const [today, setToday] = useState(new Date())
   const [currentMonth, setCurrentMonth] = useState(new Date())
@@ -62,6 +63,14 @@ export default function WorkoutCalendar({ scheduleByDay, completedWorkouts, comp
     todayStart.setHours(0, 0, 0, 0)
     const dateStart = new Date(date)
     dateStart.setHours(0, 0, 0, 0)
+    
+    // If date is before program started, treat as rest (not skipped)
+    if (programStartDate) {
+      const programStart = new Date(programStartDate + 'T00:00:00')
+      if (dateStart < programStart) {
+        return 'rest'
+      }
+    }
     
     const completedCount = workouts.filter(w => isWorkoutCompleted(date, w)).length
     

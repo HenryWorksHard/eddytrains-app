@@ -122,6 +122,11 @@ export default async function SchedulePage() {
   // Separate current/active programs from future programs
   const activePrograms = clientPrograms?.filter(cp => cp.is_active) || []
   const futurePrograms = clientPrograms?.filter(cp => !cp.is_active && cp.start_date > today) || []
+  
+  // Get earliest active program start date (for determining when schedule started)
+  const programStartDate = activePrograms.length > 0 
+    ? activePrograms.reduce((earliest, cp) => cp.start_date < earliest ? cp.start_date : earliest, activePrograms[0].start_date)
+    : undefined
 
   // Format future programs for display
   const upcomingPrograms = futurePrograms.map(cp => {
@@ -144,6 +149,7 @@ export default async function SchedulePage() {
         scheduleByDay={scheduleByDay}
         completedWorkouts={completedWorkouts}
         upcomingPrograms={upcomingPrograms}
+        programStartDate={programStartDate}
       />
       <BottomNav />
     </div>

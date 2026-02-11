@@ -145,6 +145,17 @@ export default async function DashboardPage() {
       clientProgramId: w.clientProgramId
     }))
   }
+  
+  // Get earliest active program start date
+  const { data: programStartDates } = await supabase
+    .from('client_programs')
+    .select('start_date')
+    .eq('client_id', user.id)
+    .eq('is_active', true)
+    .order('start_date', { ascending: true })
+    .limit(1)
+  
+  const programStartDate = programStartDates?.[0]?.start_date || undefined
 
   const firstName = profile?.full_name?.split(' ')[0] || user.email?.split('@')[0] || 'there'
   const programCount = userPrograms?.length || 0
@@ -158,6 +169,7 @@ export default async function DashboardPage() {
         completedWorkouts={completedWorkoutsArray}
         scheduleByDay={scheduleByDay}
         calendarCompletions={calendarCompletions}
+        programStartDate={programStartDate}
       />
       <BottomNav />
     </div>
