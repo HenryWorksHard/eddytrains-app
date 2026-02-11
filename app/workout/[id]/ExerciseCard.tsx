@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect, useCallback } from 'react'
-import { ChevronDown, ChevronUp, RefreshCw, X, Check, Trophy } from 'lucide-react'
+import { ChevronDown, ChevronUp, RefreshCw, X, Check, Trophy, Search } from 'lucide-react'
 import TutorialModal from './TutorialModal'
 import { createClient } from '../../lib/supabase/client'
 import WheelPicker from '../../components/WheelPicker'
@@ -71,6 +71,7 @@ function SwapExerciseModal({
   const [loading, setLoading] = useState(true)
   const [showCustomInput, setShowCustomInput] = useState(false)
   const [customName, setCustomName] = useState('')
+  const [searchQuery, setSearchQuery] = useState('')
   const supabase = createClient()
   
   useEffect(() => {
@@ -119,15 +120,39 @@ function SwapExerciseModal({
     }
   }
   
+  // Filter exercises by search query
+  const filteredExercises = exercises.filter(ex => 
+    ex.name.toLowerCase().includes(searchQuery.toLowerCase())
+  )
+  const filteredCustom = customExercises.filter(ex => 
+    ex.name.toLowerCase().includes(searchQuery.toLowerCase())
+  )
+  
   return (
-    <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-end sm:items-center justify-center">
-      <div className="bg-zinc-900 border border-zinc-700 rounded-t-3xl sm:rounded-3xl w-full max-w-md max-h-[80vh] overflow-hidden">
+    <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+      <div className="bg-zinc-900 border border-zinc-700 rounded-3xl w-full max-w-md max-h-[80vh] overflow-hidden">
         {/* Header */}
-        <div className="flex items-center justify-between p-4 border-b border-zinc-800">
-          <h3 className="text-lg font-semibold text-white">Swap Exercise</h3>
-          <button onClick={onClose} className="p-2 text-zinc-400 hover:text-white">
-            <X className="w-5 h-5" />
-          </button>
+        <div className="p-4 border-b border-zinc-800">
+          <div className="flex items-center justify-between mb-3">
+            <h3 className="text-lg font-semibold text-white">Swap Exercise</h3>
+            <button onClick={onClose} className="p-2 text-zinc-400 hover:text-white">
+              <X className="w-5 h-5" />
+            </button>
+          </div>
+          {/* Search Input */}
+          {!showCustomInput && (
+            <div className="relative">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-500" />
+              <input
+                type="text"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                placeholder="Search exercises..."
+                className="w-full pl-10 pr-4 py-2.5 bg-zinc-800 border border-zinc-700 rounded-xl text-white placeholder-zinc-500 focus:outline-none focus:ring-2 focus:ring-yellow-400"
+                autoFocus
+              />
+            </div>
+          )}
         </div>
         
         {/* Content */}
@@ -165,24 +190,13 @@ function SwapExerciseModal({
             </div>
           ) : (
             <div className="space-y-2">
-              {/* Standard exercises */}
-              {exercises.map((ex) => (
-                <button
-                  key={ex.id}
-                  onClick={() => onSelect(ex.name, false)}
-                  className="w-full text-left px-4 py-3 bg-zinc-800/50 hover:bg-zinc-800 rounded-xl text-white transition-colors"
-                >
-                  {ex.name}
-                </button>
-              ))}
-              
-              {/* Client's custom exercises */}
-              {customExercises.length > 0 && (
+              {/* Client's custom exercises first */}
+              {filteredCustom.length > 0 && (
                 <>
-                  <div className="text-xs text-zinc-500 uppercase tracking-wider mt-4 mb-2 px-1">
+                  <div className="text-xs text-zinc-500 uppercase tracking-wider mb-2 px-1">
                     Your Custom Exercises
                   </div>
-                  {customExercises.map((ex) => (
+                  {filteredCustom.map((ex) => (
                     <button
                       key={ex.id}
                       onClick={() => onSelect(ex.name, true, ex.id)}
@@ -195,6 +209,22 @@ function SwapExerciseModal({
                 </>
               )}
               
+              {/* Standard exercises */}
+              {filteredCustom.length > 0 && filteredExercises.length > 0 && (
+                <div className="text-xs text-zinc-500 uppercase tracking-wider mt-4 mb-2 px-1">
+                  {muscleGroup} Exercises
+                </div>
+              )}
+              {filteredExercises.map((ex) => (
+                <button
+                  key={ex.id}
+                  onClick={() => onSelect(ex.name, false)}
+                  className="w-full text-left px-4 py-3 bg-zinc-800/50 hover:bg-zinc-800 rounded-xl text-white transition-colors"
+                >
+                  {ex.name}
+                </button>
+              ))}
+              
               {/* Other option */}
               <button
                 onClick={() => setShowCustomInput(true)}
@@ -203,7 +233,13 @@ function SwapExerciseModal({
                 + Add Custom Exercise
               </button>
               
-              {exercises.length === 0 && customExercises.length === 0 && (
+              {filteredExercises.length === 0 && filteredCustom.length === 0 && searchQuery && (
+                <p className="text-zinc-500 text-center py-4">
+                  No exercises found for "{searchQuery}"
+                </p>
+              )}
+              
+              {exercises.length === 0 && customExercises.length === 0 && !searchQuery && (
                 <p className="text-zinc-500 text-center py-4">
                   No alternative exercises found for this muscle group.
                 </p>
