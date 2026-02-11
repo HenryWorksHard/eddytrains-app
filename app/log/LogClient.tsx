@@ -223,9 +223,10 @@ export default function LogClient({ scheduleByDay }: LogClientProps) {
     setSaving(false)
   }
 
-  // Get or create workout log for saving sets
-  const getOrCreateWorkoutLog = async (workoutId: string): Promise<string | null> => {
-    // Check if we already have one cached
+  // Get or create workout log for saving sets - accepts scheduledDate explicitly to avoid stale closures
+  const getOrCreateWorkoutLog = useCallback(async (workoutId: string, scheduledDate: string): Promise<string | null> => {
+    // Check if we already have one cached for this date
+    const cacheKey = `${workoutId}_${scheduledDate}`
     if (workoutLogIds[workoutId]) {
       return workoutLogIds[workoutId]
     }
@@ -233,40 +234,42 @@ export default function LogClient({ scheduleByDay }: LogClientProps) {
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) return null
 
-    // Check if one exists
-    const { data: existing } = await supabase
+    // Use upsert to prevent duplicates - if one exists, just return it
+    const { data: log, error } = await supabase
       .from('workout_logs')
-      .select('id')
-      .eq('client_id', user.id)
-      .eq('workout_id', workoutId)
-      .eq('scheduled_date', dateStr)
-      .single()
-
-    if (existing) {
-      setWorkoutLogIds(prev => ({ ...prev, [workoutId]: existing.id }))
-      return existing.id
-    }
-
-    // Create new
-    const { data: newLog, error } = await supabase
-      .from('workout_logs')
-      .insert({
+      .upsert({
         client_id: user.id,
         workout_id: workoutId,
-        scheduled_date: dateStr,
+        scheduled_date: scheduledDate,
         completed_at: new Date().toISOString()
+      }, {
+        onConflict: 'client_id,workout_id,scheduled_date',
+        ignoreDuplicates: false
       })
       .select('id')
       .single()
 
     if (error) {
-      console.error('Failed to create workout log:', error)
+      // If upsert fails, try to fetch existing
+      const { data: existing } = await supabase
+        .from('workout_logs')
+        .select('id')
+        .eq('client_id', user.id)
+        .eq('workout_id', workoutId)
+        .eq('scheduled_date', scheduledDate)
+        .single()
+      
+      if (existing) {
+        setWorkoutLogIds(prev => ({ ...prev, [workoutId]: existing.id }))
+        return existing.id
+      }
+      console.error('Failed to create/get workout log:', error)
       return null
     }
 
-    setWorkoutLogIds(prev => ({ ...prev, [workoutId]: newLog.id }))
-    return newLog.id
-  }
+    setWorkoutLogIds(prev => ({ ...prev, [workoutId]: log.id }))
+    return log.id
+  }, [workoutLogIds])
 
   // Category colors
   const getCategoryColor = (category: string) => {

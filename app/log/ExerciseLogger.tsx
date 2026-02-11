@@ -31,7 +31,7 @@ interface ExerciseLoggerProps {
   index: number
   workoutId: string
   scheduledDate: string
-  getOrCreateWorkoutLog: (workoutId: string) => Promise<string | null>
+  getOrCreateWorkoutLog: (workoutId: string, scheduledDate: string) => Promise<string | null>
   existingLogId?: string
   onDataChange?: () => void
 }
@@ -99,7 +99,7 @@ export default function ExerciseLogger({
     }
   }
 
-  // Save a set
+  // Save a set - uses scheduledDate explicitly to ensure correct date
   const saveSet = useCallback(async (setNumber: number, weight: number | null, reps: number | null) => {
     // Update local state immediately
     setLogs(prev => {
@@ -111,10 +111,10 @@ export default function ExerciseLogger({
     // Notify parent of data change
     onDataChange?.()
 
-    // Debounced save to database
+    // Save to database with explicit scheduledDate
     setSaving(true)
     try {
-      const workoutLogId = await getOrCreateWorkoutLog(workoutId)
+      const workoutLogId = await getOrCreateWorkoutLog(workoutId, scheduledDate)
       if (!workoutLogId) {
         setSaving(false)
         return
@@ -135,7 +135,7 @@ export default function ExerciseLogger({
       console.error('Failed to save set:', err)
     }
     setSaving(false)
-  }, [workoutId, exercise.id, getOrCreateWorkoutLog])
+  }, [workoutId, exercise.id, scheduledDate, getOrCreateWorkoutLog])
 
   return (
     <div className={`bg-zinc-800/50 rounded-xl overflow-hidden ${allLogged ? 'ring-1 ring-green-500/30' : ''}`}>
