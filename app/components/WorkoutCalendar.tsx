@@ -154,36 +154,47 @@ export default function WorkoutCalendar({ scheduleByDay, completedWorkouts, comp
     try {
       const dateStr = formatDateLocal(date)
       
-      // Get workout log for this date
-      const { data: workoutLog } = await supabase
+      // Get workout log for this date - use limit(1) instead of single() to avoid errors
+      const { data: workoutLogs, error: logError } = await supabase
         .from('workout_logs')
         .select('id')
         .eq('workout_id', workoutId)
         .eq('scheduled_date', dateStr)
-        .single()
+        .order('completed_at', { ascending: false })
+        .limit(1)
       
-      if (!workoutLog) {
-        // Try with completed_at date
-        const { data: fallbackLog } = await supabase
-          .from('workout_logs')
-          .select('id, completed_at')
-          .eq('workout_id', workoutId)
-          .gte('completed_at', `${dateStr}T00:00:00`)
-          .lte('completed_at', `${dateStr}T23:59:59`)
-          .single()
-        
-        if (!fallbackLog) {
-          setWorkoutDetails([])
-          setLoadingDetails(false)
-          return
-        }
-        
-        // Use fallback log
-        await fetchSetLogs(fallbackLog.id)
+      if (logError) {
+        console.error('Error fetching workout log:', logError)
+      }
+      
+      if (workoutLogs && workoutLogs.length > 0) {
+        await fetchSetLogs(workoutLogs[0].id)
+        setLoadingDetails(false)
         return
       }
       
-      await fetchSetLogs(workoutLog.id)
+      // Fallback: Try with completed_at date range
+      const { data: fallbackLogs, error: fallbackError } = await supabase
+        .from('workout_logs')
+        .select('id, completed_at')
+        .eq('workout_id', workoutId)
+        .gte('completed_at', `${dateStr}T00:00:00`)
+        .lte('completed_at', `${dateStr}T23:59:59`)
+        .order('completed_at', { ascending: false })
+        .limit(1)
+      
+      if (fallbackError) {
+        console.error('Error fetching fallback workout log:', fallbackError)
+      }
+      
+      if (fallbackLogs && fallbackLogs.length > 0) {
+        await fetchSetLogs(fallbackLogs[0].id)
+        setLoadingDetails(false)
+        return
+      }
+      
+      // No logs found
+      setWorkoutDetails([])
     } catch (err) {
       console.error('Failed to fetch workout details:', err)
       setWorkoutDetails([])
@@ -193,7 +204,7 @@ export default function WorkoutCalendar({ scheduleByDay, completedWorkouts, comp
   }
 
   const fetchSetLogs = async (workoutLogId: string) => {
-    const { data: setLogs } = await supabase
+    const { data: setLogs, error: setLogsError } = await supabase
       .from('set_logs')
       .select(`
         exercise_id,
@@ -205,6 +216,12 @@ export default function WorkoutCalendar({ scheduleByDay, completedWorkouts, comp
       .eq('workout_log_id', workoutLogId)
       .order('exercise_id')
       .order('set_number')
+    
+    if (setLogsError) {
+      console.error('Error fetching set logs:', setLogsError)
+      setWorkoutDetails([])
+      return
+    }
     
     if (!setLogs || setLogs.length === 0) {
       setWorkoutDetails([])
