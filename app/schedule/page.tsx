@@ -105,17 +105,22 @@ export default async function SchedulePage() {
     }
   }
 
-  // Format completions for client - supports multiple completions per date
-  // Create keys both with and without client_program_id for backwards compatibility
-  // This ensures old completions (with null program_id) still show as green
+  // Format completions for client
+  // Create multiple key formats for maximum compatibility:
+  // 1. Full key with program ID (for exact matching)
+  // 2. Key without program ID (for old completions with null program)
+  // 3. Date-only key (for any completion on that day - handles program changes)
   const completedWorkouts: Record<string, boolean> = {}
   completions?.forEach(c => {
     // Key with program ID (for current program tracking)
     const keyWithProgram = `${c.scheduled_date}:${c.workout_id}:${c.client_program_id}`
     completedWorkouts[keyWithProgram] = true
-    // Key without program ID (for any completion on that date/workout)
+    // Key without program ID (for old completions)
     const keyWithoutProgram = `${c.scheduled_date}:${c.workout_id}`
     completedWorkouts[keyWithoutProgram] = true
+    // Date-only key (for any completion on that day - handles different workout IDs after program changes)
+    const keyDateOnly = `${c.scheduled_date}:any`
+    completedWorkouts[keyDateOnly] = true
   })
 
   // Separate current/active programs from future programs

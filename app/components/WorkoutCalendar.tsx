@@ -48,10 +48,16 @@ export default function WorkoutCalendar({ scheduleByDay, completedWorkouts, comp
   // Check if a specific workout is completed for a date
   const isWorkoutCompleted = (date: Date, workout: WorkoutSchedule): boolean => {
     const dateStr = formatDateLocal(date)
-    // Check both with and without program ID (for backwards compatibility with old completions)
+    // Check multiple key formats for compatibility:
+    // 1. Exact match with program ID
+    // 2. Match without program ID (old completions)
+    // 3. Any completion on that date (handles program changes with different workout IDs)
     const keyWithProgram = `${dateStr}:${workout.workoutId}:${workout.clientProgramId}`
     const keyWithoutProgram = `${dateStr}:${workout.workoutId}`
-    return completedWorkouts[keyWithProgram] === true || completedWorkouts[keyWithoutProgram] === true
+    const keyDateOnly = `${dateStr}:any`
+    return completedWorkouts[keyWithProgram] === true || 
+           completedWorkouts[keyWithoutProgram] === true ||
+           completedWorkouts[keyDateOnly] === true
   }
 
   // Get status for a specific date
