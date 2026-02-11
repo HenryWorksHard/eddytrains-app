@@ -10,49 +10,75 @@ export async function GET() {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    // Get all workout logs for this user
+    // Get all exercises from user's assigned programs
+    const today = new Date().toISOString().split('T')[0]
+    
+    const { data: clientPrograms } = await supabase
+      .from('client_programs')
+      .select(`
+        program_id,
+        programs (
+          program_workouts (
+            workout_exercises (
+              exercise_name
+            )
+          )
+        )
+      `)
+      .eq('client_id', user.id)
+      .eq('is_active', true)
+
+    const exerciseNames = new Set<string>()
+    
+    // Extract exercise names from assigned programs
+    clientPrograms?.forEach(cp => {
+      const programs = cp.programs as any
+      const programData = Array.isArray(programs) ? programs[0] : programs
+      programData?.program_workouts?.forEach((workout: any) => {
+        workout?.workout_exercises?.forEach((ex: any) => {
+          if (ex?.exercise_name) {
+            exerciseNames.add(ex.exercise_name)
+          }
+        })
+      })
+    })
+
+    // Also get exercises from logged workouts (in case program changed)
     const { data: workoutLogs } = await supabase
       .from('workout_logs')
       .select('id')
       .eq('client_id', user.id)
       .order('completed_at', { ascending: false })
-      .limit(100)
+      .limit(50)
 
-    if (!workoutLogs || workoutLogs.length === 0) {
-      return NextResponse.json({ exercises: [] })
+    if (workoutLogs && workoutLogs.length > 0) {
+      const workoutLogIds = workoutLogs.map(log => log.id)
+      
+      const { data: setLogs } = await supabase
+        .from('set_logs')
+        .select('exercise_id')
+        .in('workout_log_id', workoutLogIds)
+
+      if (setLogs && setLogs.length > 0) {
+        const exerciseIds = [...new Set(setLogs.map(s => s.exercise_id))]
+        
+        const { data: loggedExercises } = await supabase
+          .from('workout_exercises')
+          .select('exercise_name')
+          .in('id', exerciseIds)
+        
+        loggedExercises?.forEach(e => {
+          if (e.exercise_name) exerciseNames.add(e.exercise_name)
+        })
+      }
     }
 
-    const workoutLogIds = workoutLogs.map(log => log.id)
+    // Convert to array and sort
+    const exercises = Array.from(exerciseNames)
+      .sort((a, b) => a.localeCompare(b))
+      .map(name => ({ name }))
 
-    // Get unique exercise IDs from set_logs
-    const { data: setLogs } = await supabase
-      .from('set_logs')
-      .select('exercise_id')
-      .in('workout_log_id', workoutLogIds)
-      .not('weight_kg', 'is', null)
-
-    if (!setLogs || setLogs.length === 0) {
-      return NextResponse.json({ exercises: [] })
-    }
-
-    const exerciseIds = [...new Set(setLogs.map(s => s.exercise_id))]
-
-    // Get exercise names
-    const { data: exercises } = await supabase
-      .from('workout_exercises')
-      .select('id, exercise_name')
-      .in('id', exerciseIds)
-
-    if (!exercises) {
-      return NextResponse.json({ exercises: [] })
-    }
-
-    // Dedupe by exercise name and sort
-    const uniqueExercises = [...new Map(
-      exercises.map(e => [e.exercise_name, { id: e.id, name: e.exercise_name }])
-    ).values()].sort((a, b) => a.name.localeCompare(b.name))
-
-    return NextResponse.json({ exercises: uniqueExercises })
+    return NextResponse.json({ exercises })
   } catch (error) {
     console.error('Exercises fetch error:', error)
     return NextResponse.json({ error: 'Failed to fetch exercises' }, { status: 500 })

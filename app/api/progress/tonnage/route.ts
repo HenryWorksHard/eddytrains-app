@@ -50,12 +50,23 @@ export async function GET(request: NextRequest) {
         startDateStr = formatDate(defaultStart)
     }
 
-    // Use scheduled_date (local date) instead of completed_at (UTC timestamp)
-    const { data: workoutLogs } = await supabase
+    // Try scheduled_date first, fall back to completed_at if no results
+    let { data: workoutLogs } = await supabase
       .from('workout_logs')
-      .select('id')
+      .select('id, scheduled_date, completed_at')
       .eq('client_id', user.id)
       .gte('scheduled_date', startDateStr)
+
+    // If no results with scheduled_date, try completed_at
+    if (!workoutLogs || workoutLogs.length === 0) {
+      const { data: fallbackLogs } = await supabase
+        .from('workout_logs')
+        .select('id, scheduled_date, completed_at')
+        .eq('client_id', user.id)
+        .gte('completed_at', `${startDateStr}T00:00:00`)
+      
+      workoutLogs = fallbackLogs
+    }
 
     if (!workoutLogs || workoutLogs.length === 0) {
       return NextResponse.json({ tonnage: 0 })
