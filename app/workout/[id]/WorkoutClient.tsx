@@ -155,7 +155,41 @@ export default function WorkoutClient({ workoutId, exercises, oneRMs, personalBe
   const [saving, setSaving] = useState(false)
   const [workoutLogId, setWorkoutLogId] = useState<string | null>(null)
   const [swappedExercises, setSwappedExercises] = useState<Map<string, SwappedExercise>>(new Map())
+  // EMOM round tracking: finisherId -> Set of completed round numbers
+  const [emomRoundsCompleted, setEmomRoundsCompleted] = useState<Map<string, Set<number>>>(new Map())
   const supabase = createClient()
+
+  // Toggle EMOM round completion
+  const toggleEmomRound = (finisherId: string, roundNumber: number) => {
+    setEmomRoundsCompleted(prev => {
+      const newMap = new Map(prev)
+      const rounds = new Set(newMap.get(finisherId) || [])
+      if (rounds.has(roundNumber)) {
+        rounds.delete(roundNumber)
+      } else {
+        rounds.add(roundNumber)
+      }
+      newMap.set(finisherId, rounds)
+      return newMap
+    })
+  }
+
+  // Get number of rounds for EMOM (from first exercise's sets count)
+  const getEmomRounds = (finisher: Finisher): number => {
+    if (finisher.exercises.length === 0) return 5
+    return finisher.exercises[0]?.sets?.length || 5
+  }
+
+  // Format cardio target for display
+  const formatCardioTarget = (set: any): string => {
+    if (set.cardio_value && set.cardio_unit) {
+      return `${set.cardio_value} ${set.cardio_unit}`
+    }
+    if (set.cardio_type === 'duration') {
+      return `${set.cardio_value || '?'} ${set.cardio_unit || 'min'}`
+    }
+    return set.reps || '?'
+  }
 
   // Load previous logs for each exercise
   useEffect(() => {
@@ -499,38 +533,99 @@ export default function WorkoutClient({ workoutId, exercises, oneRMs, personalBe
               )}
             </div>
             
-            {/* Finisher Exercises */}
-            <div className={`${colors.divider} divide-y`}>
-              {finisherExerciseGroups.map((group) => {
-                if (group.type === 'superset') {
-                  return (
-                    <div key={group.supersetGroup} className="p-2">
-                      <div className="border border-yellow-400/30 rounded-xl overflow-hidden bg-yellow-400/5">
-                        <div className="px-3 py-1.5 border-b border-yellow-400/20">
-                          <span className="text-xs font-medium text-yellow-400 uppercase tracking-wide">
-                            Superset
-                          </span>
-                        </div>
-                        <div className="divide-y divide-yellow-400/20">
-                          {group.exercises.map((exercise) => (
-                            <div key={exercise.id} className="px-1 py-1">
-                              {renderExerciseCard(exercise, exercises.length + finisher.exercises.indexOf(exercise), true)}
-                            </div>
-                          ))}
+            {/* Finisher Exercises - EMOM gets round-based view, others get normal sets */}
+            {finisher.isEmom ? (
+              /* EMOM Round-Based View */
+              <div className="p-4">
+                {/* Exercise List */}
+                <div className="space-y-2 mb-4">
+                  {finisher.exercises.map((exercise, idx) => {
+                    const firstSet = exercise.sets[0]
+                    return (
+                      <div key={exercise.id} className="flex items-center gap-3 py-2">
+                        <span className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold ${colors.bg} ${colors.text}`}>
+                          {idx + 1}
+                        </span>
+                        <span className="text-white font-medium flex-1">{exercise.name}</span>
+                        <span className="text-zinc-400 text-sm">
+                          {firstSet?.cardio_value && firstSet?.cardio_unit 
+                            ? `${firstSet.cardio_value} ${firstSet.cardio_unit}`
+                            : firstSet?.reps || '?'}
+                        </span>
+                      </div>
+                    )
+                  })}
+                </div>
+                
+                {/* Round Progress */}
+                <div className="border-t border-zinc-700 pt-4">
+                  <div className="flex items-center justify-between mb-3">
+                    <span className="text-sm text-zinc-400">Rounds</span>
+                    <span className="text-sm text-zinc-500">
+                      {emomRoundsCompleted.get(finisher.id)?.size || 0}/{getEmomRounds(finisher)}
+                    </span>
+                  </div>
+                  <div className="flex flex-wrap gap-2">
+                    {Array.from({ length: getEmomRounds(finisher) }, (_, i) => i + 1).map(round => {
+                      const completed = emomRoundsCompleted.get(finisher.id)?.has(round) || false
+                      return (
+                        <button
+                          key={round}
+                          onClick={() => toggleEmomRound(finisher.id, round)}
+                          className={`w-10 h-10 rounded-xl font-bold text-sm transition-all ${
+                            completed 
+                              ? `${colors.bg} ${colors.text} border-2 ${colors.border}` 
+                              : 'bg-zinc-800 text-zinc-500 border border-zinc-700 hover:border-zinc-600'
+                          }`}
+                        >
+                          {completed ? '✓' : round}
+                        </button>
+                      )
+                    })}
+                  </div>
+                </div>
+                
+                {/* Mark All Complete */}
+                {(emomRoundsCompleted.get(finisher.id)?.size || 0) === getEmomRounds(finisher) && (
+                  <div className="mt-4 p-3 bg-green-500/10 border border-green-500/30 rounded-xl text-center">
+                    <span className="text-green-400 font-medium">✓ Finisher Complete!</span>
+                  </div>
+                )}
+              </div>
+            ) : (
+              /* Normal Set-Based View for non-EMOM finishers */
+              <div className={`${colors.divider} divide-y`}>
+                {finisherExerciseGroups.map((group) => {
+                  if (group.type === 'superset') {
+                    return (
+                      <div key={group.supersetGroup} className="p-2">
+                        <div className="border border-yellow-400/30 rounded-xl overflow-hidden bg-yellow-400/5">
+                          <div className="px-3 py-1.5 border-b border-yellow-400/20">
+                            <span className="text-xs font-medium text-yellow-400 uppercase tracking-wide">
+                              Superset
+                            </span>
+                          </div>
+                          <div className="divide-y divide-yellow-400/20">
+                            {group.exercises.map((exercise) => (
+                              <div key={exercise.id} className="px-1 py-1">
+                                {renderExerciseCard(exercise, exercises.length + finisher.exercises.indexOf(exercise), true)}
+                              </div>
+                            ))}
+                          </div>
                         </div>
                       </div>
-                    </div>
-                  )
-                } else {
-                  const exercise = group.exercises[0]
-                  return (
-                    <div key={exercise.id} className="p-2">
-                      {renderExerciseCard(exercise, exercises.length + finisher.exercises.indexOf(exercise), false)}
-                    </div>
-                  )
-                }
-              })}
-            </div>
+                    )
+                  } else {
+                    const exercise = group.exercises[0]
+                    return (
+                      <div key={exercise.id} className="p-2">
+                        {renderExerciseCard(exercise, exercises.length + finisher.exercises.indexOf(exercise), false)}
+                      </div>
+                    )
+                  }
+                })}
+              </div>
+            )}
           </div>
         )
       })}
