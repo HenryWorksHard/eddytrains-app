@@ -601,11 +601,11 @@ export default function ScheduleClient({ scheduleByDay, completedWorkouts, upcom
       {/* Day Detail Modal */}
       {selectedDate && (
         <div 
-          className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-end sm:items-center justify-center"
+          className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4"
           onClick={() => setSelectedDate(null)}
         >
           <div 
-            className="bg-zinc-900 border border-zinc-700 rounded-t-3xl sm:rounded-3xl w-full max-w-md max-h-[80vh] overflow-hidden"
+            className="bg-zinc-900 border border-zinc-700 rounded-3xl w-full max-w-md max-h-[80vh] overflow-hidden"
             onClick={e => e.stopPropagation()}
           >
             {/* Modal Header */}
