@@ -692,52 +692,59 @@ export default function ScheduleClient({ scheduleByDay, completedWorkouts, upcom
                           
                           {workoutCompleted && (
                             <>
-                              {viewingWorkoutId === workout.workoutId ? (
-                                loadingDetails ? (
-                                  <div className="text-center py-3">
-                                    <div className="w-5 h-5 border-2 border-green-400 border-t-transparent rounded-full animate-spin mx-auto" />
-                                  </div>
-                                ) : workoutDetails ? (
-                                  <div className="mt-3 pt-3 border-t border-zinc-700 space-y-2">
-                                    {workoutDetails.notes && (
-                                      <p className="text-sm text-zinc-400 italic">{workoutDetails.notes}</p>
-                                    )}
-                                    {(() => {
-                                      const groups = workoutDetails.sets.reduce((acc, s) => {
-                                        if (!acc[s.exercise_name]) acc[s.exercise_name] = []
-                                        acc[s.exercise_name].push(s)
-                                        return acc
-                                      }, {} as Record<string, typeof workoutDetails.sets>)
-                                      
-                                      return Object.entries(groups).map(([name, sets]) => (
-                                        <div key={name} className="bg-zinc-800/50 rounded-lg p-2">
-                                          <p className="text-xs text-yellow-400 font-medium mb-1">{name}</p>
-                                          {sets.map(s => (
-                                            <div key={s.set_number} className="flex justify-between text-xs">
-                                              <span className="text-zinc-500">Set {s.set_number}</span>
-                                              <span className="text-white">{s.weight_kg ?? '—'}kg × {s.reps_completed ?? '—'}</span>
-                                            </div>
-                                          ))}
-                                        </div>
-                                      ))
-                                    })()}
-                                    <button
-                                      onClick={() => closeDetails()}
-                                      className="text-zinc-500 text-xs w-full py-1"
-                                    >
-                                      Hide Details
-                                    </button>
-                                  </div>
-                                ) : (
-                                  <p className="text-zinc-500 text-sm text-center py-2">No data recorded</p>
-                                )
-                              ) : (
-                                <button
-                                  onClick={() => fetchWorkoutDetails(selectedDate!, workout.workoutId, workout.clientProgramId)}
-                                  className="block w-full bg-green-500/20 hover:bg-green-500/30 text-green-400 font-medium py-2 rounded-lg text-center text-sm transition-colors"
+                              {/* Action buttons - View Workout + View Log */}
+                              <div className="flex gap-2 mt-3">
+                                <Link
+                                  href={`/workout/${workout.workoutId}?clientProgramId=${workout.clientProgramId}`}
+                                  onClick={() => setSelectedDate(null)}
+                                  className="flex-1 text-center py-2 bg-zinc-800 hover:bg-zinc-700 text-white text-xs font-medium rounded-lg transition-colors"
                                 >
-                                  View Details
+                                  View Workout
+                                </Link>
+                                <button
+                                  onClick={() => viewingWorkoutId === workout.workoutId ? closeDetails() : fetchWorkoutDetails(selectedDate!, workout.workoutId, workout.clientProgramId)}
+                                  className="flex-1 py-2 bg-green-500/20 hover:bg-green-500/30 text-green-400 text-xs font-medium rounded-lg transition-colors"
+                                >
+                                  {loadingDetails && viewingWorkoutId === workout.workoutId ? 'Loading...' : viewingWorkoutId === workout.workoutId ? 'Hide Log' : 'View Log'}
                                 </button>
+                              </div>
+                              
+                              {/* Workout log details */}
+                              {viewingWorkoutId === workout.workoutId && !loadingDetails && (
+                                <div className="mt-3 pt-3 border-t border-zinc-700 space-y-2">
+                                  {workoutDetails ? (
+                                    <>
+                                      {workoutDetails.notes && (
+                                        <p className="text-sm text-zinc-400 italic">{workoutDetails.notes}</p>
+                                      )}
+                                      {workoutDetails.sets.length === 0 ? (
+                                        <p className="text-zinc-500 text-xs text-center">No sets logged</p>
+                                      ) : (
+                                        (() => {
+                                          const groups = workoutDetails.sets.reduce((acc, s) => {
+                                            if (!acc[s.exercise_name]) acc[s.exercise_name] = []
+                                            acc[s.exercise_name].push(s)
+                                            return acc
+                                          }, {} as Record<string, typeof workoutDetails.sets>)
+                                          
+                                          return Object.entries(groups).map(([name, sets]) => (
+                                            <div key={name} className="bg-zinc-800/50 rounded-lg p-2">
+                                              <p className="text-xs text-yellow-400 font-medium mb-1">{name}</p>
+                                              {sets.map(s => (
+                                                <div key={s.set_number} className="flex justify-between text-xs">
+                                                  <span className="text-zinc-500">Set {s.set_number}</span>
+                                                  <span className="text-white">{s.weight_kg ?? '—'}kg × {s.reps_completed ?? '—'}</span>
+                                                </div>
+                                              ))}
+                                            </div>
+                                          ))
+                                        })()
+                                      )}
+                                    </>
+                                  ) : (
+                                    <p className="text-zinc-500 text-xs text-center">No data recorded</p>
+                                  )}
+                                </div>
                               )}
                             </>
                           )}
