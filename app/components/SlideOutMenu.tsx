@@ -63,7 +63,10 @@ export function SlideOutMenu({ isOpen, onClose }: SlideOutMenuProps) {
             <div className="w-10 h-10 bg-yellow-400 rounded-xl flex items-center justify-center">
               <span className="text-black font-bold text-lg">E</span>
             </div>
-            <span className="text-white font-semibold">eddytrains</span>
+            <div>
+              <span className="text-white font-semibold block">eddytrains</span>
+              <span className="text-zinc-500 text-[10px]">Powered by CMPD</span>
+            </div>
           </div>
           <button 
             onClick={onClose}
