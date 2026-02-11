@@ -1,6 +1,7 @@
 import { createClient } from '../lib/supabase/server'
 import { redirect } from 'next/navigation'
 import BottomNav from '../components/BottomNav'
+import PageHeader from '../components/PageHeader'
 import Link from 'next/link'
 import { Calculator, User, UserCheck } from 'lucide-react'
 
@@ -27,11 +28,7 @@ export default async function NutritionPage() {
   if (!profile?.can_access_nutrition) {
     return (
       <div className="min-h-screen bg-black pb-32">
-        <header className="bg-zinc-900 border-b border-zinc-800">
-          <div className="px-6 py-6">
-            <h1 className="text-2xl font-bold text-white">Nutrition</h1>
-          </div>
-        </header>
+        <PageHeader title="Nutrition" />
 
         <main className="px-6 py-6">
           <div className="bg-zinc-900 border border-zinc-800 rounded-2xl p-8 text-center">
@@ -93,20 +90,17 @@ export default async function NutritionPage() {
 
   return (
     <div className="min-h-screen bg-black pb-32">
-      <header className="bg-zinc-900 border-b border-zinc-800">
-        <div className="px-6 py-6 flex items-center justify-between">
-          <div>
-            <h1 className="text-2xl font-bold text-white">Nutrition</h1>
-            <p className="text-zinc-400 text-sm mt-1">Your daily targets</p>
-          </div>
+      <PageHeader 
+        title="Nutrition" 
+        rightElement={
           <Link 
             href="/nutrition/calculator"
-            className="p-3 bg-yellow-400/10 rounded-xl hover:bg-yellow-400/20 transition-colors"
+            className="p-2 bg-yellow-400/10 rounded-lg hover:bg-yellow-400/20 transition-colors"
           >
             <Calculator className="w-5 h-5 text-yellow-400" />
           </Link>
-        </div>
-      </header>
+        }
+      />
 
       <main className="px-6 py-6 space-y-6">
         {/* Client's Own Plan */}

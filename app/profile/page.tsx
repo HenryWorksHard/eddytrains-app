@@ -6,6 +6,7 @@ import { createClient } from '../lib/supabase/client'
 import { compressImage } from '../lib/imageUtils'
 import { useTheme } from '../lib/ThemeContext'
 import BottomNav from '../components/BottomNav'
+import { SlideOutMenu, HamburgerButton } from '../components/SlideOutMenu'
 import Image from 'next/image'
 import { Sun, Moon } from 'lucide-react'
 
@@ -48,6 +49,7 @@ export default function ProfilePage() {
   const [profile, setProfile] = useState<Profile | null>(null)
   const [loading, setLoading] = useState(true)
   const [client1RMs, setClient1RMs] = useState<Client1RM[]>([])
+  const [menuOpen, setMenuOpen] = useState(false)
   const [editing1RM, setEditing1RM] = useState(false)
   const [saving1RM, setSaving1RM] = useState(false)
   const [progressImages, setProgressImages] = useState<ProgressImage[]>([])
@@ -351,9 +353,19 @@ export default function ProfilePage() {
 
   return (
     <div className="min-h-screen bg-black pb-24">
+      {/* Slide Out Menu */}
+      <SlideOutMenu isOpen={menuOpen} onClose={() => setMenuOpen(false)} />
+      
       {/* Header - Industrial Minimal */}
       <header className="bg-zinc-900 border-b border-zinc-800">
-        <div className="px-6 py-8 text-center">
+        {/* Hamburger Row */}
+        <div className="flex items-center justify-between px-4 pt-3">
+          <HamburgerButton onClick={() => setMenuOpen(true)} />
+          <span className="text-xs text-zinc-500 font-medium uppercase tracking-wider">Profile</span>
+          <div className="w-10" /> {/* Spacer for balance */}
+        </div>
+        
+        <div className="px-6 py-6 text-center">
           <input
             ref={pfpInputRef}
             type="file"
