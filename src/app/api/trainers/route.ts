@@ -1,11 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createClient } from '@supabase/supabase-js';
 
-// Create admin client with service role key
-const supabaseAdmin = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!
-);
+import { getSupabaseAdmin } from '@/lib/supabase-admin';
 
 const TIER_CLIENT_LIMITS: Record<string, number> = {
   starter: 10,
@@ -36,7 +31,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Check if slug is already taken
-    const { data: existingOrg } = await supabaseAdmin
+    const { data: existingOrg } = await getSupabaseAdmin()
       .from('organizations')
       .select('id')
       .eq('slug', orgSlug)
@@ -50,7 +45,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Create the user in Supabase Auth
-    const { data: authData, error: authError } = await supabaseAdmin.auth.admin.createUser({
+    const { data: authData, error: authError } = await getSupabaseAdmin().auth.admin.createUser({
       email,
       password,
       email_confirm: true, // Auto-confirm email
@@ -89,7 +84,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Create the organization
-    const { data: org, error: orgError } = await supabaseAdmin
+    const { data: org, error: orgError } = await getSupabaseAdmin()
       .from('organizations')
       .insert({
         name: orgName,
@@ -107,7 +102,7 @@ export async function POST(request: NextRequest) {
     if (orgError) {
       console.error('Org error:', orgError);
       // Clean up: delete the auth user
-      await supabaseAdmin.auth.admin.deleteUser(userId);
+      await getSupabaseAdmin().auth.admin.deleteUser(userId);
       return NextResponse.json(
         { error: 'Failed to create organization' },
         { status: 500 }
@@ -116,7 +111,7 @@ export async function POST(request: NextRequest) {
 
     // Create/update the profile with trainer role and org
     // Using upsert because the profile trigger might not fire for admin-created users
-    const { error: profileError } = await supabaseAdmin
+    const { error: profileError } = await getSupabaseAdmin()
       .from('profiles')
       .upsert({
         id: userId,

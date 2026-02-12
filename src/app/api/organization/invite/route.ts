@@ -1,16 +1,7 @@
 import { NextResponse } from 'next/server';
-import { createClient } from '@supabase/supabase-js';
-
-function getSupabaseClient() {
-  return createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.SUPABASE_SERVICE_ROLE_KEY!
-  );
-}
+import { getSupabaseAdmin } from '@/lib/supabase-admin';
 
 export async function POST(req: Request) {
-  const supabase = getSupabaseClient();
-  
   try {
     const { organization_id, email, role } = await req.json();
 
@@ -30,7 +21,7 @@ export async function POST(req: Request) {
     }
 
     // Check if org exists and get max_trainers
-    const { data: org, error: orgError } = await supabase
+    const { data: org, error: orgError } = await getSupabaseAdmin()
       .from('organizations')
       .select('id, name, max_trainers')
       .eq('id', organization_id)
@@ -45,7 +36,7 @@ export async function POST(req: Request) {
 
     // Check trainer limit
     if (org.max_trainers !== -1) {
-      const { count } = await supabase
+      const { count } = await getSupabaseAdmin()
         .from('organization_members')
         .select('*', { count: 'exact', head: true })
         .eq('organization_id', organization_id)
@@ -60,7 +51,7 @@ export async function POST(req: Request) {
     }
 
     // Check if user already exists
-    const { data: existingProfile } = await supabase
+    const { data: existingProfile } = await getSupabaseAdmin()
       .from('profiles')
       .select('id, organization_id')
       .eq('email', email)
@@ -74,7 +65,7 @@ export async function POST(req: Request) {
     }
 
     // Check for existing pending invite
-    const { data: existingInvite } = await supabase
+    const { data: existingInvite } = await getSupabaseAdmin()
       .from('organization_invites')
       .select('id')
       .eq('organization_id', organization_id)
@@ -96,7 +87,7 @@ export async function POST(req: Request) {
     expiresAt.setDate(expiresAt.getDate() + 7); // 7 days
 
     // Create invite
-    const { data: invite, error: inviteError } = await supabase
+    const { data: invite, error: inviteError } = await getSupabaseAdmin()
       .from('organization_invites')
       .insert({
         organization_id,
@@ -148,8 +139,6 @@ export async function POST(req: Request) {
 
 // Accept invitation
 export async function PUT(req: Request) {
-  const supabase = getSupabaseClient();
-  
   try {
     const { token, user_id } = await req.json();
 
@@ -161,7 +150,7 @@ export async function PUT(req: Request) {
     }
 
     // Find the invite
-    const { data: invite, error: inviteError } = await supabase
+    const { data: invite, error: inviteError } = await getSupabaseAdmin()
       .from('organization_invites')
       .select('*')
       .eq('token', token)
@@ -177,7 +166,7 @@ export async function PUT(req: Request) {
     }
 
     // Add user to organization_members
-    const { error: memberError } = await supabase
+    const { error: memberError } = await getSupabaseAdmin()
       .from('organization_members')
       .insert({
         organization_id: invite.organization_id,
@@ -198,7 +187,7 @@ export async function PUT(req: Request) {
     }
 
     // Update user's profile with organization_id
-    await supabase
+    await getSupabaseAdmin()
       .from('profiles')
       .update({ 
         organization_id: invite.organization_id,
@@ -207,7 +196,7 @@ export async function PUT(req: Request) {
       .eq('id', user_id);
 
     // Mark invite as accepted
-    await supabase
+    await getSupabaseAdmin()
       .from('organization_invites')
       .update({ accepted_at: new Date().toISOString() })
       .eq('id', invite.id);
