@@ -52,7 +52,7 @@ export async function POST(req: Request) {
     }
 
     // Check organization status including subscription info
-    const { data: org } = await supabase
+    const { data: org } = await getSupabaseAdmin()
       .from('organizations')
       .select('stripe_customer_id, stripe_subscription_id, subscription_status, trial_ends_at, name')
       .eq('id', organizationId)
@@ -103,7 +103,7 @@ export async function POST(req: Request) {
       }
 
       // Update the tier in Supabase
-      await supabase
+      await getSupabaseAdmin()
         .from('organizations')
         .update({ subscription_tier: tier })
         .eq('id', organizationId);
@@ -140,7 +140,7 @@ export async function POST(req: Request) {
       customerId = customer.id;
 
       // Save customer ID to organization
-      await supabase
+      await getSupabaseAdmin()
         .from('organizations')
         .update({ stripe_customer_id: customerId })
         .eq('id', organizationId);

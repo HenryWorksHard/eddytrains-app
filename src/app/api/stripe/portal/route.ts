@@ -17,7 +17,7 @@ export async function POST(req: Request) {
     }
 
     // Get organization's Stripe customer ID
-    const { data: org, error } = await supabase
+    const { data: org, error } = await getSupabaseAdmin()
       .from('organizations')
       .select('stripe_customer_id')
       .eq('id', organizationId)

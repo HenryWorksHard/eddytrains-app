@@ -16,7 +16,7 @@ export async function GET(req: Request) {
     }
 
     // Get organization's Stripe IDs
-    const { data: org, error } = await supabase
+    const { data: org, error } = await getSupabaseAdmin()
       .from('organizations')
       .select('stripe_customer_id, stripe_subscription_id, subscription_tier, subscription_status, trial_ends_at')
       .eq('id', organizationId)
@@ -126,7 +126,7 @@ export async function POST(req: Request) {
     }
 
     // Get organization's Stripe IDs
-    const { data: org, error } = await supabase
+    const { data: org, error } = await getSupabaseAdmin()
       .from('organizations')
       .select('stripe_customer_id, stripe_subscription_id, subscription_status')
       .eq('id', organizationId)
@@ -169,7 +169,7 @@ export async function POST(req: Request) {
         await stripe.subscriptions.cancel(org.stripe_subscription_id);
         
         // Clear subscription from database, reset to default gym tier for trial
-        await supabase
+        await getSupabaseAdmin()
           .from('organizations')
           .update({ 
             stripe_subscription_id: null,
@@ -193,7 +193,7 @@ export async function POST(req: Request) {
           ? new Date(updatedSub.current_period_end * 1000).toISOString()
           : null;
 
-        await supabase
+        await getSupabaseAdmin()
           .from('organizations')
           .update({ 
             subscription_status: 'canceling',
@@ -221,7 +221,7 @@ export async function POST(req: Request) {
       });
 
       // Update DB status back to 'active'
-      await supabase
+      await getSupabaseAdmin()
         .from('organizations')
         .update({ 
           subscription_status: 'active',
@@ -249,7 +249,7 @@ export async function DELETE(req: Request) {
       return NextResponse.json({ error: 'Missing organization ID' }, { status: 400 });
     }
 
-    const { data: org, error } = await supabase
+    const { data: org, error } = await getSupabaseAdmin()
       .from('organizations')
       .select('stripe_subscription_id')
       .eq('id', organizationId)
@@ -263,7 +263,7 @@ export async function DELETE(req: Request) {
     await stripe.subscriptions.cancel(org.stripe_subscription_id);
 
     // Update database
-    await supabase
+    await getSupabaseAdmin()
       .from('organizations')
       .update({
         subscription_status: 'canceled',

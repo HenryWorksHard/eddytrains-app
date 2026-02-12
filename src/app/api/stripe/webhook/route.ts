@@ -113,7 +113,7 @@ async function handleCheckoutComplete(session: Stripe.Checkout.Session) {
   }
 
   // Update organization with Stripe IDs
-  const { error } = await supabase
+  const { error } = await getSupabaseAdmin()
     .from('organizations')
     .update({
       stripe_customer_id: customerId,
@@ -139,7 +139,7 @@ async function handleSubscriptionUpdate(subscription: Stripe.Subscription) {
   const tierConfig = TIER_CONFIG[priceId] || { tier: 'starter', clientLimit: 10 };
 
   // Find organization by stripe_customer_id
-  const { data: org, error: findError } = await supabase
+  const { data: org, error: findError } = await getSupabaseAdmin()
     .from('organizations')
     .select('id')
     .eq('stripe_customer_id', customerId)
@@ -151,7 +151,7 @@ async function handleSubscriptionUpdate(subscription: Stripe.Subscription) {
   }
 
   // Update subscription details
-  const { error } = await supabase
+  const { error } = await getSupabaseAdmin()
     .from('organizations')
     .update({
       stripe_subscription_id: subscription.id,
@@ -173,7 +173,7 @@ async function handleSubscriptionCanceled(subscription: Stripe.Subscription) {
   const customerId = subscription.customer as string;
 
   // Find organization
-  const { data: org } = await supabase
+  const { data: org } = await getSupabaseAdmin()
     .from('organizations')
     .select('id, subscription_status, trial_ends_at')
     .eq('stripe_customer_id', customerId)
@@ -195,7 +195,7 @@ async function handleSubscriptionCanceled(subscription: Stripe.Subscription) {
   }
 
   // Mark as canceled but don't delete - they keep access until period ends
-  const { error } = await supabase
+  const { error } = await getSupabaseAdmin()
     .from('organizations')
     .update({
       subscription_status: 'canceled',
@@ -214,7 +214,7 @@ async function handlePaymentFailed(invoice: Stripe.Invoice) {
   const customerId = invoice.customer as string;
 
   // Find organization
-  const { data: org } = await supabase
+  const { data: org } = await getSupabaseAdmin()
     .from('organizations')
     .select('id')
     .eq('stripe_customer_id', customerId)
@@ -223,7 +223,7 @@ async function handlePaymentFailed(invoice: Stripe.Invoice) {
   if (!org) return;
 
   // Update status to past_due
-  await supabase
+  await getSupabaseAdmin()
     .from('organizations')
     .update({
       subscription_status: 'past_due',
