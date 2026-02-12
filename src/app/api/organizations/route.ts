@@ -24,7 +24,7 @@ export async function POST(req: Request) {
 
     // Generate unique slug
     let slug = generateSlug(name);
-    const { data: existing } = await supabase
+    const { data: existing } = await getSupabaseAdmin()
       .from('organizations')
       .select('slug')
       .eq('slug', slug)
@@ -41,7 +41,7 @@ export async function POST(req: Request) {
     // Create organization
     // During trial: full access (gym tier, unlimited clients)
     // User picks their plan when trial ends or when they subscribe
-    const { data: org, error: orgError } = await supabase
+    const { data: org, error: orgError } = await getSupabaseAdmin()
       .from('organizations')
       .insert({
         name,
@@ -64,7 +64,7 @@ export async function POST(req: Request) {
     }
 
     // Update the owner's profile with organization_id and trainer role
-    const { error: profileError } = await supabase
+    const { error: profileError } = await getSupabaseAdmin()
       .from('profiles')
       .upsert({
         id: owner_id,
@@ -100,7 +100,7 @@ export async function GET(req: Request) {
 
     if (ownerId) {
       // Get organization for specific owner
-      const { data: profile } = await supabase
+      const { data: profile } = await getSupabaseAdmin()
         .from('profiles')
         .select('organization_id')
         .eq('id', ownerId)
@@ -110,7 +110,7 @@ export async function GET(req: Request) {
         return NextResponse.json({ organization: null });
       }
 
-      const { data: org } = await supabase
+      const { data: org } = await getSupabaseAdmin()
         .from('organizations')
         .select('*')
         .eq('id', profile.organization_id)
@@ -120,7 +120,7 @@ export async function GET(req: Request) {
     }
 
     // List all organizations (super_admin only - add auth check in production)
-    const { data: orgs, error } = await supabase
+    const { data: orgs, error } = await getSupabaseAdmin()
       .from('organizations')
       .select('*')
       .order('created_at', { ascending: false });
@@ -131,7 +131,7 @@ export async function GET(req: Request) {
 
     // Fetch owner profiles separately (including role to filter out super_admins)
     const ownerIds = orgs?.map(o => o.owner_id).filter(Boolean) || [];
-    const { data: profiles } = await supabase
+    const { data: profiles } = await getSupabaseAdmin()
       .from('profiles')
       .select('id, email, full_name, role')
       .in('id', ownerIds);
