@@ -1,9 +1,9 @@
 import { NextResponse } from 'next/server';
 import Stripe from 'stripe';
+import { getStripe } from '@/lib/stripe';
 
 import { getSupabaseAdmin } from '@/lib/supabase-admin';
 
-const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!);
 
 // Tier configurations - use env vars to support test/live modes
 const TIER_CONFIG: Record<string, { tier: string; clientLimit: number }> = {
@@ -30,7 +30,7 @@ export async function POST(req: Request) {
   let event: Stripe.Event;
 
   try {
-    event = stripe.webhooks.constructEvent(
+    event = getStripe().webhooks.constructEvent(
       body,
       signature,
       process.env.STRIPE_WEBHOOK_SECRET!
@@ -100,7 +100,7 @@ async function handleCheckoutComplete(session: Stripe.Checkout.Session) {
   let subscriptionStatus = 'active';
   if (subscriptionId) {
     try {
-      const sub = await stripe.subscriptions.retrieve(subscriptionId);
+      const sub = await getStripe().subscriptions.retrieve(subscriptionId);
       // If subscription is in trial, keep status as trialing
       if (sub.status === 'trialing') {
         subscriptionStatus = 'trialing';

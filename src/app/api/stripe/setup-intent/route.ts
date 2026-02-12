@@ -1,9 +1,9 @@
 import { NextResponse } from 'next/server';
 import Stripe from 'stripe';
+import { getStripe } from '@/lib/stripe';
 
 import { getSupabaseAdmin } from '@/lib/supabase-admin';
 
-const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!);
 
 // Create SetupIntent for adding/updating payment method
 export async function POST(req: Request) {
@@ -26,7 +26,7 @@ export async function POST(req: Request) {
     }
 
     // Create SetupIntent
-    const setupIntent = await stripe.setupIntents.create({
+    const setupIntent = await getStripe().setupIntents.create({
       customer: org.stripe_customer_id,
       payment_method_types: ['card'],
       usage: 'off_session', // For recurring payments

@@ -11,7 +11,7 @@ const PRICE_IDS: Record<string, string> = {
 };
 
 async function stripeRequest(endpoint: string, data: Record<string, string>, method: string = 'POST') {
-  const response = await fetch(`https://api.stripe.com/v1/${endpoint}`, {
+  const response = await fetch(`https://api.getStripe().com/v1/${endpoint}`, {
     method,
     headers: {
       'Authorization': `Bearer ${process.env.STRIPE_SECRET_KEY}`,
@@ -23,7 +23,7 @@ async function stripeRequest(endpoint: string, data: Record<string, string>, met
 }
 
 async function stripeGet(endpoint: string) {
-  const response = await fetch(`https://api.stripe.com/v1/${endpoint}`, {
+  const response = await fetch(`https://api.getStripe().com/v1/${endpoint}`, {
     method: 'GET',
     headers: {
       'Authorization': `Bearer ${process.env.STRIPE_SECRET_KEY}`,

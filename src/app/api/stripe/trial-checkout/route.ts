@@ -6,7 +6,7 @@ import { getSupabaseAdmin } from '@/lib/supabase-admin';
 const STARTER_PRICE_ID = 'price_1SxHgCBDGilw48s7lrc9Pjox';
 
 async function stripeRequest(endpoint: string, data: Record<string, string>) {
-  const response = await fetch(`https://api.stripe.com/v1/${endpoint}`, {
+  const response = await fetch(`https://api.getStripe().com/v1/${endpoint}`, {
     method: 'POST',
     headers: {
       'Authorization': `Bearer ${process.env.STRIPE_SECRET_KEY}`,

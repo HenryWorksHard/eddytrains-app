@@ -1,9 +1,9 @@
 import { NextResponse } from 'next/server';
 import Stripe from 'stripe';
+import { getStripe } from '@/lib/stripe';
 
 import { getSupabaseAdmin } from '@/lib/supabase-admin';
 
-const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!);
 
 // GET - Fetch subscription details
 export async function GET(req: Request) {
@@ -32,7 +32,7 @@ export async function GET(req: Request) {
 
     // Get subscription details if exists
     if (org.stripe_subscription_id) {
-      const subResponse = await stripe.subscriptions.retrieve(org.stripe_subscription_id, {
+      const subResponse = await getStripe().subscriptions.retrieve(org.stripe_subscription_id, {
         expand: ['default_payment_method', 'latest_invoice'],
       });
       // Use any to handle Stripe SDK type variations
@@ -68,9 +68,9 @@ export async function GET(req: Request) {
 
     // Get customer's default payment method if not on subscription
     if (!paymentMethod) {
-      const customer = await stripe.customers.retrieve(org.stripe_customer_id) as Stripe.Customer;
+      const customer = await getStripe().customers.retrieve(org.stripe_customer_id) as Stripe.Customer;
       if (customer.invoice_settings?.default_payment_method) {
-        const pm = await stripe.paymentMethods.retrieve(
+        const pm = await getStripe().paymentMethods.retrieve(
           customer.invoice_settings.default_payment_method as string
         );
         if (pm.card) {
@@ -86,7 +86,7 @@ export async function GET(req: Request) {
     }
 
     // Get recent invoices
-    const invoiceList = await stripe.invoices.list({
+    const invoiceList = await getStripe().invoices.list({
       customer: org.stripe_customer_id,
       limit: 10,
     });
@@ -138,18 +138,18 @@ export async function POST(req: Request) {
 
     if (action === 'update_payment_method' && paymentMethodId) {
       // Attach payment method to customer
-      await stripe.paymentMethods.attach(paymentMethodId, {
+      await getStripe().paymentMethods.attach(paymentMethodId, {
         customer: org.stripe_customer_id,
       });
 
       // Set as default on customer
-      await stripe.customers.update(org.stripe_customer_id, {
+      await getStripe().customers.update(org.stripe_customer_id, {
         invoice_settings: { default_payment_method: paymentMethodId },
       });
 
       // Set as default on subscription if exists
       if (org.stripe_subscription_id) {
-        await stripe.subscriptions.update(org.stripe_subscription_id, {
+        await getStripe().subscriptions.update(org.stripe_subscription_id, {
           default_payment_method: paymentMethodId,
         });
       }
@@ -166,7 +166,7 @@ export async function POST(req: Request) {
       // For active users: cancel at period end
       if (org.subscription_status === 'trialing') {
         // Cancel subscription immediately (they haven't been charged)
-        await stripe.subscriptions.cancel(org.stripe_subscription_id);
+        await getStripe().subscriptions.cancel(org.stripe_subscription_id);
         
         // Clear subscription from database, reset to default gym tier for trial
         await getSupabaseAdmin()
@@ -184,7 +184,7 @@ export async function POST(req: Request) {
         });
       } else {
         // Active subscription: cancel at period end
-        const updatedSub = await stripe.subscriptions.update(org.stripe_subscription_id, {
+        const updatedSub = await getStripe().subscriptions.update(org.stripe_subscription_id, {
           cancel_at_period_end: true,
         }) as any;
 
@@ -216,7 +216,7 @@ export async function POST(req: Request) {
       }
 
       // Remove cancellation
-      await stripe.subscriptions.update(org.stripe_subscription_id, {
+      await getStripe().subscriptions.update(org.stripe_subscription_id, {
         cancel_at_period_end: false,
       });
 
@@ -260,7 +260,7 @@ export async function DELETE(req: Request) {
     }
 
     // Cancel immediately
-    await stripe.subscriptions.cancel(org.stripe_subscription_id);
+    await getStripe().subscriptions.cancel(org.stripe_subscription_id);
 
     // Update database
     await getSupabaseAdmin()

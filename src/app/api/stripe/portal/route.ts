@@ -1,9 +1,9 @@
 import { NextResponse } from 'next/server';
 import Stripe from 'stripe';
+import { getStripe } from '@/lib/stripe';
 
 import { getSupabaseAdmin } from '@/lib/supabase-admin';
 
-const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!);
 
 export async function POST(req: Request) {
   try {
@@ -32,7 +32,7 @@ export async function POST(req: Request) {
 
     // Create billing portal session
     const returnUrl = process.env.NEXT_PUBLIC_APP_URL || process.env.APP_URL || 'https://eddytrains-admin.vercel.app';
-    const session = await stripe.billingPortal.sessions.create({
+    const session = await getStripe().billingPortal.sessions.create({
       customer: org.stripe_customer_id,
       return_url: `${returnUrl}/billing`,
     });
