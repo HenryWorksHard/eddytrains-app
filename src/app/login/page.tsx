@@ -11,6 +11,7 @@ export default function LoginPage() {
   const [showPassword, setShowPassword] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
+  const [redirecting, setRedirecting] = useState(false)
   const router = useRouter()
   const supabase = createClient()
 
@@ -40,13 +41,15 @@ export default function LoginPage() {
 
         const role = profile?.role || 'client'
 
+        // Show redirecting state
+        setRedirecting(true)
+
         // Redirect based on role - all roles allowed
         if (role === 'super_admin') {
           router.push('/platform')
-        } else if (role === 'client') {
-          router.push('/my-program')
         } else {
-          // trainer, admin, company_admin
+          // All other roles (client, trainer, admin, company_admin) go to dashboard
+          // Dashboard component handles showing different views based on role
           router.push('/dashboard')
         }
         router.refresh()
@@ -56,6 +59,16 @@ export default function LoginPage() {
     } finally {
       setLoading(false)
     }
+  }
+
+  // Show loading screen while redirecting
+  if (redirecting) {
+    return (
+      <div className="min-h-screen bg-zinc-950 flex flex-col items-center justify-center p-4">
+        <div className="w-12 h-12 border-3 border-zinc-700 border-t-yellow-400 rounded-full animate-spin mb-4"></div>
+        <p className="text-zinc-400">Signing you in...</p>
+      </div>
+    )
   }
 
   return (
