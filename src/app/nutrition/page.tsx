@@ -1,4 +1,5 @@
 import { createClient } from '../lib/supabase/server'
+import { createClient as createAdminClient } from '@supabase/supabase-js'
 import { redirect } from 'next/navigation'
 import BottomNav from '../components/BottomNav'
 import PageHeader from '../components/PageHeader'
@@ -7,7 +8,16 @@ import { Calculator, User, UserCheck, Users } from 'lucide-react'
 import Sidebar from '@/components/Sidebar'
 import TrainerNutritionView from './TrainerNutritionView'
 
-export const revalidate = 60
+export const revalidate = 0 // Disable caching for debugging
+
+// Admin client for bypassing RLS if needed
+function getAdminClient() {
+  return createAdminClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.SUPABASE_SERVICE_ROLE_KEY!,
+    { auth: { autoRefreshToken: false, persistSession: false } }
+  )
+}
 
 export default async function NutritionPage() {
   const supabase = await createClient()
@@ -18,20 +28,30 @@ export default async function NutritionPage() {
     redirect('/login')
   }
 
-  // Get user profile with role
-  const { data: profile } = await supabase
+  // Get user profile with role - use admin client to bypass RLS
+  const adminClient = getAdminClient()
+  const { data: profile, error: profileError } = await adminClient
     .from('profiles')
     .select('role, can_access_nutrition, organization_id')
     .eq('id', user.id)
     .single()
 
+  console.log('[Nutrition] Profile query:', { 
+    userId: user.id, 
+    userEmail: user.email,
+    profile: profile,
+    error: profileError?.message 
+  })
+
   const role = profile?.role || 'client'
   const isTrainer = ['trainer', 'admin', 'company_admin', 'super_admin'].includes(role)
+  
+  console.log('[Nutrition] Role detection:', { role, isTrainer })
 
   // TRAINER VIEW - Show client selector
   if (isTrainer) {
-    // Get all clients in the organization
-    const { data: clients } = await supabase
+    // Get all clients in the organization using admin client
+    const { data: clients } = await adminClient
       .from('profiles')
       .select('id, full_name, email')
       .eq('organization_id', profile?.organization_id)
