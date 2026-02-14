@@ -31,26 +31,22 @@ export default function LoginPage() {
       }
 
       if (data.user) {
-        // Check if user is admin
+        // Get user profile for role-based redirect
         const { data: profile } = await supabase
           .from('profiles')
           .select('role')
           .eq('id', data.user.id)
           .single()
 
-        const allowedRoles = ['admin', 'super_admin', 'trainer', 'company_admin']
-        if (!profile?.role || !allowedRoles.includes(profile.role)) {
-          await supabase.auth.signOut()
-          setError('Access denied. Admin privileges required.')
-          return
-        }
+        const role = profile?.role || 'client'
 
-        // Redirect based on role
-        if (profile.role === 'super_admin') {
+        // Redirect based on role - all roles allowed
+        if (role === 'super_admin') {
           router.push('/platform')
-        } else if (profile.role === 'company_admin') {
-          router.push('/dashboard')
+        } else if (role === 'client') {
+          router.push('/my-program')
         } else {
+          // trainer, admin, company_admin
           router.push('/dashboard')
         }
         router.refresh()
@@ -70,8 +66,8 @@ export default function LoginPage() {
           <div className="w-16 h-16 mx-auto rounded-2xl bg-gradient-to-br from-yellow-400 to-yellow-500 flex items-center justify-center mb-4">
             <span className="text-black text-2xl font-bold">C</span>
           </div>
-          <h1 className="text-2xl font-bold text-white">CMPD Admin</h1>
-          <p className="text-zinc-400 mt-2">Sign in to manage your fitness platform</p>
+          <h1 className="text-2xl font-bold text-white">CMPD Fitness</h1>
+          <p className="text-zinc-400 mt-2">Sign in to your account</p>
         </div>
 
         {/* Login Form */}
@@ -141,7 +137,7 @@ export default function LoginPage() {
 
           <div className="mt-6 pt-6 border-t border-zinc-800 text-center">
             <p className="text-zinc-400 text-sm">
-              New trainer?{' '}
+              Personal trainer?{' '}
               <a href="/signup" className="text-yellow-400 hover:text-yellow-300">
                 Start your free trial
               </a>
