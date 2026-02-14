@@ -217,10 +217,20 @@ export async function GET() {
       }
     }) || []
     
-    return NextResponse.json({ users: usersWithEmail })
+    return NextResponse.json({ 
+      users: usersWithEmail,
+      debug: {
+        userId: user.id,
+        userEmail: user.email,
+        organizationId,
+        userRole: currentUser?.role,
+        visibility: org?.trainer_visibility,
+        clientCount: profiles?.length || 0
+      }
+    })
   } catch (error) {
     console.error('Get users error:', error)
-    return NextResponse.json({ error: 'Failed to fetch users' }, { status: 500 })
+    return NextResponse.json({ error: 'Failed to fetch users', debug: { error: String(error) } }, { status: 500 })
   }
 }
 
