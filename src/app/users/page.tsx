@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react'
 import Link from 'next/link'
 import { UserPlus, Search, Filter, Mail, Edit2, Trash2, Clock, Copy, Check, RefreshCw, Dumbbell, Apple, X, Loader2 } from 'lucide-react'
 import { createClient } from '@/app/lib/supabase/client'
+import { apiFetch } from '@/app/lib/api'
 
 interface User {
   id: string
@@ -76,9 +77,8 @@ export default function UsersPage() {
     
     setDeletingUser(userId)
     try {
-      const response = await fetch(`/api/users?id=${userId}`, {
-        method: 'DELETE',
-        credentials: 'include'
+      const response = await apiFetch(`/api/users?id=${userId}`, {
+        method: 'DELETE'
       })
       
       if (!response.ok) {
@@ -182,9 +182,7 @@ export default function UsersPage() {
   const fetchUsers = async () => {
     setLoading(true)
     try {
-      const response = await fetch('/api/users', {
-        credentials: 'include'  // Required for Capacitor/WKWebView to send cookies
-      })
+      const response = await apiFetch('/api/users')
       const data = await response.json()
       setUsers(data.users || [])
       // Show debug info if available

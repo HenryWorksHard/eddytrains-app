@@ -1,5 +1,7 @@
 import { createClient } from './supabase/server'
+import { createClient as createAdminClient } from '@supabase/supabase-js'
 import { cookies } from 'next/headers'
+import { headers } from 'next/headers'
 
 export const IMPERSONATION_COOKIE = 'impersonating_org'
 
@@ -7,9 +9,13 @@ export const IMPERSONATION_COOKIE = 'impersonating_org'
  * Get the effective organization ID for the current context.
  * Checks for impersonation cookie first (for super admins viewing as trainers),
  * then falls back to the user's own organization_id.
+ * 
+ * Supports both cookie-based auth AND header-based auth (X-Supabase-Auth)
+ * for Capacitor/WKWebView compatibility.
  */
 export async function getEffectiveOrgId(): Promise<string | null> {
   const cookieStore = await cookies()
+  const headerStore = await headers()
   
   // Check for impersonation first
   const impersonatingOrg = cookieStore.get(IMPERSONATION_COOKIE)?.value
@@ -18,18 +24,45 @@ export async function getEffectiveOrgId(): Promise<string | null> {
     return impersonatingOrg
   }
   
-  // Fall back to user's own organization
-  const supabase = await createClient()
-  const { data: { user }, error: authError } = await supabase.auth.getUser()
+  // Check for auth token in header (Capacitor/WKWebView fallback)
+  const authToken = headerStore.get('x-supabase-auth')
   
-  console.log('[getEffectiveOrgId] Auth result:', { userId: user?.id, error: authError?.message })
+  let user = null
+  let authError = null
+  
+  if (authToken) {
+    // Use admin client to verify the token and get user
+    console.log('[getEffectiveOrgId] Using header-based auth')
+    const adminClient = createAdminClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.SUPABASE_SERVICE_ROLE_KEY!
+    )
+    const { data, error } = await adminClient.auth.getUser(authToken)
+    user = data?.user
+    authError = error
+  } else {
+    // Fall back to cookie-based auth
+    console.log('[getEffectiveOrgId] Using cookie-based auth')
+    const supabase = await createClient()
+    const result = await supabase.auth.getUser()
+    user = result.data?.user
+    authError = result.error
+  }
+  
+  console.log('[getEffectiveOrgId] Auth result:', { userId: user?.id, error: authError?.message, method: authToken ? 'header' : 'cookie' })
   
   if (!user) {
     console.log('[getEffectiveOrgId] No user found')
     return null
   }
   
-  const { data: profile, error: profileError } = await supabase
+  // Use admin client to fetch profile (bypasses RLS)
+  const adminClient = createAdminClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.SUPABASE_SERVICE_ROLE_KEY!
+  )
+  
+  const { data: profile, error: profileError } = await adminClient
     .from('profiles')
     .select('organization_id')
     .eq('id', user.id)
