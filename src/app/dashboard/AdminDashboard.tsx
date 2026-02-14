@@ -303,7 +303,7 @@ export default async function AdminDashboard({
   return (
     <div className="min-h-screen bg-zinc-950">
       <Sidebar />
-      <main className="ml-64 p-8">
+      <main className="lg:ml-64 p-4 lg:p-8 pt-4 lg:pt-8">
         <div className="space-y-8">
           {/* Subscription Canceled Banner */}
           {orgInfo?.status === 'canceled' && (

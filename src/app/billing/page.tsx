@@ -994,7 +994,7 @@ export default function BillingPage() {
   return (
     <div className="flex min-h-screen bg-zinc-950">
       <Sidebar />
-      <main className="flex-1 p-8 ml-64">
+      <main className="flex-1 p-4 lg:p-8 lg:ml-64">
         <Suspense fallback={<div className="animate-pulse">Loading billing...</div>}>
           <BillingContent />
         </Suspense>

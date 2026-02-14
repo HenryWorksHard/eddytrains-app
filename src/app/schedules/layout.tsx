@@ -8,7 +8,7 @@ export default function SchedulesLayout({
   return (
     <div className="min-h-screen bg-black">
       <Sidebar />
-      <main className="ml-64 p-8">
+      <main className="lg:ml-64 p-4 lg:p-8">
         {children}
       </main>
     </div>

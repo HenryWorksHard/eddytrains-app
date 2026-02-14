@@ -20,6 +20,8 @@ import {
   Building2,
   Shield,
   UserCheck,
+  Menu,
+  X,
 } from 'lucide-react'
 import { useState, useEffect } from 'react'
 import { ArrowLeft } from 'lucide-react'
@@ -66,6 +68,7 @@ export default function Sidebar() {
   const supabase = createClient()
   const { theme, toggleTheme } = useTheme()
   const [mounted, setMounted] = useState(false)
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
   const [userRole, setUserRole] = useState<string>('trainer')
   const [isSoloTrainer, setIsSoloTrainer] = useState(false)
   const [orgName, setOrgName] = useState<string>('CMPD')
@@ -149,6 +152,11 @@ export default function Sidebar() {
     }
     checkRole()
   }, [supabase, router])
+
+  // Close mobile menu on route change
+  useEffect(() => {
+    setMobileMenuOpen(false)
+  }, [pathname])
   
   // Determine which nav items to show
   const getNavItems = () => {
@@ -192,8 +200,9 @@ export default function Sidebar() {
     router.refresh()
   }
 
-  return (
-    <aside className="fixed left-0 top-0 h-screen w-64 bg-zinc-900 border-r border-zinc-800 flex flex-col z-40">
+  // Sidebar content (shared between desktop and mobile)
+  const SidebarContent = () => (
+    <>
       {/* Back to Platform button when impersonating */}
       {isImpersonating && (
         <button
@@ -294,6 +303,62 @@ export default function Sidebar() {
           <span className="font-medium">Sign Out</span>
         </button>
       </div>
-    </aside>
+    </>
+  )
+
+  return (
+    <>
+      {/* Mobile Header with Hamburger */}
+      <header className="lg:hidden fixed top-0 left-0 right-0 h-16 bg-zinc-900 border-b border-zinc-800 flex items-center justify-between px-4 z-50">
+        <Link href={userRole === 'super_admin' && !isImpersonating ? "/platform" : "/dashboard"} className="flex items-center gap-3">
+          <div className="w-9 h-9 rounded-lg bg-gradient-to-br from-yellow-400 to-yellow-500 flex items-center justify-center">
+            <span className="text-black font-bold text-sm">
+              {isImpersonating ? impersonatedOrgName.charAt(0).toUpperCase() : orgName.charAt(0).toUpperCase()}
+            </span>
+          </div>
+          <span className="font-bold text-white">
+            {isImpersonating ? impersonatedOrgName : (userRole === 'super_admin' ? 'CMPD' : orgName)}
+          </span>
+        </Link>
+        <button
+          onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+          className="p-2 text-zinc-400 hover:text-white transition-colors"
+        >
+          {mobileMenuOpen ? <X className="w-6 h-6" /> : <Menu className="w-6 h-6" />}
+        </button>
+      </header>
+
+      {/* Mobile Menu Overlay */}
+      {mobileMenuOpen && (
+        <div 
+          className="lg:hidden fixed inset-0 bg-black/60 z-40"
+          onClick={() => setMobileMenuOpen(false)}
+        />
+      )}
+
+      {/* Mobile Slide-out Menu */}
+      <aside className={`lg:hidden fixed top-0 left-0 h-screen w-72 bg-zinc-900 border-r border-zinc-800 flex flex-col z-50 transform transition-transform duration-300 ease-in-out ${
+        mobileMenuOpen ? 'translate-x-0' : '-translate-x-full'
+      }`}>
+        {/* Close button inside menu */}
+        <div className="flex justify-end p-4">
+          <button
+            onClick={() => setMobileMenuOpen(false)}
+            className="p-2 text-zinc-400 hover:text-white transition-colors"
+          >
+            <X className="w-6 h-6" />
+          </button>
+        </div>
+        <SidebarContent />
+      </aside>
+
+      {/* Desktop Sidebar - Hidden on mobile */}
+      <aside className="hidden lg:flex fixed left-0 top-0 h-screen w-64 bg-zinc-900 border-r border-zinc-800 flex-col z-40">
+        <SidebarContent />
+      </aside>
+
+      {/* Spacer for mobile header */}
+      <div className="lg:hidden h-16" />
+    </>
   )
 }

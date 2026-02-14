@@ -75,7 +75,7 @@ export default async function AdminPrograms() {
   return (
     <div className="min-h-screen bg-zinc-950">
       <Sidebar />
-      <main className="ml-64 p-8">
+      <main className="lg:ml-64 p-4 lg:p-8">
         <div className="space-y-8">
           {/* Header */}
           <div className="flex items-center justify-between">
