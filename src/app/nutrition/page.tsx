@@ -3,7 +3,9 @@ import { redirect } from 'next/navigation'
 import BottomNav from '../components/BottomNav'
 import PageHeader from '../components/PageHeader'
 import Link from 'next/link'
-import { Calculator, User, UserCheck } from 'lucide-react'
+import { Calculator, User, UserCheck, Users } from 'lucide-react'
+import Sidebar from '@/components/Sidebar'
+import TrainerNutritionView from './TrainerNutritionView'
 
 export const revalidate = 60
 
@@ -16,14 +18,58 @@ export default async function NutritionPage() {
     redirect('/login')
   }
 
-  // Run ALL queries in parallel
-  const [profileResult, trainerPlanResult, clientPlanResult] = await Promise.all([
-    supabase
+  // Get user profile with role
+  const { data: profile } = await supabase
+    .from('profiles')
+    .select('role, can_access_nutrition, organization_id')
+    .eq('id', user.id)
+    .single()
+
+  const role = profile?.role || 'client'
+  const isTrainer = ['trainer', 'admin', 'company_admin', 'super_admin'].includes(role)
+
+  // TRAINER VIEW - Show client selector
+  if (isTrainer) {
+    // Get all clients in the organization
+    const { data: clients } = await supabase
       .from('profiles')
-      .select('can_access_nutrition')
-      .eq('id', user.id)
-      .single(),
-    
+      .select('id, full_name, email')
+      .eq('organization_id', profile?.organization_id)
+      .eq('role', 'client')
+      .order('full_name')
+
+    return (
+      <>
+        {/* Desktop: Show sidebar */}
+        <div className="hidden lg:block">
+          <Sidebar />
+        </div>
+        
+        {/* Mobile: Show header + bottom nav style layout */}
+        <div className="lg:hidden">
+          <PageHeader title="Nutrition" />
+        </div>
+        
+        <main className="lg:ml-64 p-4 lg:p-8 pb-32 lg:pb-8">
+          {/* Desktop header */}
+          <div className="hidden lg:block mb-6">
+            <h1 className="text-2xl lg:text-3xl font-bold text-white">Nutrition</h1>
+            <p className="text-zinc-400 mt-1">View and manage client nutrition plans</p>
+          </div>
+          
+          <TrainerNutritionView clients={clients || []} />
+        </main>
+        
+        {/* Mobile bottom nav */}
+        <div className="lg:hidden">
+          <BottomNav />
+        </div>
+      </>
+    )
+  }
+
+  // CLIENT VIEW - Show their own nutrition
+  const [trainerPlanResult, clientPlanResult] = await Promise.all([
     supabase
       .from('client_nutrition')
       .select(`*, nutrition_plans (*)`)
@@ -41,7 +87,6 @@ export default async function NutritionPage() {
       .single()
   ])
 
-  const profile = profileResult.data
   const trainerPlan = trainerPlanResult.data
   const clientPlan = clientPlanResult.data
 
