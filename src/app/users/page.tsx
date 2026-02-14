@@ -77,7 +77,8 @@ export default function UsersPage() {
     setDeletingUser(userId)
     try {
       const response = await fetch(`/api/users?id=${userId}`, {
-        method: 'DELETE'
+        method: 'DELETE',
+        credentials: 'include'
       })
       
       if (!response.ok) {
@@ -181,7 +182,9 @@ export default function UsersPage() {
   const fetchUsers = async () => {
     setLoading(true)
     try {
-      const response = await fetch('/api/users')
+      const response = await fetch('/api/users', {
+        credentials: 'include'  // Required for Capacitor/WKWebView to send cookies
+      })
       const data = await response.json()
       setUsers(data.users || [])
       // Show debug info if available
