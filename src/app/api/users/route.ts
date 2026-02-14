@@ -143,7 +143,17 @@ export async function GET() {
     
     if (!organizationId) {
       console.log('[API /users] No organization ID found, returning empty')
-      return NextResponse.json({ users: [], debug: { reason: 'no_org_id' } })
+      // Try to get user info for debugging
+      const supabase = await createServerClient()
+      const { data: { user } } = await supabase.auth.getUser()
+      return NextResponse.json({ 
+        users: [], 
+        debug: { 
+          reason: 'no_org_id',
+          userId: user?.id,
+          userEmail: user?.email 
+        } 
+      })
     }
     
     // Get current user's profile to check role

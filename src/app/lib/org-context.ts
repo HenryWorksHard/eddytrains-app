@@ -14,19 +14,28 @@ export async function getEffectiveOrgId(): Promise<string | null> {
   // Check for impersonation first
   const impersonatingOrg = cookieStore.get(IMPERSONATION_COOKIE)?.value
   if (impersonatingOrg) {
+    console.log('[getEffectiveOrgId] Using impersonation org:', impersonatingOrg)
     return impersonatingOrg
   }
   
   // Fall back to user's own organization
   const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) return null
+  const { data: { user }, error: authError } = await supabase.auth.getUser()
   
-  const { data: profile } = await supabase
+  console.log('[getEffectiveOrgId] Auth result:', { userId: user?.id, error: authError?.message })
+  
+  if (!user) {
+    console.log('[getEffectiveOrgId] No user found')
+    return null
+  }
+  
+  const { data: profile, error: profileError } = await supabase
     .from('profiles')
     .select('organization_id')
     .eq('id', user.id)
     .single()
+  
+  console.log('[getEffectiveOrgId] Profile result:', { orgId: profile?.organization_id, error: profileError?.message })
   
   return profile?.organization_id || null
 }
