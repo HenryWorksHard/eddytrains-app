@@ -430,3 +430,286 @@ tr:hover td {
   display: none;
 }
 
+/* ====================================
+   MOBILE UTILITIES & TOUCH FEEDBACK
+   ==================================== */
+
+/* Touch feedback - active states for tap */
+.touch-feedback {
+  transition: transform 0.1s ease, opacity 0.1s ease;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.touch-feedback:active {
+  transform: scale(0.97);
+  opacity: 0.9;
+}
+
+/* Smaller scale for buttons */
+button:active,
+a[role="button"]:active,
+.btn-active:active {
+  transform: scale(0.97);
+}
+
+/* Minimum tap target - 44px */
+.tap-target {
+  min-height: 44px;
+  min-width: 44px;
+}
+
+/* Smooth transitions everywhere */
+* {
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* ====================================
+   MOBILE-SPECIFIC RESPONSIVE STYLES
+   ==================================== */
+
+@media (max-width: 768px) {
+  /* Tighter padding on mobile */
+  .px-6 {
+    padding-left: 1rem !important;
+    padding-right: 1rem !important;
+  }
+  
+  .p-6 {
+    padding: 1rem !important;
+  }
+  
+  .py-6 {
+    padding-top: 1rem !important;
+    padding-bottom: 1rem !important;
+  }
+  
+  /* Smaller card padding on mobile */
+  .card {
+    padding: 0.875rem;
+  }
+  
+  .card p-6 {
+    padding: 0.875rem !important;
+  }
+  
+  /* Compact text sizes */
+  .text-3xl {
+    font-size: 1.5rem !important;
+    line-height: 2rem !important;
+  }
+  
+  .text-2xl {
+    font-size: 1.25rem !important;
+    line-height: 1.75rem !important;
+  }
+  
+  .text-xl {
+    font-size: 1rem !important;
+    line-height: 1.5rem !important;
+  }
+  
+  /* Compact gaps */
+  .gap-6 {
+    gap: 0.75rem !important;
+  }
+  
+  .gap-4 {
+    gap: 0.5rem !important;
+  }
+  
+  .space-y-8 > :not([hidden]) ~ :not([hidden]) {
+    margin-top: 1.25rem !important;
+  }
+  
+  .space-y-6 > :not([hidden]) ~ :not([hidden]) {
+    margin-top: 0.75rem !important;
+  }
+  
+  /* Compact margins */
+  .mb-8 {
+    margin-bottom: 1rem !important;
+  }
+  
+  .mt-8 {
+    margin-top: 1rem !important;
+  }
+  
+  /* Smaller rounded corners on mobile */
+  .rounded-2xl {
+    border-radius: 0.75rem !important;
+  }
+  
+  .rounded-xl {
+    border-radius: 0.625rem !important;
+  }
+  
+  /* Compact icons */
+  .w-12.h-12 {
+    width: 2.5rem !important;
+    height: 2.5rem !important;
+  }
+  
+  /* Mobile nav compact */
+  nav.fixed.bottom-0 {
+    padding-bottom: env(safe-area-inset-bottom, 0.5rem);
+  }
+}
+
+/* ====================================
+   THEME-AWARE CARD STYLES
+   ==================================== */
+
+/* Tomorrow preview card - dark mode default */
+.tomorrow-preview {
+  background-color: rgba(39, 39, 42, 0.5);
+  border-color: #27272a;
+}
+
+.tomorrow-preview:hover {
+  background-color: rgba(39, 39, 42, 0.7);
+}
+
+/* Light mode tomorrow preview */
+.light-mode .tomorrow-preview {
+  background-color: #f4f4f5 !important;
+  border-color: #e4e4e7 !important;
+}
+
+.light-mode .tomorrow-preview:hover {
+  background-color: #e4e4e7 !important;
+}
+
+/* Theme-aware text colors */
+.text-theme-primary {
+  color: #ffffff;
+}
+
+.light-mode .text-theme-primary {
+  color: #18181b !important;
+}
+
+.text-theme-secondary {
+  color: #a1a1aa;
+}
+
+.light-mode .text-theme-secondary {
+  color: #52525b !important;
+}
+
+.text-theme-muted {
+  color: #71717a;
+}
+
+.light-mode .text-theme-muted {
+  color: #a1a1aa !important;
+}
+
+/* Theme-aware backgrounds */
+.bg-theme-card {
+  background-color: #18181b;
+  border-color: #27272a;
+}
+
+.light-mode .bg-theme-card {
+  background-color: #ffffff !important;
+  border-color: #e4e4e7 !important;
+}
+
+.bg-theme-surface {
+  background-color: rgba(39, 39, 42, 0.5);
+}
+
+.light-mode .bg-theme-surface {
+  background-color: #f4f4f5 !important;
+}
+
+/* Fix components using dark: prefix - override to work with light-mode class */
+.light-mode .bg-zinc-100 {
+  background-color: #f4f4f5 !important;
+}
+
+.light-mode .border-zinc-200 {
+  border-color: #e4e4e7 !important;
+}
+
+.light-mode .border-zinc-300 {
+  border-color: #d4d4d8 !important;
+}
+
+.light-mode .text-zinc-900 {
+  color: #18181b !important;
+}
+
+.light-mode .text-yellow-500 {
+  color: #eab308 !important;
+}
+
+.light-mode .hover\:bg-zinc-200\/50:hover {
+  background-color: rgba(228, 228, 231, 0.5) !important;
+}
+
+/* Dark mode specific - when NOT in light-mode */
+:not(.light-mode) .bg-zinc-100 {
+  background-color: rgba(39, 39, 42, 0.5) !important;
+}
+
+:not(.light-mode) .border-zinc-200 {
+  border-color: #27272a !important;
+}
+
+:not(.light-mode) .border-zinc-300 {
+  border-color: #3f3f46 !important;
+}
+
+:not(.light-mode) .text-zinc-900 {
+  color: #ffffff !important;
+}
+
+/* Input fields theme consistency */
+.light-mode input,
+.light-mode textarea,
+.light-mode select {
+  background-color: #ffffff !important;
+  border-color: #d4d4d8 !important;
+  color: #18181b !important;
+}
+
+.light-mode input:focus,
+.light-mode textarea:focus,
+.light-mode select:focus {
+  border-color: #facc15 !important;
+}
+
+/* ====================================
+   PULL TO REFRESH FEEL
+   ==================================== */
+
+@keyframes pull-bounce {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-4px); }
+}
+
+.pull-refresh {
+  overscroll-behavior-y: contain;
+}
+
+/* ====================================
+   LOADING STATES
+   ==================================== */
+
+@keyframes skeleton-pulse {
+  0%, 100% { opacity: 0.4; }
+  50% { opacity: 0.7; }
+}
+
+.skeleton {
+  animation: skeleton-pulse 1.5s ease-in-out infinite;
+  background: linear-gradient(90deg, #27272a 0%, #3f3f46 50%, #27272a 100%);
+  background-size: 200% 100%;
+}
+
+.light-mode .skeleton {
+  background: linear-gradient(90deg, #e4e4e7 0%, #d4d4d8 50%, #e4e4e7 100%);
+  background-size: 200% 100%;
+}
+

@@ -559,11 +559,11 @@ export default function ProfilePage() {
                 key={rm.exercise_name}
                 className={`p-4 rounded-xl border ${
                   rm.weight_kg > 0 
-                    ? 'bg-zinc-100 dark:bg-zinc-900 border-zinc-300 dark:border-zinc-700' 
-                    : 'bg-zinc-100/50 dark:bg-zinc-900/50 border-zinc-200 dark:border-zinc-800'
+                    ? 'bg-theme-card border-zinc-700' 
+                    : 'bg-theme-surface border-zinc-800'
                 }`}
               >
-                <p className="text-xs text-zinc-500 dark:text-zinc-400 mb-2 truncate">{rm.exercise_name}</p>
+                <p className="text-xs text-theme-muted mb-2 truncate">{rm.exercise_name}</p>
                 {editing1RM ? (
                   <div className="flex items-center gap-1">
                     <input
@@ -571,12 +571,12 @@ export default function ProfilePage() {
                       value={rm.weight_kg || ''}
                       onChange={(e) => update1RM(rm.exercise_name, parseFloat(e.target.value) || 0)}
                       placeholder="0"
-                      className="w-full px-2 py-1 bg-white dark:bg-zinc-800 border border-zinc-300 dark:border-zinc-700 rounded text-black dark:text-white text-lg font-bold focus:outline-none focus:ring-1 focus:ring-yellow-400"
+                      className="w-full px-2 py-1 bg-zinc-800 border border-zinc-700 rounded text-white text-lg font-bold focus:outline-none focus:ring-1 focus:ring-yellow-400"
                     />
                     <span className="text-zinc-500 text-sm">kg</span>
                   </div>
                 ) : (
-                  <p className={`text-xl font-bold ${rm.weight_kg > 0 ? 'text-black dark:text-white' : 'text-zinc-400 dark:text-zinc-600'}`}>
+                  <p className={`text-xl font-bold ${rm.weight_kg > 0 ? 'text-theme-primary' : 'text-zinc-600'}`}>
                     {rm.weight_kg > 0 ? `${rm.weight_kg}kg` : '—'}
                   </p>
                 )}

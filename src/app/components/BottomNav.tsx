@@ -16,7 +16,7 @@ export default function BottomNav() {
         {/* Home - Left */}
         <Link
           href="/dashboard"
-          className={`flex flex-col items-center justify-center py-1 px-4 rounded-lg transition-colors ${
+          className={`flex flex-col items-center justify-center py-2 px-4 rounded-lg transition-all tap-target active:scale-95 ${
             isHomeActive 
               ? 'text-yellow-400' 
               : 'text-zinc-500 hover:text-white'
@@ -29,9 +29,9 @@ export default function BottomNav() {
         {/* Today's Workout - Center (Prominent) */}
         <Link
           href="/workout/today"
-          className={`flex items-center justify-center -mt-4 transition-transform active:scale-95`}
+          className="flex items-center justify-center -mt-4 transition-all active:scale-90"
         >
-          <div className="w-14 h-14 rounded-full flex items-center justify-center shadow-lg bg-yellow-400 text-black">
+          <div className="w-14 h-14 rounded-full flex items-center justify-center shadow-lg bg-yellow-400 text-black transition-transform">
             <Dumbbell className="w-6 h-6" />
           </div>
         </Link>
@@ -39,7 +39,7 @@ export default function BottomNav() {
         {/* Nutrition - Right */}
         <Link
           href="/nutrition"
-          className={`flex flex-col items-center justify-center py-1 px-4 rounded-lg transition-colors ${
+          className={`flex flex-col items-center justify-center py-2 px-4 rounded-lg transition-all tap-target active:scale-95 ${
             isNutritionActive 
               ? 'text-yellow-400' 
               : 'text-zinc-500 hover:text-white'

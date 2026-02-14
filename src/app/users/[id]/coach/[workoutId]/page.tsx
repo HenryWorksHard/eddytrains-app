@@ -616,7 +616,7 @@ export default function CoachSessionPage() {
                 {/* Exercise Header */}
                 <button
                   onClick={() => setExpandedExercise(isExpanded ? null : exercise.id)}
-                  className="w-full flex items-center justify-between p-4 hover:bg-zinc-100 dark:hover:bg-zinc-800/50 transition-colors"
+                  className="w-full flex items-center justify-between p-4 hover:bg-zinc-800/50 transition-colors touch-feedback"
                 >
                   <div className="flex items-center gap-3">
                     <div className={`w-8 h-8 rounded-lg flex items-center justify-center font-bold text-sm ${
@@ -643,15 +643,15 @@ export default function CoachSessionPage() {
 
                 {/* Sets */}
                 {isExpanded && (
-                  <div className="px-4 pb-4 border-t border-zinc-200 dark:border-zinc-800">
+                  <div className="px-4 pb-4 border-t border-zinc-800">
                     <div className="space-y-3 mt-4">
                       {exercise.exercise_sets.map((set) => {
                         const key = getSetKey(exercise.id, set.set_number)
                         const log = setLogs.get(key) || { set_number: set.set_number, weight_kg: null, reps_completed: null }
                         
                         return (
-                          <div key={set.id} className="flex items-center gap-3 bg-zinc-100 dark:bg-zinc-800/50 rounded-xl p-3">
-                            <div className="w-8 h-8 rounded-lg bg-zinc-300 dark:bg-zinc-700 flex items-center justify-center text-sm font-bold text-zinc-600 dark:text-zinc-400">
+                          <div key={set.id} className="flex items-center gap-3 bg-zinc-800/50 rounded-xl p-3">
+                            <div className="w-8 h-8 rounded-lg bg-zinc-700 flex items-center justify-center text-sm font-bold text-zinc-400">
                               {set.set_number}
                             </div>
                             
@@ -667,7 +667,7 @@ export default function CoachSessionPage() {
                                   value={log.weight_kg ?? ''}
                                   onChange={(e) => updateSetLog(exercise.id, set.set_number, 'weight_kg', e.target.value ? parseFloat(e.target.value) : null)}
                                   onBlur={(e) => autoFillSubsequentSets(exercise.id, set.set_number, 'weight_kg', e.target.value ? parseFloat(e.target.value) : null, exercise.exercise_sets.length)}
-                                  className="w-full mt-1 px-3 py-2 bg-white dark:bg-zinc-900 border border-zinc-300 dark:border-zinc-700 rounded-lg text-foreground text-center font-bold focus:outline-none focus:ring-2 focus:ring-yellow-400"
+                                  className="w-full mt-1 px-3 py-2 bg-zinc-900 border border-zinc-700 rounded-lg text-foreground text-center font-bold focus:outline-none focus:ring-2 focus:ring-yellow-400"
                                 />
                                 {lastWeights.get(`${exercise.id}-${set.set_number}`) && (
                                   <p className="text-[10px] text-zinc-500 text-center mt-1">
@@ -686,7 +686,7 @@ export default function CoachSessionPage() {
                                   value={log.reps_completed ?? ''}
                                   onChange={(e) => updateSetLog(exercise.id, set.set_number, 'reps_completed', e.target.value ? parseInt(e.target.value) : null)}
                                   onBlur={(e) => autoFillSubsequentSets(exercise.id, set.set_number, 'reps_completed', e.target.value ? parseInt(e.target.value) : null, exercise.exercise_sets.length)}
-                                  className="w-full mt-1 px-3 py-2 bg-white dark:bg-zinc-900 border border-zinc-300 dark:border-zinc-700 rounded-lg text-foreground text-center font-bold focus:outline-none focus:ring-2 focus:ring-yellow-400"
+                                  className="w-full mt-1 px-3 py-2 bg-zinc-900 border border-zinc-700 rounded-lg text-foreground text-center font-bold focus:outline-none focus:ring-2 focus:ring-yellow-400"
                                 />
                               </div>
                             </div>
@@ -708,7 +708,7 @@ export default function CoachSessionPage() {
                     {!isComplete && (
                       <button
                         onClick={() => markExerciseComplete(exercise.id)}
-                        className="w-full mt-4 py-2 bg-zinc-200 hover:bg-zinc-300 dark:bg-zinc-800 dark:hover:bg-zinc-700 text-zinc-700 dark:text-white font-medium rounded-xl transition-colors flex items-center justify-center gap-2"
+                        className="w-full mt-4 py-2 bg-zinc-800 hover:bg-zinc-700 text-white font-medium rounded-xl transition-colors flex items-center justify-center gap-2 touch-feedback"
                       >
                         <Check className="w-4 h-4" />
                         Mark Exercise Complete
@@ -738,7 +738,7 @@ export default function CoachSessionPage() {
               onChange={(e) => setSessionNotes(e.target.value)}
               placeholder="Add notes throughout the session..."
               rows={3}
-              className="w-full px-4 py-3 bg-zinc-100 dark:bg-zinc-800 border border-zinc-300 dark:border-zinc-700 rounded-xl text-foreground placeholder-zinc-500 focus:outline-none focus:ring-2 focus:ring-yellow-400 resize-none"
+              className="w-full px-4 py-3 bg-zinc-800 border border-zinc-700 rounded-xl text-foreground placeholder-zinc-500 focus:outline-none focus:ring-2 focus:ring-yellow-400 resize-none"
             />
           </div>
 
@@ -746,7 +746,7 @@ export default function CoachSessionPage() {
           <button
             onClick={completeSession}
             disabled={saving || completedExercises.size === 0}
-            className="w-full py-4 bg-green-500 hover:bg-green-600 disabled:bg-zinc-200 disabled:text-zinc-400 dark:disabled:bg-zinc-800 dark:disabled:text-zinc-500 text-white font-bold rounded-xl transition-colors flex items-center justify-center gap-2"
+            className="w-full py-4 bg-green-500 hover:bg-green-600 disabled:bg-zinc-800 disabled:text-zinc-500 text-white font-bold rounded-xl transition-colors flex items-center justify-center gap-2 touch-feedback tap-target"
           >
             {saving ? (
               <Loader2 className="w-5 h-5 animate-spin" />
