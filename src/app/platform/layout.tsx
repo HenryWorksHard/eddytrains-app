@@ -45,7 +45,7 @@ export default function PlatformLayout({
     return (
       <div className="flex min-h-screen bg-zinc-950">
         <Sidebar />
-        <main className="flex-1 p-4 lg:p-8 lg:ml-64">
+        <main className="flex-1 p-4 lg:p-8 pt-20 lg:pt-8 lg:ml-64">
           <div className="animate-pulse">
             <div className="h-8 w-64 bg-zinc-800 rounded mb-4"></div>
             <div className="h-4 w-48 bg-zinc-800 rounded"></div>
@@ -60,7 +60,7 @@ export default function PlatformLayout({
   return (
     <div className="flex min-h-screen bg-zinc-950">
       <Sidebar />
-      <main className="flex-1 p-4 lg:p-8 lg:ml-64">
+      <main className="flex-1 p-4 lg:p-8 pt-20 lg:pt-8 lg:ml-64">
         {children}
       </main>
     </div>

@@ -199,7 +199,7 @@ export default function OrganisationPage() {
     return (
       <div className="flex min-h-screen bg-zinc-950">
         <Sidebar />
-        <main className="flex-1 p-4 lg:p-8 lg:ml-64 flex items-center justify-center">
+        <main className="flex-1 p-4 lg:p-8 pt-20 lg:pt-8 lg:ml-64 flex items-center justify-center">
           <Loader2 className="w-8 h-8 animate-spin text-yellow-400" />
         </main>
       </div>
@@ -211,7 +211,7 @@ export default function OrganisationPage() {
   return (
     <div className="flex min-h-screen bg-zinc-950">
       <Sidebar />
-      <main className="flex-1 p-4 lg:p-8 lg:ml-64">
+      <main className="flex-1 p-4 lg:p-8 pt-20 lg:pt-8 lg:ml-64">
         <div className="max-w-2xl">
           <div className="flex items-center gap-3 mb-8">
             <Building2 className="w-8 h-8 text-yellow-400" />

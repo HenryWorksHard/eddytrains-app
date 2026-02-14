@@ -63,7 +63,7 @@ export default async function NutritionPage() {
         {/* Sidebar handles both desktop (full sidebar) and mobile (hamburger menu) */}
         <Sidebar />
         
-        <main className="lg:ml-64 p-4 lg:p-8 pb-8">
+        <main className="lg:ml-64 p-4 lg:p-8 pt-20 lg:pt-8 pb-8">
           {/* Mobile title - shown below mobile header */}
           <div className="lg:hidden mb-4">
             <h1 className="text-xl font-bold text-white">Nutrition</h1>
