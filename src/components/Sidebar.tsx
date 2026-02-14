@@ -86,68 +86,41 @@ export default function Sidebar() {
     const impersonatingOrgId = sessionStorage.getItem('impersonating_org')
     if (impersonatingOrgId) {
       setIsImpersonating(true)
-      supabase
-        .from('organizations')
-        .select('name')
-        .eq('id', impersonatingOrgId)
-        .single()
-        .then(({ data }) => {
+      fetch(`/api/organizations/${impersonatingOrgId}`)
+        .then(res => res.json())
+        .then(data => {
           if (data?.name) {
             setImpersonatedOrgName(data.name)
           }
         })
+        .catch(() => {})
     }
     
     async function checkRole() {
-      const { data: { user } } = await supabase.auth.getUser()
-      if (user) {
-        const { data: profile, error } = await supabase
-          .from('profiles')
-          .select('role, organization_id, company_id')
-          .eq('id', user.id)
-          .single()
-        
-        if (error || !profile) {
-          console.log('User profile not found, signing out...')
+      try {
+        // Use /api/me endpoint which bypasses RLS
+        const response = await fetch('/api/me')
+        if (!response.ok) {
+          console.log('Failed to get user info, signing out...')
           await supabase.auth.signOut()
           router.push('/login')
           return
         }
         
-        setUserRole(profile?.role || 'trainer')
+        const data = await response.json()
+        console.log('[Sidebar] User info:', data)
+        
+        setUserRole(data.role || 'trainer')
+        setOrgName(data.orgName || 'CMPD')
         
         // Check if trainer is solo (no company_id) or under a company
-        if (profile?.role === 'trainer') {
-          setIsSoloTrainer(!profile.company_id)
+        if (data.role === 'trainer') {
+          setIsSoloTrainer(!data.companyId)
         }
         
-        // Fetch org name and subscription status
-        if (profile?.organization_id && profile?.role !== 'super_admin') {
-          const { data: org } = await supabase
-            .from('organizations')
-            .select('name, subscription_status, trial_ends_at, stripe_subscription_id, subscription_tier, organization_type')
-            .eq('id', profile.organization_id)
-            .single()
-          
-          if (org?.name) {
-            setOrgName(org.name)
-          }
-          
-          // Only show trial banner for solo trainers
-          if (org?.organization_type === 'solo' && org?.subscription_status === 'trialing') {
-            setIsTrialing(true)
-            if (org?.trial_ends_at) {
-              const trialEnd = new Date(org.trial_ends_at)
-              const now = new Date()
-              const daysLeft = Math.max(0, Math.ceil((trialEnd.getTime() - now.getTime()) / (1000 * 60 * 60 * 24)))
-              setTrialDaysLeft(daysLeft)
-            }
-            if (org?.stripe_subscription_id) {
-              setHasPlanSelected(true)
-              setSelectedTier(org?.subscription_tier || '')
-            }
-          }
-        }
+        // TODO: Add trial/subscription info to /api/me response if needed
+      } catch (error) {
+        console.error('Error checking role:', error)
       }
     }
     checkRole()
