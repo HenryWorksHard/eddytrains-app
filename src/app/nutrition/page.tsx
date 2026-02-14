@@ -12,11 +12,17 @@ export const revalidate = 0 // Disable caching for debugging
 
 // Admin client for bypassing RLS if needed
 function getAdminClient() {
-  return createAdminClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.SUPABASE_SERVICE_ROLE_KEY!,
-    { auth: { autoRefreshToken: false, persistSession: false } }
-  )
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL
+  const key = process.env.SUPABASE_SERVICE_ROLE_KEY
+  
+  if (!url || !key) {
+    console.error('[Nutrition] Missing Supabase env vars:', { url: !!url, key: !!key })
+    throw new Error('Missing Supabase configuration')
+  }
+  
+  return createAdminClient(url, key, { 
+    auth: { autoRefreshToken: false, persistSession: false } 
+  })
 }
 
 export default async function NutritionPage() {
@@ -28,13 +34,30 @@ export default async function NutritionPage() {
     redirect('/login')
   }
 
-  // Get user profile with role - use admin client to bypass RLS
-  const adminClient = getAdminClient()
-  const { data: profile, error: profileError } = await adminClient
-    .from('profiles')
-    .select('role, can_access_nutrition, organization_id')
-    .eq('id', user.id)
-    .single()
+  // Get user profile with role - try admin client first, fallback to regular
+  let profile = null
+  let profileError = null
+  
+  try {
+    const adminClient = getAdminClient()
+    const result = await adminClient
+      .from('profiles')
+      .select('role, can_access_nutrition, organization_id')
+      .eq('id', user.id)
+      .single()
+    profile = result.data
+    profileError = result.error
+  } catch (e) {
+    console.error('[Nutrition] Admin client failed, using regular client:', e)
+    // Fallback to regular client
+    const result = await supabase
+      .from('profiles')
+      .select('role, can_access_nutrition, organization_id')
+      .eq('id', user.id)
+      .single()
+    profile = result.data
+    profileError = result.error
+  }
 
   console.log('[Nutrition] Profile query:', { 
     userId: user.id, 
@@ -50,13 +73,27 @@ export default async function NutritionPage() {
 
   // TRAINER VIEW - Show client selector
   if (isTrainer) {
-    // Get all clients in the organization using admin client
-    const { data: clients } = await adminClient
-      .from('profiles')
-      .select('id, full_name, email')
-      .eq('organization_id', profile?.organization_id)
-      .eq('role', 'client')
-      .order('full_name')
+    // Get all clients in the organization
+    let clients = null
+    try {
+      const adminClient = getAdminClient()
+      const { data } = await adminClient
+        .from('profiles')
+        .select('id, full_name, email')
+        .eq('organization_id', profile?.organization_id)
+        .eq('role', 'client')
+        .order('full_name')
+      clients = data
+    } catch (e) {
+      console.error('[Nutrition] Failed to get clients:', e)
+      const { data } = await supabase
+        .from('profiles')
+        .select('id, full_name, email')
+        .eq('organization_id', profile?.organization_id)
+        .eq('role', 'client')
+        .order('full_name')
+      clients = data
+    }
 
     return (
       <>
