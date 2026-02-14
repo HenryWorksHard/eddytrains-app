@@ -4,9 +4,10 @@ import { Suspense, useEffect, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { createClient } from '@/app/lib/supabase/client';
 import Sidebar from '@/components/Sidebar';
-import { Crown, Sparkles, Clock, X, Loader2, CreditCard, FileText, Calendar, AlertTriangle, RefreshCw, ExternalLink } from 'lucide-react';
+import { Crown, Sparkles, Clock, X, Loader2, CreditCard, FileText, Calendar, AlertTriangle, RefreshCw, ExternalLink, Globe } from 'lucide-react';
 import { loadStripe } from '@stripe/stripe-js';
 import { EmbeddedCheckoutProvider, EmbeddedCheckout, Elements, PaymentElement, useStripe, useElements } from '@stripe/react-stripe-js';
+import { useIsNativeApp } from '@/hooks/useIsNativeApp';
 
 // Initialize Stripe
 const stripePromise = loadStripe(process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY!);
@@ -113,6 +114,7 @@ function BillingContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const supabase = createClient();
+  const isNativeApp = useIsNativeApp(); // Detect iOS/Android app for App Store compliance
   
   const [organization, setOrganization] = useState<Organization | null>(null);
   const [clientCount, setClientCount] = useState(0);
@@ -687,16 +689,34 @@ function BillingContent() {
         </div>
       )}
 
-      {/* Pricing Tiers */}
-      <h2 className="text-lg font-semibold text-white mb-2">
-        {isTrialing ? 'Select a plan to continue after your trial' : 'Available Plans'}
-      </h2>
-      {isTrialing && (
-        <p className="text-zinc-400 text-sm mb-4">
-          Your card will be saved but you won&apos;t be charged until your trial ends on {organization?.trial_ends_at ? new Date(organization.trial_ends_at).toLocaleDateString() : 'the trial end date'}.
-        </p>
-      )}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+      {/* Pricing Tiers - Hidden in native app for App Store compliance */}
+      {isNativeApp ? (
+        <div className="bg-zinc-900 rounded-xl border border-zinc-800 p-8 text-center">
+          <Globe className="w-12 h-12 text-yellow-500 mx-auto mb-4" />
+          <h2 className="text-lg font-semibold text-white mb-2">
+            Manage Your Subscription
+          </h2>
+          <p className="text-zinc-400 mb-6">
+            To upgrade, change plans, or manage your subscription, please visit our website on a computer or mobile browser.
+          </p>
+          <div className="bg-zinc-800 rounded-lg p-4">
+            <p className="text-zinc-300 font-mono text-sm">app.cmpdcollective.com/billing</p>
+          </div>
+          <p className="text-zinc-500 text-xs mt-4">
+            Your current plan: <span className="text-yellow-500 capitalize">{organization?.subscription_tier || 'Free Trial'}</span>
+          </p>
+        </div>
+      ) : (
+        <>
+          <h2 className="text-lg font-semibold text-white mb-2">
+            {isTrialing ? 'Select a plan to continue after your trial' : 'Available Plans'}
+          </h2>
+          {isTrialing && (
+            <p className="text-zinc-400 text-sm mb-4">
+              Your card will be saved but you won&apos;t be charged until your trial ends on {organization?.trial_ends_at ? new Date(organization.trial_ends_at).toLocaleDateString() : 'the trial end date'}.
+            </p>
+          )}
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
         {TIERS.map((tier) => {
           const isCurrentTier = organization?.subscription_tier === tier.id;
           const isSelectedForTrial = isTrialing && isCurrentTier && !!organization?.stripe_subscription_id;
@@ -786,7 +806,9 @@ function BillingContent() {
             </div>
           );
         })}
-      </div>
+          </div>
+        </>
+      )}
 
       {/* FAQ */}
       <div className="mt-12 bg-zinc-900 rounded-xl border border-zinc-800 p-6">
