@@ -1,9 +1,19 @@
 import { createClient } from './supabase/server'
-import { createClient as createAdminClient } from '@supabase/supabase-js'
+import { createClient as createSupabaseClient } from '@supabase/supabase-js'
 import { cookies } from 'next/headers'
 import { headers } from 'next/headers'
 
 export const IMPERSONATION_COOKIE = 'impersonating_org'
+
+// Lazy admin client creation to avoid build-time errors
+function getAdminClient() {
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL
+  const key = process.env.SUPABASE_SERVICE_ROLE_KEY
+  if (!url || !key) {
+    throw new Error('Supabase env vars not available')
+  }
+  return createSupabaseClient(url, key)
+}
 
 /**
  * Get the effective organization ID for the current context.
@@ -33,13 +43,14 @@ export async function getEffectiveOrgId(): Promise<string | null> {
   if (authToken) {
     // Use admin client to verify the token and get user
     console.log('[getEffectiveOrgId] Using header-based auth')
-    const adminClient = createAdminClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.SUPABASE_SERVICE_ROLE_KEY!
-    )
-    const { data, error } = await adminClient.auth.getUser(authToken)
-    user = data?.user
-    authError = error
+    try {
+      const adminClient = getAdminClient()
+      const { data, error } = await adminClient.auth.getUser(authToken)
+      user = data?.user
+      authError = error
+    } catch (e) {
+      console.error('[getEffectiveOrgId] Admin client error:', e)
+    }
   } else {
     // Fall back to cookie-based auth
     console.log('[getEffectiveOrgId] Using cookie-based auth')
@@ -57,20 +68,21 @@ export async function getEffectiveOrgId(): Promise<string | null> {
   }
   
   // Use admin client to fetch profile (bypasses RLS)
-  const adminClient = createAdminClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.SUPABASE_SERVICE_ROLE_KEY!
-  )
-  
-  const { data: profile, error: profileError } = await adminClient
-    .from('profiles')
-    .select('organization_id')
-    .eq('id', user.id)
-    .single()
-  
-  console.log('[getEffectiveOrgId] Profile result:', { orgId: profile?.organization_id, error: profileError?.message })
-  
-  return profile?.organization_id || null
+  try {
+    const adminClient = getAdminClient()
+    const { data: profile, error: profileError } = await adminClient
+      .from('profiles')
+      .select('organization_id')
+      .eq('id', user.id)
+      .single()
+    
+    console.log('[getEffectiveOrgId] Profile result:', { orgId: profile?.organization_id, error: profileError?.message })
+    
+    return profile?.organization_id || null
+  } catch (e) {
+    console.error('[getEffectiveOrgId] Profile fetch error:', e)
+    return null
+  }
 }
 
 /**
