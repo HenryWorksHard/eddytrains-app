@@ -194,44 +194,44 @@ export default function UsersPage() {
   }, [])
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4 lg:space-y-6">
       {/* Header */}
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <h1 className="text-3xl font-bold text-white">Clients</h1>
-          <p className="text-zinc-400 mt-1">Manage your fitness clients</p>
+          <h1 className="text-2xl lg:text-3xl font-bold text-white">Clients</h1>
+          <p className="text-zinc-400 text-sm lg:text-base mt-1">Manage your fitness clients</p>
         </div>
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-2 lg:gap-3">
           <button
             onClick={fetchUsers}
             disabled={loading}
-            className="flex items-center gap-2 px-3 py-2 bg-zinc-800 hover:bg-zinc-700 text-white rounded-xl transition-colors disabled:opacity-50"
+            className="flex items-center gap-2 px-2.5 lg:px-3 py-2 bg-zinc-800 hover:bg-zinc-700 text-white rounded-lg lg:rounded-xl transition-colors disabled:opacity-50"
           >
             <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
           </button>
           <Link
             href="/users/new"
-            className="flex items-center gap-2 bg-yellow-400 hover:bg-yellow-500 text-black px-4 py-2 rounded-xl font-medium transition-colors"
+            className="flex items-center gap-2 bg-yellow-400 hover:bg-yellow-500 text-black px-3 lg:px-4 py-2 rounded-lg lg:rounded-xl text-sm lg:text-base font-medium transition-colors"
           >
-            <UserPlus className="w-5 h-5" />
-            Add Client
+            <UserPlus className="w-4 h-4 lg:w-5 lg:h-5" />
+            <span className="hidden sm:inline">Add</span> Client
           </Link>
         </div>
       </div>
 
       {/* Filters */}
-      <div className="flex gap-4">
+      <div className="flex gap-2 lg:gap-4">
         <div className="flex-1 relative">
-          <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-zinc-500" />
+          <Search className="absolute left-3 lg:left-4 top-1/2 -translate-y-1/2 w-4 h-4 lg:w-5 lg:h-5 text-zinc-500" />
           <input
             type="search"
             placeholder="Search users by name or email..."
-            className="w-full pl-12 pr-4 py-3 bg-zinc-900 border border-zinc-800 rounded-xl text-white placeholder-zinc-500 focus:outline-none focus:ring-2 focus:ring-yellow-400 focus:border-transparent"
+            className="w-full pl-10 lg:pl-12 pr-4 py-2.5 lg:py-3 bg-zinc-900 border border-zinc-800 rounded-lg lg:rounded-xl text-sm lg:text-base text-white placeholder-zinc-500 focus:outline-none focus:ring-2 focus:ring-yellow-400 focus:border-transparent"
           />
         </div>
-        <button className="flex items-center gap-2 px-4 py-3 bg-zinc-900 border border-zinc-800 rounded-xl text-zinc-400 hover:text-white hover:border-zinc-700 transition-colors">
-          <Filter className="w-5 h-5" />
-          Filters
+        <button className="flex items-center gap-2 px-3 lg:px-4 py-2.5 lg:py-3 bg-zinc-900 border border-zinc-800 rounded-lg lg:rounded-xl text-zinc-400 hover:text-white hover:border-zinc-700 transition-colors">
+          <Filter className="w-4 h-4 lg:w-5 lg:h-5" />
+          <span className="hidden sm:inline">Filters</span>
         </button>
       </div>
 
@@ -377,17 +377,17 @@ export default function UsersPage() {
             </table>
           </div>
         ) : (
-          <div className="p-12 text-center">
-            <div className="w-16 h-16 rounded-full bg-zinc-800 flex items-center justify-center mx-auto mb-4">
-              <UserPlus className="w-8 h-8 text-zinc-500" />
+          <div className="p-6 lg:p-12 text-center">
+            <div className="w-12 h-12 lg:w-16 lg:h-16 rounded-full bg-zinc-800 flex items-center justify-center mx-auto mb-3 lg:mb-4">
+              <UserPlus className="w-6 h-6 lg:w-8 lg:h-8 text-zinc-500" />
             </div>
-            <h3 className="text-xl font-semibold text-white mb-2">No clients yet</h3>
-            <p className="text-zinc-400 mb-6">Get started by adding your first client</p>
+            <h3 className="text-lg lg:text-xl font-semibold text-white mb-2">No clients yet</h3>
+            <p className="text-zinc-400 text-sm lg:text-base mb-4 lg:mb-6">Get started by adding your first client</p>
             <Link
               href="/users/new"
-              className="inline-flex items-center gap-2 bg-yellow-400 hover:bg-yellow-500 text-black px-6 py-3 rounded-xl font-medium transition-colors"
+              className="inline-flex items-center gap-2 bg-yellow-400 hover:bg-yellow-500 text-black px-4 lg:px-6 py-2.5 lg:py-3 rounded-lg lg:rounded-xl text-sm lg:text-base font-medium transition-colors"
             >
-              <UserPlus className="w-5 h-5" />
+              <UserPlus className="w-4 h-4 lg:w-5 lg:h-5" />
               Add Your First User
             </Link>
           </div>
@@ -395,18 +395,18 @@ export default function UsersPage() {
       </div>
 
       {/* Stats */}
-      <div className="grid grid-cols-3 gap-4">
-        <div className="card p-4 text-center">
-          <p className="text-2xl font-bold text-white">{users.length}</p>
-          <p className="text-zinc-400 text-sm">Total Clients</p>
+      <div className="grid grid-cols-3 gap-2 lg:gap-4">
+        <div className="card p-3 lg:p-4 text-center">
+          <p className="text-xl lg:text-2xl font-bold text-white">{users.length}</p>
+          <p className="text-zinc-400 text-xs lg:text-sm">Total Clients</p>
         </div>
-        <div className="card p-4 text-center">
-          <p className="text-2xl font-bold text-green-500">{users.filter(u => u.is_active).length}</p>
-          <p className="text-zinc-400 text-sm">Active</p>
+        <div className="card p-3 lg:p-4 text-center">
+          <p className="text-xl lg:text-2xl font-bold text-green-500">{users.filter(u => u.is_active).length}</p>
+          <p className="text-zinc-400 text-xs lg:text-sm">Active</p>
         </div>
-        <div className="card p-4 text-center">
-          <p className="text-2xl font-bold text-red-500">{users.filter(u => !u.is_active).length}</p>
-          <p className="text-zinc-400 text-sm">Inactive</p>
+        <div className="card p-3 lg:p-4 text-center">
+          <p className="text-xl lg:text-2xl font-bold text-red-500">{users.filter(u => !u.is_active).length}</p>
+          <p className="text-zinc-400 text-xs lg:text-sm">Inactive</p>
         </div>
       </div>
 
