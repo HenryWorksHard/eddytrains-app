@@ -137,27 +137,36 @@ export async function GET() {
   try {
     const adminClient = getAdminClient()
     
-    // Get effective organization (handles impersonation for super admins)
-    const organizationId = await getEffectiveOrgId()
-    console.log('[API /users] organizationId:', organizationId)
+    // Get current user from auth session
+    const supabase = await createServerClient()
+    const { data: { user } } = await supabase.auth.getUser()
+    
+    if (!user) {
+      return NextResponse.json({ users: [], debug: { reason: 'not_authenticated' } })
+    }
+    
+    // Get user profile using admin client (bypasses RLS)
+    const { data: currentUser, error: profileError } = await adminClient
+      .from('profiles')
+      .select('id, role, organization_id, company_id')
+      .eq('id', user.id)
+      .single()
+    
+    console.log('[API /users] Current user:', { id: user.id, email: user.email, profile: currentUser, error: profileError?.message })
+    
+    const organizationId = currentUser?.organization_id
     
     if (!organizationId) {
-      console.log('[API /users] No organization ID found, returning empty')
-      // Try to get user info for debugging
-      const supabase = await createServerClient()
-      const { data: { user } } = await supabase.auth.getUser()
       return NextResponse.json({ 
         users: [], 
         debug: { 
           reason: 'no_org_id',
-          userId: user?.id,
-          userEmail: user?.email 
+          userId: user.id,
+          userEmail: user.email,
+          profileError: profileError?.message
         } 
       })
     }
-    
-    // Get current user's profile to check role
-    const currentUser = await getCurrentUserProfile()
     
     // Get organization's visibility settings
     const { data: org } = await adminClient
@@ -165,6 +174,8 @@ export async function GET() {
       .select('trainer_visibility, organization_type')
       .eq('id', organizationId)
       .single()
+    
+    console.log('[API /users] Org settings:', { visibility: org?.trainer_visibility, type: org?.organization_type })
     
     // Build the query
     let query = adminClient
@@ -176,13 +187,15 @@ export async function GET() {
     // - If user is a trainer AND org visibility is 'assigned', show only their clients
     // - Otherwise show all clients in the organization
     if (
-      currentUser?.role === 'trainer' && 
+      currentUser.role === 'trainer' && 
       org?.trainer_visibility === 'assigned'
     ) {
       // Trainer can only see clients assigned to them
+      console.log('[API /users] Filtering by trainer_id:', currentUser.id)
       query = query.eq('trainer_id', currentUser.id)
     } else {
       // Team visibility OR user is admin/company_admin - show all org clients
+      console.log('[API /users] Filtering by organization_id:', organizationId)
       query = query.eq('organization_id', organizationId)
     }
     
