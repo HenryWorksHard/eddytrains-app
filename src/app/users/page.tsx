@@ -177,24 +177,14 @@ export default function UsersPage() {
     }
   }
 
-  const [debugInfo, setDebugInfo] = useState<string | null>(null)
-  
   const fetchUsers = async () => {
     setLoading(true)
     try {
       const response = await apiFetch('/api/users')
       const data = await response.json()
       setUsers(data.users || [])
-      // Always show debug info
-      setDebugInfo(JSON.stringify({ 
-        status: response.status,
-        userCount: data.users?.length || 0,
-        debug: data.debug || 'none',
-        error: data.error || 'none'
-      }, null, 2))
     } catch (error) {
       console.error('Failed to fetch users:', error)
-      setDebugInfo(`Fetch Error: ${error}`)
       setUsers([])
     }
     setLoading(false)
@@ -288,7 +278,7 @@ export default function UsersPage() {
             <table>
               <thead>
                 <tr>
-                  <th className="w-12">
+                  <th className="w-12 hidden sm:table-cell">
                     <input
                       type="checkbox"
                       checked={selectedUsers.size === users.length && users.length > 0}
@@ -297,17 +287,17 @@ export default function UsersPage() {
                     />
                   </th>
                   <th>User</th>
-                  <th>Email</th>
-                  <th>Status</th>
-                  <th>Temp Password</th>
-                  <th>Joined</th>
+                  <th className="hidden md:table-cell">Email</th>
+                  <th className="hidden sm:table-cell">Status</th>
+                  <th className="hidden lg:table-cell">Temp Password</th>
+                  <th className="hidden lg:table-cell">Joined</th>
                   <th className="w-12"></th>
                 </tr>
               </thead>
               <tbody>
                 {users.map((user) => (
                   <tr key={user.id} className={selectedUsers.has(user.id) ? 'bg-yellow-400/5' : ''}>
-                    <td>
+                    <td className="hidden sm:table-cell">
                       <input
                         type="checkbox"
                         checked={selectedUsers.has(user.id)}
@@ -316,23 +306,23 @@ export default function UsersPage() {
                       />
                     </td>
                     <td>
-                      <Link href={`/users/${user.slug || user.id}`} className="flex items-center gap-3 group">
-                        <div className="w-10 h-10 rounded-full bg-gradient-to-br from-yellow-400 to-yellow-500 flex items-center justify-center text-black font-medium group-hover:ring-2 group-hover:ring-yellow-400/50 transition-all">
+                      <Link href={`/users/${user.slug || user.id}`} className="flex items-center gap-2 sm:gap-3 group">
+                        <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-full bg-gradient-to-br from-yellow-400 to-yellow-500 flex items-center justify-center text-black font-medium text-sm sm:text-base group-hover:ring-2 group-hover:ring-yellow-400/50 transition-all flex-shrink-0">
                           {user.full_name?.[0]?.toUpperCase() || user.email[0].toUpperCase()}
                         </div>
-                        <div>
-                          <p className="font-medium text-white group-hover:text-yellow-400 transition-colors">{user.full_name || 'No name set'}</p>
-                          <p className="text-xs text-zinc-500">@{user.slug || user.email}</p>
+                        <div className="min-w-0">
+                          <p className="font-medium text-white group-hover:text-yellow-400 transition-colors truncate">{user.full_name || 'No name set'}</p>
+                          <p className="text-xs text-zinc-500 truncate">@{user.slug || user.email}</p>
                         </div>
                       </Link>
                     </td>
-                    <td>
+                    <td className="hidden md:table-cell">
                       <div className="flex items-center gap-2">
                         <Mail className="w-4 h-4 text-zinc-500" />
-                        {user.email || 'No email'}
+                        <span className="truncate">{user.email || 'No email'}</span>
                       </div>
                     </td>
-                    <td>
+                    <td className="hidden sm:table-cell">
                       {user.password_changed ? (
                         <span className="badge badge-success">Active</span>
                       ) : user.status === 'pending' ? (
@@ -344,7 +334,7 @@ export default function UsersPage() {
                         <span className="badge badge-info">Invited</span>
                       )}
                     </td>
-                    <td>
+                    <td className="hidden lg:table-cell">
                       {user.temp_password && !user.password_changed ? (
                         <div className="flex items-center gap-2">
                           <code className="bg-zinc-800 px-2 py-1 rounded text-xs text-yellow-400 font-mono">
@@ -358,21 +348,21 @@ export default function UsersPage() {
                         <span className="text-zinc-500 text-xs">—</span>
                       )}
                     </td>
-                    <td className="text-zinc-500">
+                    <td className="hidden lg:table-cell text-zinc-500">
                       {new Date(user.created_at).toLocaleDateString()}
                     </td>
                     <td>
-                      <div className="flex items-center gap-2">
+                      <div className="flex items-center gap-1 sm:gap-2">
                         <Link
                           href={`/users/${user.slug || user.id}`}
-                          className="p-2 rounded-lg hover:bg-zinc-800 text-zinc-400 hover:text-white transition-colors"
+                          className="p-1.5 sm:p-2 rounded-lg hover:bg-zinc-800 text-zinc-400 hover:text-white transition-colors"
                         >
                           <Edit2 className="w-4 h-4" />
                         </Link>
                         <button 
                           onClick={() => handleDeleteUser(user.id, user.full_name || user.email)}
                           disabled={deletingUser === user.id}
-                          className="p-2 rounded-lg hover:bg-red-500/10 text-zinc-400 hover:text-red-400 transition-colors disabled:opacity-50"
+                          className="p-1.5 sm:p-2 rounded-lg hover:bg-red-500/10 text-zinc-400 hover:text-red-400 transition-colors disabled:opacity-50"
                         >
                           {deletingUser === user.id ? (
                             <Loader2 className="w-4 h-4 animate-spin" />
@@ -404,13 +394,6 @@ export default function UsersPage() {
           </div>
         )}
       </div>
-
-      {/* Debug Info */}
-      {debugInfo && (
-        <div className="bg-red-500/10 border border-red-500/30 rounded-xl p-4">
-          <p className="text-red-400 text-xs font-mono whitespace-pre-wrap">{debugInfo}</p>
-        </div>
-      )}
 
       {/* Stats */}
       <div className="grid grid-cols-3 gap-2 lg:gap-4">
