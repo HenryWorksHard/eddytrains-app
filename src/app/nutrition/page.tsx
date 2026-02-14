@@ -60,17 +60,16 @@ export default async function NutritionPage() {
 
     return (
       <>
-        {/* Desktop: Show sidebar */}
-        <div className="hidden lg:block">
-          <Sidebar />
-        </div>
+        {/* Sidebar handles both desktop (full sidebar) and mobile (hamburger menu) */}
+        <Sidebar />
         
-        {/* Mobile: Show header + bottom nav style layout */}
-        <div className="lg:hidden">
-          <PageHeader title="Nutrition" />
-        </div>
-        
-        <main className="lg:ml-64 p-4 lg:p-8 pb-32 lg:pb-8">
+        <main className="lg:ml-64 p-4 lg:p-8 pb-8">
+          {/* Mobile title - shown below mobile header */}
+          <div className="lg:hidden mb-4">
+            <h1 className="text-xl font-bold text-white">Nutrition</h1>
+            <p className="text-zinc-400 text-sm">View and manage client nutrition plans</p>
+          </div>
+          
           {/* Desktop header */}
           <div className="hidden lg:block mb-6">
             <h1 className="text-2xl lg:text-3xl font-bold text-white">Nutrition</h1>
@@ -79,11 +78,6 @@ export default async function NutritionPage() {
           
           <TrainerNutritionView clients={clients || []} />
         </main>
-        
-        {/* Mobile bottom nav */}
-        <div className="lg:hidden">
-          <BottomNav />
-        </div>
       </>
     )
   }
