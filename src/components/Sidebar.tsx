@@ -101,9 +101,16 @@ export default function Sidebar() {
         // Use /api/me endpoint which bypasses RLS
         const response = await fetch('/api/me')
         if (!response.ok) {
-          console.log('Failed to get user info, signing out...')
-          await supabase.auth.signOut()
-          router.push('/login')
+          // Don't sign out - just use defaults and log the error
+          console.log('Failed to get user info from /api/me:', response.status)
+          // Try to get basic info from supabase directly as fallback
+          const { data: { user } } = await supabase.auth.getUser()
+          if (!user) {
+            router.push('/login')
+            return
+          }
+          // Use defaults
+          setUserRole('trainer')
           return
         }
         
