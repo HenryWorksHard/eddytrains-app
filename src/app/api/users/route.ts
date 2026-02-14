@@ -139,8 +139,11 @@ export async function GET() {
     
     // Get effective organization (handles impersonation for super admins)
     const organizationId = await getEffectiveOrgId()
+    console.log('[API /users] organizationId:', organizationId)
+    
     if (!organizationId) {
-      return NextResponse.json({ users: [] })
+      console.log('[API /users] No organization ID found, returning empty')
+      return NextResponse.json({ users: [], debug: { reason: 'no_org_id' } })
     }
     
     // Get current user's profile to check role
@@ -174,6 +177,8 @@ export async function GET() {
     }
     
     const { data: profiles, error } = await query.order('created_at', { ascending: false })
+    
+    console.log('[API /users] Query result:', { count: profiles?.length, error: error?.message })
     
     if (error) throw error
 
