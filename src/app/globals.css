@@ -218,10 +218,25 @@
   background-color: rgba(255, 255, 255, 0.95) !important;
 }
 
-body {
+html, body {
   background: var(--background) !important;
   color: var(--foreground);
   font-family: system-ui, -apple-system, sans-serif;
+  /* Prevent iOS overscroll bounce */
+  overscroll-behavior: none;
+  -webkit-overflow-scrolling: touch;
+}
+
+/* Ensure fixed elements stay fixed during overscroll */
+html {
+  height: 100%;
+  overflow: hidden;
+}
+
+body {
+  height: 100%;
+  overflow-y: auto;
+  position: relative;
 }
 
 /* Ensure html element background also changes */
