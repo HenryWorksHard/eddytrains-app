@@ -8,15 +8,19 @@ export async function apiFetch(
   url: string,
   options: RequestInit = {}
 ): Promise<Response> {
-  // Get current session token from Supabase
-  const supabase = createClient()
-  const { data: { session } } = await supabase.auth.getSession()
-  
   const headers = new Headers(options.headers)
   
-  // Add auth token as header (fallback for WKWebView cookie issues)
-  if (session?.access_token) {
-    headers.set('X-Supabase-Auth', session.access_token)
+  try {
+    // Get current session token from Supabase
+    const supabase = createClient()
+    const { data: { session } } = await supabase.auth.getSession()
+    
+    // Add auth token as header (fallback for WKWebView cookie issues)
+    if (session?.access_token) {
+      headers.set('X-Supabase-Auth', session.access_token)
+    }
+  } catch (e) {
+    console.error('[apiFetch] Failed to get session:', e)
   }
   
   return fetch(url, {

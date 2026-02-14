@@ -185,13 +185,16 @@ export default function UsersPage() {
       const response = await apiFetch('/api/users')
       const data = await response.json()
       setUsers(data.users || [])
-      // Show debug info if available
-      if (data.debug) {
-        setDebugInfo(JSON.stringify(data.debug, null, 2))
-      }
+      // Always show debug info
+      setDebugInfo(JSON.stringify({ 
+        status: response.status,
+        userCount: data.users?.length || 0,
+        debug: data.debug || 'none',
+        error: data.error || 'none'
+      }, null, 2))
     } catch (error) {
       console.error('Failed to fetch users:', error)
-      setDebugInfo(`Error: ${error}`)
+      setDebugInfo(`Fetch Error: ${error}`)
       setUsers([])
     }
     setLoading(false)
