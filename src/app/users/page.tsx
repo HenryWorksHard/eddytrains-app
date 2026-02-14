@@ -176,14 +176,21 @@ export default function UsersPage() {
     }
   }
 
+  const [debugInfo, setDebugInfo] = useState<string | null>(null)
+  
   const fetchUsers = async () => {
     setLoading(true)
     try {
       const response = await fetch('/api/users')
       const data = await response.json()
       setUsers(data.users || [])
+      // Show debug info if available
+      if (data.debug) {
+        setDebugInfo(JSON.stringify(data.debug, null, 2))
+      }
     } catch (error) {
       console.error('Failed to fetch users:', error)
+      setDebugInfo(`Error: ${error}`)
       setUsers([])
     }
     setLoading(false)
@@ -393,6 +400,13 @@ export default function UsersPage() {
           </div>
         )}
       </div>
+
+      {/* Debug Info */}
+      {debugInfo && (
+        <div className="bg-red-500/10 border border-red-500/30 rounded-xl p-4">
+          <p className="text-red-400 text-xs font-mono whitespace-pre-wrap">{debugInfo}</p>
+        </div>
+      )}
 
       {/* Stats */}
       <div className="grid grid-cols-3 gap-2 lg:gap-4">
