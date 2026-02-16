@@ -23,19 +23,23 @@ export async function GET(
     const { id: userId } = await params
     const adminClient = getAdminClient()
     
-    // Get user's active programs with workouts
+    // Get user's active programs with workouts (including week_number and start_date)
     const { data: clientPrograms } = await adminClient
       .from('client_programs')
       .select(`
         id,
         program_id,
+        start_date,
+        duration_weeks,
         programs (
           id,
           name,
           program_workouts (
             id,
             name,
-            day_of_week
+            day_of_week,
+            week_number,
+            parent_workout_id
           )
         )
       `)
@@ -45,7 +49,7 @@ export async function GET(
     // Get active client program IDs
     const activeClientProgramIds = clientPrograms?.map(cp => cp.id) || []
 
-    // Get workout completions for the lookback period, filtered by active programs
+    // Get workout completions for the lookback period
     const lookbackDate = new Date()
     lookbackDate.setDate(lookbackDate.getDate() - COMPLETION_LOOKBACK_DAYS)
     
@@ -55,40 +59,57 @@ export async function GET(
       .eq('client_id', userId)
       .gte('scheduled_date', lookbackDate.toISOString().split('T')[0])
     
-    // Only show completions for current active program assignments
     if (activeClientProgramIds.length > 0) {
       completionsQuery = completionsQuery.in('client_program_id', activeClientProgramIds)
     }
     
     const { data: completions } = await completionsQuery
 
-    // Build schedule data
+    // Build schedule data organized by week AND day
+    // Structure: scheduleByWeekAndDay[weekNumber][dayOfWeek] = workout
     interface WorkoutSchedule {
       dayOfWeek: number
       workoutId: string
       workoutName: string
       programName: string
+      weekNumber: number
     }
 
-    const scheduleByDay: Record<number, WorkoutSchedule> = {}
+    const scheduleByWeekAndDay: Record<number, Record<number, WorkoutSchedule>> = {}
+    let programStartDate: string | null = null
+    let maxWeek = 1
     
-    if (clientPrograms) {
+    if (clientPrograms && clientPrograms.length > 0) {
+      // Use the first active program's start date
+      programStartDate = clientPrograms[0].start_date
+      
       for (const cp of clientPrograms) {
         const programData = cp.programs as unknown
         const program = (Array.isArray(programData) ? programData[0] : programData) as {
           id: string
           name: string
-          program_workouts?: { id: string; name: string; day_of_week: number | null }[]
+          program_workouts?: { id: string; name: string; day_of_week: number | null; week_number: number | null; parent_workout_id: string | null }[]
         } | null
         
         if (program?.program_workouts) {
           for (const workout of program.program_workouts) {
+            // Skip finishers
+            if (workout.parent_workout_id) continue
+            
             if (workout.day_of_week !== null) {
-              scheduleByDay[workout.day_of_week] = {
+              const weekNum = workout.week_number || 1
+              maxWeek = Math.max(maxWeek, weekNum)
+              
+              if (!scheduleByWeekAndDay[weekNum]) {
+                scheduleByWeekAndDay[weekNum] = {}
+              }
+              
+              scheduleByWeekAndDay[weekNum][workout.day_of_week] = {
                 dayOfWeek: workout.day_of_week,
                 workoutId: workout.id,
                 workoutName: workout.name,
-                programName: program.name
+                programName: program.name,
+                weekNumber: weekNum
               }
             }
           }
@@ -102,7 +123,16 @@ export async function GET(
       completionsByDate[c.scheduled_date] = c.workout_id
     })
 
-    return NextResponse.json({ scheduleByDay, completionsByDate })
+    // Also return legacy scheduleByDay for backward compatibility (uses week 1)
+    const scheduleByDay: Record<number, WorkoutSchedule> = scheduleByWeekAndDay[1] || {}
+
+    return NextResponse.json({ 
+      scheduleByDay, // Legacy: week 1 only
+      scheduleByWeekAndDay, // New: all weeks
+      completionsByDate,
+      programStartDate,
+      maxWeek
+    })
   } catch (error) {
     console.error('Schedule fetch error:', error)
     return NextResponse.json({ error: 'Failed to fetch schedule' }, { status: 500 })
