@@ -74,11 +74,8 @@ export default async function SchedulePage() {
   let programStartDate: string | undefined
   let maxWeek = 1
   
-  // Initialize week 1 with empty arrays
-  scheduleByWeekAndDay[1] = {}
-  for (let i = 0; i < 7; i++) {
-    scheduleByWeekAndDay[1][i] = []
-  }
+  // First pass: collect workout data and determine maxWeek
+  const workoutDataList: { weekNum: number; dayOfWeek: number; data: WorkoutSchedule }[] = []
   
   if (clientPrograms) {
     // Get earliest start date from active programs
@@ -110,27 +107,37 @@ export default async function SchedulePage() {
             const weekNum = workout.week_number || 1
             maxWeek = Math.max(maxWeek, weekNum)
             
-            // Initialize week if not exists
-            if (!scheduleByWeekAndDay[weekNum]) {
-              scheduleByWeekAndDay[weekNum] = {}
-              for (let i = 0; i < 7; i++) {
-                scheduleByWeekAndDay[weekNum][i] = []
-              }
-            }
-            
-            scheduleByWeekAndDay[weekNum][workout.day_of_week].push({
+            workoutDataList.push({
+              weekNum,
               dayOfWeek: workout.day_of_week,
-              workoutId: workout.id,
-              workoutName: workout.name,
-              programName: program.name,
-              programCategory: program.category || 'strength',
-              clientProgramId: cp.id,
-              weekNumber: weekNum
+              data: {
+                dayOfWeek: workout.day_of_week,
+                workoutId: workout.id,
+                workoutName: workout.name,
+                programName: program.name,
+                programCategory: program.category || 'strength',
+                clientProgramId: cp.id,
+                weekNumber: weekNum
+              }
             })
           }
         }
       }
     }
+  }
+  
+  // Initialize ALL weeks from 1 to maxWeek with empty arrays for all 7 days
+  // This ensures rest days are properly represented as empty arrays
+  for (let w = 1; w <= maxWeek; w++) {
+    scheduleByWeekAndDay[w] = {}
+    for (let d = 0; d < 7; d++) {
+      scheduleByWeekAndDay[w][d] = []
+    }
+  }
+  
+  // Now populate with actual workout data
+  for (const { weekNum, dayOfWeek, data } of workoutDataList) {
+    scheduleByWeekAndDay[weekNum][dayOfWeek].push(data)
   }
 
   // Legacy scheduleByDay (uses week 1) for backward compatibility

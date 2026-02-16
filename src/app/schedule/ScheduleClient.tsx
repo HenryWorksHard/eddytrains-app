@@ -93,13 +93,19 @@ export default function ScheduleClient({ scheduleByDay, scheduleByWeekAndDay, co
     const weekNum = getWeekForDate(date)
     const dayOfWeek = date.getDay()
     
-    // First try week-specific schedule
-    if (scheduleByWeekAndDay?.[weekNum]?.[dayOfWeek]) {
+    // Return workouts for specific week+day
+    // Do NOT fallback to other weeks - if no workouts, it's a rest day
+    if (scheduleByWeekAndDay?.[weekNum]?.[dayOfWeek] !== undefined) {
       return scheduleByWeekAndDay[weekNum][dayOfWeek]
     }
     
-    // Fallback to legacy scheduleByDay
-    return scheduleByDay[dayOfWeek] || []
+    // Only use legacy scheduleByDay if no week data exists at all
+    if (!scheduleByWeekAndDay || Object.keys(scheduleByWeekAndDay).length === 0) {
+      return scheduleByDay[dayOfWeek] || []
+    }
+    
+    // No workouts for this week+day = rest day
+    return []
   }
 
   // Check if a specific workout is completed for a date
