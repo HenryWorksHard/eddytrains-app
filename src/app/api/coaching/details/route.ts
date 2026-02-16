@@ -20,10 +20,11 @@ export async function GET(request: NextRequest) {
   }
 
   try {
-    // Try to find workout log by scheduled_date first (use maybeSingle to avoid errors)
+    // Try multiple strategies to find the workout log
     let workoutLog = null
     
-    const { data: byScheduled, error: schedError } = await supabaseAdmin
+    // Strategy 1: Find workout_log by scheduled_date
+    const { data: byScheduled } = await supabaseAdmin
       .from('workout_logs')
       .select(`
         id,
@@ -40,8 +41,39 @@ export async function GET(request: NextRequest) {
     
     if (byScheduled && byScheduled.length > 0) {
       workoutLog = byScheduled[0]
-    } else {
-      // Fallback: check by completed_at date
+    }
+    
+    // Strategy 2: Look up via workout_completions table (has scheduled_date and workout_log_id)
+    if (!workoutLog) {
+      const { data: completion } = await supabaseAdmin
+        .from('workout_completions')
+        .select('workout_log_id, workout_id')
+        .eq('client_id', clientId)
+        .eq('scheduled_date', date)
+        .limit(1)
+      
+      if (completion && completion.length > 0 && completion[0].workout_log_id) {
+        const { data: logById } = await supabaseAdmin
+          .from('workout_logs')
+          .select(`
+            id,
+            workout_id,
+            completed_at,
+            notes,
+            rating,
+            trainer_id
+          `)
+          .eq('id', completion[0].workout_log_id)
+          .single()
+        
+        if (logById) {
+          workoutLog = logById
+        }
+      }
+    }
+    
+    // Strategy 3: Fallback - check by completed_at date range
+    if (!workoutLog) {
       const startOfDay = new Date(date + 'T00:00:00.000Z')
       const endOfDay = new Date(date + 'T23:59:59.999Z')
       

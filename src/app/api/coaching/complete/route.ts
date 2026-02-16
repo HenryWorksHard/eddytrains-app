@@ -29,7 +29,7 @@ export async function POST(request: NextRequest) {
 
     const adminClient = getAdminClient()
     
-    // Create workout log
+    // Create workout log (include scheduled_date for lookup)
     const { data: workoutLog, error: logError } = await adminClient
       .from('workout_logs')
       .insert({
@@ -37,6 +37,7 @@ export async function POST(request: NextRequest) {
         workout_id: workoutId,
         trainer_id: trainerId || null,
         completed_at: completedAt || new Date().toISOString(),
+        scheduled_date: scheduledDate || completedAt?.split('T')[0] || new Date().toISOString().split('T')[0],
         notes: notes || null,
         rating: rating || null
       })
