@@ -16,8 +16,10 @@ export default async function SchedulePage() {
     redirect('/login')
   }
 
-  // Get user's active AND future programs with workouts
-  const today = new Date().toISOString().split('T')[0]
+  const today = new Date()
+  const todayStr = today.toISOString().split('T')[0]
+  
+  // Get user's active AND future programs with workouts (including week_number)
   const { data: clientPrograms } = await supabase
     .from('client_programs')
     .select(`
@@ -25,6 +27,7 @@ export default async function SchedulePage() {
       program_id,
       start_date,
       end_date,
+      duration_weeks,
       is_active,
       phase_name,
       programs (
@@ -36,19 +39,16 @@ export default async function SchedulePage() {
           name,
           day_of_week,
           order_index,
-          parent_workout_id
+          parent_workout_id,
+          week_number
         )
       )
     `)
     .eq('client_id', user.id)
-    .or(`is_active.eq.true,start_date.gt.${today}`)
+    .or(`is_active.eq.true,start_date.gt.${todayStr}`)
     .order('start_date', { ascending: true })
 
-  // Get active client program IDs
-  const activeClientProgramIds = clientPrograms?.map(cp => cp.id) || []
-
   // Get workout completions for the lookback period
-  // Include ALL completions (even from old/null programs) so historical data shows as green
   const lookbackDate = new Date()
   lookbackDate.setDate(lookbackDate.getDate() - COMPLETION_LOOKBACK_DAYS)
   
@@ -58,7 +58,7 @@ export default async function SchedulePage() {
     .eq('client_id', user.id)
     .gte('scheduled_date', lookbackDate.toISOString().split('T')[0])
 
-  // Build schedule data - supports multiple workouts per day
+  // Build schedule data organized by week and day
   interface WorkoutSchedule {
     dayOfWeek: number
     workoutId: string
@@ -66,38 +66,66 @@ export default async function SchedulePage() {
     programName: string
     programCategory: string
     clientProgramId: string
+    weekNumber: number
   }
 
-  const scheduleByDay: Record<number, WorkoutSchedule[]> = {}
+  // Structure: scheduleByWeekAndDay[weekNumber][dayOfWeek] = workouts[]
+  const scheduleByWeekAndDay: Record<number, Record<number, WorkoutSchedule[]>> = {}
+  let programStartDate: string | undefined
+  let maxWeek = 1
   
-  // Initialize all days with empty arrays
+  // Initialize week 1 with empty arrays
+  scheduleByWeekAndDay[1] = {}
   for (let i = 0; i < 7; i++) {
-    scheduleByDay[i] = []
+    scheduleByWeekAndDay[1][i] = []
   }
   
   if (clientPrograms) {
+    // Get earliest start date from active programs
+    const activePrograms = clientPrograms.filter(cp => cp.is_active)
+    if (activePrograms.length > 0) {
+      programStartDate = activePrograms.reduce((earliest, cp) => 
+        cp.start_date < earliest ? cp.start_date : earliest, 
+        activePrograms[0].start_date
+      )
+    }
+    
     for (const cp of clientPrograms) {
+      if (!cp.is_active) continue // Only process active programs
+      
       const programData = cp.programs as unknown
       const program = (Array.isArray(programData) ? programData[0] : programData) as {
         id: string
         name: string
         category?: string
-        program_workouts?: { id: string; name: string; day_of_week: number | null }[]
+        program_workouts?: { id: string; name: string; day_of_week: number | null; parent_workout_id: string | null; week_number: number | null }[]
       } | null
       
       if (program?.program_workouts) {
         for (const workout of program.program_workouts) {
-          // Skip finisher workouts (they have parent_workout_id set)
-          if ((workout as any).parent_workout_id) continue
+          // Skip finisher workouts
+          if (workout.parent_workout_id) continue
           
           if (workout.day_of_week !== null) {
-            scheduleByDay[workout.day_of_week].push({
+            const weekNum = workout.week_number || 1
+            maxWeek = Math.max(maxWeek, weekNum)
+            
+            // Initialize week if not exists
+            if (!scheduleByWeekAndDay[weekNum]) {
+              scheduleByWeekAndDay[weekNum] = {}
+              for (let i = 0; i < 7; i++) {
+                scheduleByWeekAndDay[weekNum][i] = []
+              }
+            }
+            
+            scheduleByWeekAndDay[weekNum][workout.day_of_week].push({
               dayOfWeek: workout.day_of_week,
               workoutId: workout.id,
               workoutName: workout.name,
               programName: program.name,
               programCategory: program.category || 'strength',
-              clientProgramId: cp.id
+              clientProgramId: cp.id,
+              weekNumber: weekNum
             })
           }
         }
@@ -105,34 +133,23 @@ export default async function SchedulePage() {
     }
   }
 
-  // Format completions for client
-  // Create multiple key formats for maximum compatibility:
-  // 1. Full key with program ID (for exact matching)
-  // 2. Key without program ID (for old completions with null program)
-  // 3. Date-only key (for any completion on that day - handles program changes)
+  // Legacy scheduleByDay (uses week 1) for backward compatibility
+  const scheduleByDay: Record<number, WorkoutSchedule[]> = scheduleByWeekAndDay[1] || {}
+
+  // Format completions
   const completedWorkouts: Record<string, boolean> = {}
   completions?.forEach(c => {
-    // Key with program ID (for current program tracking)
     const keyWithProgram = `${c.scheduled_date}:${c.workout_id}:${c.client_program_id}`
     completedWorkouts[keyWithProgram] = true
-    // Key without program ID (for old completions)
     const keyWithoutProgram = `${c.scheduled_date}:${c.workout_id}`
     completedWorkouts[keyWithoutProgram] = true
-    // Date-only key (for any completion on that day - handles different workout IDs after program changes)
     const keyDateOnly = `${c.scheduled_date}:any`
     completedWorkouts[keyDateOnly] = true
   })
 
-  // Separate current/active programs from future programs
-  const activePrograms = clientPrograms?.filter(cp => cp.is_active) || []
-  const futurePrograms = clientPrograms?.filter(cp => !cp.is_active && cp.start_date > today) || []
+  // Separate future programs for display
+  const futurePrograms = clientPrograms?.filter(cp => !cp.is_active && cp.start_date > todayStr) || []
   
-  // Get earliest active program start date (for determining when schedule started)
-  const programStartDate = activePrograms.length > 0 
-    ? activePrograms.reduce((earliest, cp) => cp.start_date < earliest ? cp.start_date : earliest, activePrograms[0].start_date)
-    : undefined
-
-  // Format future programs for display
   const upcomingPrograms = futurePrograms.map(cp => {
     const programData = cp.programs as any
     const program = Array.isArray(programData) ? programData[0] : programData
@@ -151,9 +168,11 @@ export default async function SchedulePage() {
     <div className="min-h-screen bg-black pb-24">
       <ScheduleClient 
         scheduleByDay={scheduleByDay}
+        scheduleByWeekAndDay={scheduleByWeekAndDay}
         completedWorkouts={completedWorkouts}
         upcomingPrograms={upcomingPrograms}
         programStartDate={programStartDate}
+        maxWeek={maxWeek}
       />
       <BottomNav />
     </div>

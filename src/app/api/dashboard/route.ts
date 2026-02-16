@@ -10,7 +10,8 @@ export async function GET() {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
 
-  const today = new Date().toISOString().split('T')[0]
+  const today = new Date()
+  const todayStr = today.toISOString().split('T')[0]
   const now = new Date()
   const monthStart = new Date(now.getFullYear(), now.getMonth(), 1).toISOString().split('T')[0]
   const monthEnd = new Date(now.getFullYear(), now.getMonth() + 1, 0).toISOString().split('T')[0]
@@ -34,6 +35,8 @@ export async function GET() {
       .select(`
         id,
         program_id,
+        start_date,
+        duration_weeks,
         programs (
           id,
           name,
@@ -44,6 +47,7 @@ export async function GET() {
             day_of_week,
             order_index,
             parent_workout_id,
+            week_number,
             workout_exercises (id)
           )
         )
@@ -55,7 +59,7 @@ export async function GET() {
       .from('workout_completions')
       .select('workout_id, client_program_id')
       .eq('client_id', user.id)
-      .eq('scheduled_date', today),
+      .eq('scheduled_date', todayStr),
     
     supabase
       .from('workout_completions')
@@ -79,11 +83,24 @@ export async function GET() {
   const monthCompletions = monthCompletionsResult.data
   const programStartDates = programStartResult.data
 
-  // Transform programs data
-  const workoutsByDay: Record<number, { id: string; name: string; programName: string; programCategory: string; clientProgramId: string; exerciseCount: number }[]> = {}
+  // Build schedule data by week and day
+  interface WorkoutData {
+    id: string
+    name: string
+    programName: string
+    programCategory: string
+    clientProgramId: string
+    exerciseCount: number
+    weekNumber: number
+  }
+
+  const scheduleByWeekAndDay: Record<number, Record<number, WorkoutData[]>> = {}
+  let maxWeek = 1
   
+  // Initialize week 1
+  scheduleByWeekAndDay[1] = {}
   for (let i = 0; i < 7; i++) {
-    workoutsByDay[i] = []
+    scheduleByWeekAndDay[1][i] = []
   }
   
   if (userPrograms) {
@@ -98,6 +115,7 @@ export async function GET() {
           name: string
           day_of_week: number | null
           parent_workout_id?: string | null
+          week_number?: number | null
           workout_exercises?: { id: string }[]
         }[] 
       } | null
@@ -107,19 +125,33 @@ export async function GET() {
           if (workout.parent_workout_id) continue
           
           if (workout.day_of_week !== null) {
-            workoutsByDay[workout.day_of_week].push({
+            const weekNum = workout.week_number || 1
+            maxWeek = Math.max(maxWeek, weekNum)
+            
+            if (!scheduleByWeekAndDay[weekNum]) {
+              scheduleByWeekAndDay[weekNum] = {}
+              for (let i = 0; i < 7; i++) {
+                scheduleByWeekAndDay[weekNum][i] = []
+              }
+            }
+            
+            scheduleByWeekAndDay[weekNum][workout.day_of_week].push({
               id: workout.id,
               name: workout.name,
               programName: program.name,
               programCategory: program.category || 'strength',
               clientProgramId: up.id,
-              exerciseCount: workout.workout_exercises?.length || 0
+              exerciseCount: workout.workout_exercises?.length || 0,
+              weekNumber: weekNum
             })
           }
         }
       }
     }
   }
+
+  // Legacy workoutsByDay uses week 1
+  const workoutsByDay: Record<number, WorkoutData[]> = scheduleByWeekAndDay[1] || {}
 
   // Build completed workouts set
   const completedWorkoutIds: Set<string> = new Set()
@@ -136,7 +168,7 @@ export async function GET() {
     calendarCompletions[`${c.scheduled_date}:any`] = true
   })
 
-  // Schedule by day for calendar
+  // Schedule by day for calendar (with week info)
   const scheduleByDay: Record<number, { dayOfWeek: number; workoutId: string; workoutName: string; programName: string; programCategory: string; clientProgramId: string }[]> = {}
   for (let i = 0; i < 7; i++) {
     scheduleByDay[i] = (workoutsByDay[i] || []).map(w => ({
@@ -156,10 +188,12 @@ export async function GET() {
   return NextResponse.json({
     firstName,
     workoutsByDay,
+    scheduleByWeekAndDay,
     programCount,
     completedWorkouts: completedWorkoutsArray,
     scheduleByDay,
     calendarCompletions,
-    programStartDate
+    programStartDate,
+    maxWeek
   })
 }

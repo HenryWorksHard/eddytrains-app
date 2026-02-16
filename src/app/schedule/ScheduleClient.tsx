@@ -13,6 +13,7 @@ interface WorkoutSchedule {
   programName: string
   programCategory: string
   clientProgramId: string
+  weekNumber?: number
 }
 
 interface UpcomingProgram {
@@ -27,12 +28,14 @@ interface UpcomingProgram {
 
 interface ScheduleClientProps {
   scheduleByDay: Record<number, WorkoutSchedule[]>
+  scheduleByWeekAndDay?: Record<number, Record<number, WorkoutSchedule[]>>
   completedWorkouts: Record<string, boolean>
   upcomingPrograms: UpcomingProgram[]
-  programStartDate?: string  // Earliest active program start date
+  programStartDate?: string
+  maxWeek?: number
 }
 
-export default function ScheduleClient({ scheduleByDay, completedWorkouts, upcomingPrograms, programStartDate }: ScheduleClientProps) {
+export default function ScheduleClient({ scheduleByDay, scheduleByWeekAndDay, completedWorkouts, upcomingPrograms, programStartDate, maxWeek = 1 }: ScheduleClientProps) {
   const router = useRouter()
   const [mounted, setMounted] = useState(false)
   const [today, setToday] = useState(new Date())
@@ -68,6 +71,37 @@ export default function ScheduleClient({ scheduleByDay, completedWorkouts, upcom
     return `${year}-${month}-${day}`
   }
 
+  // Calculate which week a date falls into based on program start date
+  const getWeekForDate = (date: Date): number => {
+    if (!programStartDate) return 1
+    
+    const startDate = new Date(programStartDate)
+    startDate.setHours(0, 0, 0, 0)
+    const targetDate = new Date(date)
+    targetDate.setHours(0, 0, 0, 0)
+    
+    const daysSinceStart = Math.floor((targetDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24))
+    
+    if (daysSinceStart < 0) return 1 // Before program start, show week 1
+    
+    const weekNum = Math.floor(daysSinceStart / 7) + 1
+    return Math.min(weekNum, maxWeek) // Cap at max week
+  }
+
+  // Get workouts for a specific date (considering week number)
+  const getWorkoutsForDate = (date: Date): WorkoutSchedule[] => {
+    const weekNum = getWeekForDate(date)
+    const dayOfWeek = date.getDay()
+    
+    // First try week-specific schedule
+    if (scheduleByWeekAndDay?.[weekNum]?.[dayOfWeek]) {
+      return scheduleByWeekAndDay[weekNum][dayOfWeek]
+    }
+    
+    // Fallback to legacy scheduleByDay
+    return scheduleByDay[dayOfWeek] || []
+  }
+
   // Check if a specific workout is completed for a date
   const isWorkoutCompleted = (date: Date, workout: WorkoutSchedule): boolean => {
     const dateStr = formatDateLocal(date)
@@ -86,8 +120,7 @@ export default function ScheduleClient({ scheduleByDay, completedWorkouts, upcom
   // Get status for a specific date (overall - for calendar view)
   const getDateStatus = (date: Date): 'completed' | 'partial' | 'skipped' | 'upcoming' | 'rest' => {
     const dateStr = formatDateLocal(date)
-    const dayOfWeek = date.getDay()
-    const workouts = scheduleByDay[dayOfWeek] || []
+    const workouts = getWorkoutsForDate(date)
     
     if (workouts.length === 0) return 'rest'
     
@@ -222,9 +255,9 @@ export default function ScheduleClient({ scheduleByDay, completedWorkouts, upcom
           <div className="space-y-3">
             {weekDates.map((date, idx) => {
               const isToday = date.toDateString() === today.toDateString()
-              const dayOfWeek = date.getDay() // 0=Sun for scheduleByDay lookup
+              const dayOfWeek = date.getDay()
               const dayIndex = toMondayFirstIndex(dayOfWeek) // 0=Mon for display
-              const workouts = scheduleByDay[dayOfWeek] || []
+              const workouts = getWorkoutsForDate(date)
               const hasWorkouts = workouts.length > 0
               const status = getDateStatus(date)
               
@@ -380,7 +413,7 @@ export default function ScheduleClient({ scheduleByDay, completedWorkouts, upcom
                 
                 const isToday = date.toDateString() === today.toDateString()
                 const status = getDateStatus(date)
-                const workouts = scheduleByDay[date.getDay()] || []
+                const workouts = getWorkoutsForDate(date)
                 const hasWorkouts = workouts.length > 0
                 
                 return (
