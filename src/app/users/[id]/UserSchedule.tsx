@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react'
 import { Calendar, ChevronLeft, ChevronRight, Loader2, Play, X, Dumbbell } from 'lucide-react'
 import Link from 'next/link'
-import { createClient } from '@/lib/supabase/client'
+import { createClient } from '@/app/lib/supabase/client'
 
 interface WorkoutSchedule {
   dayOfWeek: number

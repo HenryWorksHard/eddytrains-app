@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { supabaseAdmin } from '@/lib/supabase/admin'
-import { createClient } from '@/lib/supabase/server'
+import { supabaseAdmin } from '@/app/lib/supabase/admin'
+import { createClient } from '@/app/lib/supabase/server'
 
 export async function GET(request: NextRequest) {
   // Verify trainer is authenticated
