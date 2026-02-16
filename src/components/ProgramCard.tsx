@@ -187,7 +187,7 @@ export default function ProgramCard({ program }: { program: Program }) {
               <Copy className="w-4 h-4" />
             </button>
             <Link
-              href={`/programs/${program.id}`}
+              href={`/programs/${program.id}/edit`}
               className="p-2 rounded-lg hover:bg-zinc-800 text-zinc-400 hover:text-white transition-colors"
               title="Edit program"
             >
