@@ -251,10 +251,17 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({ success: true })
 
-  } catch (error) {
+  } catch (error: any) {
     console.error('Error updating program:', error)
+    // Return more detailed error info for debugging
+    const errorMessage = error?.message || 'Failed to update program'
+    const errorDetails = error?.details || error?.hint || ''
+    const errorCode = error?.code || ''
     return NextResponse.json(
-      { error: error instanceof Error ? error.message : 'Failed to update program' },
+      { 
+        error: `${errorMessage}${errorDetails ? ` (${errorDetails})` : ''}${errorCode ? ` [${errorCode}]` : ''}`,
+        debug: { message: errorMessage, details: errorDetails, code: errorCode }
+      },
       { status: 500 }
     )
   }
