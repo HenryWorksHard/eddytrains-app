@@ -23,22 +23,19 @@ export async function GET(
     const { id: userId } = await params
     const adminClient = getAdminClient()
     
-    // Get user's active programs with workouts (including week_number and start_date)
+    // Get user's active programs with workouts
     const { data: clientPrograms } = await adminClient
       .from('client_programs')
       .select(`
         id,
         program_id,
-        start_date,
-        duration_weeks,
         programs (
           id,
           name,
           program_workouts (
             id,
             name,
-            day_of_week,
-            week_number
+            day_of_week
           )
         )
       `)
@@ -71,12 +68,9 @@ export async function GET(
       workoutId: string
       workoutName: string
       programName: string
-      weekNumber: number
     }
 
     const scheduleByDay: Record<number, WorkoutSchedule> = {}
-    const today = new Date()
-    today.setHours(0, 0, 0, 0)
     
     if (clientPrograms) {
       for (const cp of clientPrograms) {
@@ -84,46 +78,17 @@ export async function GET(
         const program = (Array.isArray(programData) ? programData[0] : programData) as {
           id: string
           name: string
-          program_workouts?: { id: string; name: string; day_of_week: number | null; week_number: number | null }[]
+          program_workouts?: { id: string; name: string; day_of_week: number | null }[]
         } | null
         
         if (program?.program_workouts) {
-          // Calculate which week of the program we're currently in
-          const startDate = new Date(cp.start_date)
-          startDate.setHours(0, 0, 0, 0)
-          
-          const daysSinceStart = Math.floor((today.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24))
-          const currentWeek = Math.floor(daysSinceStart / 7) + 1 // Week 1 is the first week
-          
-          // Cap to duration_weeks if set, or find the max week in the program
-          const maxWeekInProgram = Math.max(...program.program_workouts.map(w => w.week_number || 1))
-          const durationWeeks = cp.duration_weeks || maxWeekInProgram
-          
-          // Determine effective week (loop back to week 1 if past duration, or use current)
-          let effectiveWeek: number
-          if (daysSinceStart < 0) {
-            // Before program start - show week 1
-            effectiveWeek = 1
-          } else if (currentWeek > durationWeeks) {
-            // Past program end - show last week OR loop (for now, show last week)
-            effectiveWeek = maxWeekInProgram
-          } else {
-            // Within program - show current week (capped to available weeks)
-            effectiveWeek = Math.min(currentWeek, maxWeekInProgram)
-          }
-          
-          // Filter workouts to only include current week
           for (const workout of program.program_workouts) {
-            const workoutWeek = workout.week_number || 1
-            
-            // Only include workouts for the current week
-            if (workoutWeek === effectiveWeek && workout.day_of_week !== null) {
+            if (workout.day_of_week !== null) {
               scheduleByDay[workout.day_of_week] = {
                 dayOfWeek: workout.day_of_week,
                 workoutId: workout.id,
                 workoutName: workout.name,
-                programName: program.name,
-                weekNumber: workoutWeek
+                programName: program.name
               }
             }
           }

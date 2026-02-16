@@ -10,8 +10,7 @@ export async function GET() {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
 
-  const today = new Date()
-  const todayStr = today.toISOString().split('T')[0]
+  const today = new Date().toISOString().split('T')[0]
   const now = new Date()
   const monthStart = new Date(now.getFullYear(), now.getMonth(), 1).toISOString().split('T')[0]
   const monthEnd = new Date(now.getFullYear(), now.getMonth() + 1, 0).toISOString().split('T')[0]
@@ -35,8 +34,6 @@ export async function GET() {
       .select(`
         id,
         program_id,
-        start_date,
-        duration_weeks,
         programs (
           id,
           name,
@@ -47,7 +44,6 @@ export async function GET() {
             day_of_week,
             order_index,
             parent_workout_id,
-            week_number,
             workout_exercises (id)
           )
         )
@@ -59,7 +55,7 @@ export async function GET() {
       .from('workout_completions')
       .select('workout_id, client_program_id')
       .eq('client_id', user.id)
-      .eq('scheduled_date', todayStr),
+      .eq('scheduled_date', today),
     
     supabase
       .from('workout_completions')
@@ -83,7 +79,7 @@ export async function GET() {
   const monthCompletions = monthCompletionsResult.data
   const programStartDates = programStartResult.data
 
-  // Transform programs data with week calculation
+  // Transform programs data
   const workoutsByDay: Record<number, { id: string; name: string; programName: string; programCategory: string; clientProgramId: string; exerciseCount: number }[]> = {}
   
   for (let i = 0; i < 7; i++) {
@@ -102,41 +98,13 @@ export async function GET() {
           name: string
           day_of_week: number | null
           parent_workout_id?: string | null
-          week_number?: number | null
           workout_exercises?: { id: string }[]
         }[] 
       } | null
       
       if (program?.program_workouts) {
-        // Calculate which week of the program we're currently in
-        const startDate = new Date(up.start_date)
-        startDate.setHours(0, 0, 0, 0)
-        const todayMidnight = new Date(today)
-        todayMidnight.setHours(0, 0, 0, 0)
-        
-        const daysSinceStart = Math.floor((todayMidnight.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24))
-        const currentWeek = Math.floor(daysSinceStart / 7) + 1
-        
-        // Find max week in program
-        const maxWeekInProgram = Math.max(...program.program_workouts.map(w => w.week_number || 1))
-        const durationWeeks = up.duration_weeks || maxWeekInProgram
-        
-        // Determine effective week
-        let effectiveWeek: number
-        if (daysSinceStart < 0) {
-          effectiveWeek = 1
-        } else if (currentWeek > durationWeeks) {
-          effectiveWeek = maxWeekInProgram
-        } else {
-          effectiveWeek = Math.min(currentWeek, maxWeekInProgram)
-        }
-        
         for (const workout of program.program_workouts) {
           if (workout.parent_workout_id) continue
-          
-          // Only include workouts for the current week
-          const workoutWeek = workout.week_number || 1
-          if (workoutWeek !== effectiveWeek) continue
           
           if (workout.day_of_week !== null) {
             workoutsByDay[workout.day_of_week].push({
