@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { supabaseAdmin } from '@/app/lib/supabase/admin'
+import { createAdminClient } from '@/app/lib/supabase/admin'
 import { createClient } from '@/app/lib/supabase/server'
 
 export async function GET(request: NextRequest) {
@@ -24,7 +24,7 @@ export async function GET(request: NextRequest) {
     let workoutLog = null
     
     // Strategy 1: Find workout_log by scheduled_date
-    const { data: byScheduled } = await supabaseAdmin
+    const { data: byScheduled } = await createAdminClient()
       .from('workout_logs')
       .select(`
         id,
@@ -45,7 +45,7 @@ export async function GET(request: NextRequest) {
     
     // Strategy 2: Look up via workout_completions table (has scheduled_date and workout_log_id)
     if (!workoutLog) {
-      const { data: completion } = await supabaseAdmin
+      const { data: completion } = await createAdminClient()
         .from('workout_completions')
         .select('workout_log_id, workout_id')
         .eq('client_id', clientId)
@@ -53,7 +53,7 @@ export async function GET(request: NextRequest) {
         .limit(1)
       
       if (completion && completion.length > 0 && completion[0].workout_log_id) {
-        const { data: logById } = await supabaseAdmin
+        const { data: logById } = await createAdminClient()
           .from('workout_logs')
           .select(`
             id,
@@ -77,7 +77,7 @@ export async function GET(request: NextRequest) {
       const startOfDay = new Date(date + 'T00:00:00.000Z')
       const endOfDay = new Date(date + 'T23:59:59.999Z')
       
-      const { data: byCompleted } = await supabaseAdmin
+      const { data: byCompleted } = await createAdminClient()
         .from('workout_logs')
         .select(`
           id,
@@ -103,7 +103,7 @@ export async function GET(request: NextRequest) {
     }
 
     // Get workout name
-    const { data: workout } = await supabaseAdmin
+    const { data: workout } = await createAdminClient()
       .from('program_workouts')
       .select('name')
       .eq('id', workoutLog.workout_id)
@@ -112,7 +112,7 @@ export async function GET(request: NextRequest) {
     // Get trainer name if exists
     let trainerName = null
     if (workoutLog.trainer_id) {
-      const { data: trainer } = await supabaseAdmin
+      const { data: trainer } = await createAdminClient()
         .from('profiles')
         .select('full_name')
         .eq('id', workoutLog.trainer_id)
@@ -121,7 +121,7 @@ export async function GET(request: NextRequest) {
     }
 
     // Get ALL exercises for this workout (not just logged ones)
-    const { data: allExercises } = await supabaseAdmin
+    const { data: allExercises } = await createAdminClient()
       .from('workout_exercises')
       .select(`
         id,
@@ -136,7 +136,7 @@ export async function GET(request: NextRequest) {
       .order('order_index')
 
     // Get logged set data
-    const { data: setLogs } = await supabaseAdmin
+    const { data: setLogs } = await createAdminClient()
       .from('set_logs')
       .select(`
         set_number,
