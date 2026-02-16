@@ -50,7 +50,50 @@ export async function POST(request: NextRequest) {
       throw programError
     }
 
-    // 2. Delete existing workouts (this should cascade to exercises and sets)
+    // 2. Get existing workout IDs for this program
+    const { data: existingWorkouts } = await supabaseAdmin
+      .from('program_workouts')
+      .select('id')
+      .eq('program_id', id)
+    
+    const workoutIds = existingWorkouts?.map(w => w.id) || []
+
+    // 2a. Delete workout_completions that reference workout_logs for these workouts
+    if (workoutIds.length > 0) {
+      // First get the workout_log IDs
+      const { data: workoutLogs } = await supabaseAdmin
+        .from('workout_logs')
+        .select('id')
+        .in('workout_id', workoutIds)
+      
+      const logIds = workoutLogs?.map(l => l.id) || []
+      
+      if (logIds.length > 0) {
+        // Delete completions first (they reference logs)
+        const { error: completionsError } = await supabaseAdmin
+          .from('workout_completions')
+          .delete()
+          .in('workout_log_id', logIds)
+        
+        if (completionsError) {
+          console.error('Delete completions error:', completionsError)
+          // Continue anyway - might not exist
+        }
+      }
+
+      // 2b. Delete workout_logs
+      const { error: logsError } = await supabaseAdmin
+        .from('workout_logs')
+        .delete()
+        .in('workout_id', workoutIds)
+      
+      if (logsError) {
+        console.error('Delete logs error:', logsError)
+        // Continue anyway
+      }
+    }
+
+    // 2c. Delete existing workouts (this should cascade to exercises and sets)
     const { error: deleteError } = await supabaseAdmin
       .from('program_workouts')
       .delete()
