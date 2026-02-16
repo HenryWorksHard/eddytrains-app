@@ -66,16 +66,17 @@ export async function GET(
     const { data: completions } = await completionsQuery
 
     // Build schedule data organized by week AND day
-    // Structure: scheduleByWeekAndDay[weekNumber][dayOfWeek] = workout
+    // Structure: scheduleByWeekAndDay[weekNumber][dayOfWeek] = WorkoutSchedule[] (ARRAY)
     interface WorkoutSchedule {
       dayOfWeek: number
       workoutId: string
       workoutName: string
       programName: string
+      clientProgramId: string
       weekNumber: number
     }
 
-    const scheduleByWeekAndDay: Record<number, Record<number, WorkoutSchedule>> = {}
+    const scheduleByWeekAndDay: Record<number, Record<number, WorkoutSchedule[]>> = {}
     let programStartDate: string | null = null
     let maxWeek = 1
     
@@ -104,13 +105,18 @@ export async function GET(
                 scheduleByWeekAndDay[weekNum] = {}
               }
               
-              scheduleByWeekAndDay[weekNum][workout.day_of_week] = {
+              if (!scheduleByWeekAndDay[weekNum][workout.day_of_week]) {
+                scheduleByWeekAndDay[weekNum][workout.day_of_week] = []
+              }
+              
+              scheduleByWeekAndDay[weekNum][workout.day_of_week].push({
                 dayOfWeek: workout.day_of_week,
                 workoutId: workout.id,
                 workoutName: workout.name,
                 programName: program.name,
+                clientProgramId: cp.id,
                 weekNumber: weekNum
-              }
+              })
             }
           }
         }
@@ -123,8 +129,14 @@ export async function GET(
       completionsByDate[c.scheduled_date] = c.workout_id
     })
 
-    // Also return legacy scheduleByDay for backward compatibility (uses week 1)
-    const scheduleByDay: Record<number, WorkoutSchedule> = scheduleByWeekAndDay[1] || {}
+    // Also return legacy scheduleByDay for backward compatibility (uses week 1, first workout per day)
+    const scheduleByDay: Record<number, WorkoutSchedule> = {}
+    const week1 = scheduleByWeekAndDay[1] || {}
+    for (const [day, workouts] of Object.entries(week1)) {
+      if (workouts.length > 0) {
+        scheduleByDay[Number(day)] = workouts[0]
+      }
+    }
 
     return NextResponse.json({ 
       scheduleByDay, // Legacy: week 1 only
