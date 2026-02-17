@@ -423,11 +423,13 @@ export default function ExerciseCard({
     // Notify parent for current set
     onLogUpdate(exerciseId, setNumber, weight, reps)
     
-    // Check for PR (only if we have personal best data and not steps)
-    if (weight && reps && personalBest && isNewPR(weight, reps)) {
-      setPRCelebration({ show: true, weight, reps })
-      setSessionBest({ weight, reps })
-    } else if (weight && reps) {
+    // PR celebration disabled for now (glitchy)
+    // TODO: Re-enable when fixed
+    // if (weight && reps && personalBest && isNewPR(weight, reps)) {
+    //   setPRCelebration({ show: true, weight, reps })
+    //   setSessionBest({ weight, reps })
+    // } else
+    if (weight && reps) {
       // Update session best if better
       const estimated1RM = weight * (1 + reps / 30)
       if (!sessionBest || estimated1RM > sessionBest.weight * (1 + sessionBest.reps / 30)) {
