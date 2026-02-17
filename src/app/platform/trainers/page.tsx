@@ -1,8 +1,9 @@
 'use client'
 
 import { useState, useEffect } from 'react'
+import { useRouter } from 'next/navigation'
 import { createClient } from '@/app/lib/supabase/client'
-import { UserCheck, Plus, Users, Building2, CreditCard, MoreVertical, Mail } from 'lucide-react'
+import { UserCheck, Plus, Users, Building2, CreditCard, MoreVertical, Mail, ChevronRight } from 'lucide-react'
 
 interface Trainer {
   id: string
@@ -21,6 +22,7 @@ interface Trainer {
 
 export default function TrainersPage() {
   const supabase = createClient()
+  const router = useRouter()
   const [trainers, setTrainers] = useState<Trainer[]>([])
   const [companies, setCompanies] = useState<{ id: string; name: string }[]>([])
   const [loading, setLoading] = useState(true)
@@ -202,7 +204,11 @@ export default function TrainersPage() {
             </thead>
             <tbody className="divide-y divide-zinc-800">
               {filteredTrainers.map((trainer) => (
-                <tr key={trainer.id} className="hover:bg-zinc-800/30 transition-colors">
+                <tr 
+                  key={trainer.id} 
+                  onClick={() => router.push(`/platform/trainers/${trainer.id}`)}
+                  className="hover:bg-zinc-800/30 transition-colors cursor-pointer"
+                >
                   <td className="px-6 py-4">
                     <div>
                       <p className="font-medium text-white">{trainer.full_name || 'No name'}</p>
@@ -244,9 +250,7 @@ export default function TrainersPage() {
                     )}
                   </td>
                   <td className="px-6 py-4 text-right">
-                    <button className="p-2 hover:bg-zinc-700 rounded-lg transition-colors">
-                      <MoreVertical className="w-4 h-4 text-zinc-400" />
-                    </button>
+                    <ChevronRight className="w-5 h-5 text-zinc-500" />
                   </td>
                 </tr>
               ))}
