@@ -123,10 +123,23 @@ export async function GET(
       }
     }
 
-    // Format completions
+    // Format completions with STRICT date matching
+    // Key format: "YYYY-MM-DD:workoutId:clientProgramId" for exact match
     const completionsByDate: Record<string, string> = {}
+    const completionsByDateAndWorkout: Record<string, boolean> = {}
+    
     completions?.forEach(c => {
+      // Legacy format (just date -> workoutId)
       completionsByDate[c.scheduled_date] = c.workout_id
+      
+      // Primary: exact match with date, workout, and program
+      const keyWithProgram = `${c.scheduled_date}:${c.workout_id}:${c.client_program_id}`
+      completionsByDateAndWorkout[keyWithProgram] = true
+      
+      // Fallback for old completions without client_program_id
+      if (!c.client_program_id) {
+        completionsByDateAndWorkout[`${c.scheduled_date}:${c.workout_id}`] = true
+      }
     })
 
     // Also return legacy scheduleByDay for backward compatibility (uses week 1, first workout per day)
@@ -141,7 +154,8 @@ export async function GET(
     return NextResponse.json({ 
       scheduleByDay, // Legacy: week 1 only
       scheduleByWeekAndDay, // New: all weeks
-      completionsByDate,
+      completionsByDate, // Legacy: date -> workoutId
+      completionsByDateAndWorkout, // New: strict date+workout+program matching
       programStartDate,
       maxWeek
     })
