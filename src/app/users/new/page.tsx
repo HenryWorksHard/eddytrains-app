@@ -23,6 +23,8 @@ export default function NewUserPage() {
   const [error, setError] = useState<string | null>(null)
   const [upgradeRequired, setUpgradeRequired] = useState(false)
   const [success, setSuccess] = useState(false)
+  const [tempPassword, setTempPassword] = useState<string | null>(null)
+  const [emailSent, setEmailSent] = useState(true)
   const [organizationId, setOrganizationId] = useState<string | null>(null)
 
   useEffect(() => {
@@ -73,14 +75,20 @@ export default function NewUserPage() {
       }
       
       setSuccess(true)
+      setEmailSent(data.emailSent !== false)
       
-      // Temp password is returned if Klaviyo not configured
-      // In production, this would be sent via email
+      // Show temp password if email wasn't sent (Klaviyo not configured or failed)
+      if (data.tempPassword) {
+        setTempPassword(data.tempPassword)
+      }
       
-      setTimeout(() => {
-        router.push('/users')
-        router.refresh()
-      }, 2000)
+      // Only auto-redirect if email was sent successfully
+      if (data.emailSent) {
+        setTimeout(() => {
+          router.push('/users')
+          router.refresh()
+        }, 2000)
+      }
     } catch {
       setError('An unexpected error occurred')
     } finally {
@@ -99,15 +107,52 @@ export default function NewUserPage() {
   if (success) {
     return (
       <div className="min-h-[60vh] flex items-center justify-center">
-        <div className="text-center">
+        <div className="text-center max-w-md">
           <div className="w-20 h-20 rounded-full bg-green-500/10 flex items-center justify-center mx-auto mb-6">
             <Check className="w-10 h-10 text-green-500" />
           </div>
           <h2 className="text-2xl font-bold text-white mb-2">Client Created!</h2>
-          <p className="text-zinc-400 mb-4">
-            {fullName || email} has been added and will receive an invite email.
-          </p>
-          <p className="text-sm text-zinc-500">Redirecting to users list...</p>
+          
+          {emailSent && !tempPassword ? (
+            <>
+              <p className="text-zinc-400 mb-4">
+                {fullName || email} has been added and will receive an invite email.
+              </p>
+              <p className="text-sm text-zinc-500">Redirecting to users list...</p>
+            </>
+          ) : (
+            <>
+              <div className="bg-yellow-500/10 border border-yellow-500/30 rounded-xl p-4 mb-4 text-left">
+                <p className="text-yellow-400 text-sm font-medium mb-2">
+                  ⚠️ Email invite could not be sent automatically
+                </p>
+                <p className="text-zinc-400 text-sm mb-3">
+                  Please share these login credentials with your client manually:
+                </p>
+                <div className="space-y-2 bg-zinc-900 rounded-lg p-3">
+                  <div className="flex justify-between items-center">
+                    <span className="text-zinc-500 text-sm">Email:</span>
+                    <span className="text-white font-mono text-sm">{email}</span>
+                  </div>
+                  <div className="flex justify-between items-center">
+                    <span className="text-zinc-500 text-sm">Password:</span>
+                    <span className="text-white font-mono text-sm">{tempPassword}</span>
+                  </div>
+                  <div className="flex justify-between items-center">
+                    <span className="text-zinc-500 text-sm">Login URL:</span>
+                    <span className="text-yellow-400 font-mono text-sm">app.cmpdcollective.com</span>
+                  </div>
+                </div>
+              </div>
+              <Link
+                href="/users"
+                className="inline-flex items-center gap-2 px-6 py-3 bg-yellow-400 hover:bg-yellow-500 text-black font-medium rounded-xl transition-colors"
+              >
+                <ArrowLeft className="w-4 h-4" />
+                Back to Clients
+              </Link>
+            </>
+          )}
         </div>
       </div>
     )

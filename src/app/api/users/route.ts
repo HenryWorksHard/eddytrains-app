@@ -416,6 +416,18 @@ export async function POST(request: NextRequest) {
     // Send to Klaviyo
     const klaviyoResult = await sendToKlaviyo(email, full_name, tempPassword)
     
+    // Log the result for debugging
+    console.log('Klaviyo result:', { 
+      email, 
+      success: klaviyoResult.success, 
+      skipped: klaviyoResult.skipped,
+      profileId: klaviyoResult.profileId,
+      error: klaviyoResult.error
+    })
+    
+    // Email is only truly sent if Klaviyo succeeded and wasn't skipped
+    const emailSent = klaviyoResult.success === true && !klaviyoResult.skipped
+    
     return NextResponse.json({ 
       success: true, 
       user: {
@@ -423,8 +435,9 @@ export async function POST(request: NextRequest) {
         email: newUser.user.email,
         slug: slug
       },
-      emailSent: klaviyoResult.success && !klaviyoResult.skipped,
-      tempPassword: klaviyoResult.skipped ? tempPassword : undefined
+      emailSent,
+      // Always return temp password so trainer can manually share if needed
+      tempPassword: tempPassword
     })
     
   } catch (error) {
