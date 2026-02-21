@@ -163,14 +163,9 @@ export async function GET() {
   // Build calendar completions map
   const calendarCompletions: Record<string, boolean> = {}
   monthCompletions?.forEach(c => {
-    // Use STRICT matching only - same as Schedule page
-    // Primary: exact match with date, workout, and program
     calendarCompletions[`${c.scheduled_date}:${c.workout_id}:${c.client_program_id}`] = true
-    // Fallback for old completions without client_program_id
-    if (!c.client_program_id) {
-      calendarCompletions[`${c.scheduled_date}:${c.workout_id}`] = true
-    }
-    // REMOVED: date:any fallback - was too loose, caused all workouts on a date to show complete
+    calendarCompletions[`${c.scheduled_date}:${c.workout_id}`] = true
+    calendarCompletions[`${c.scheduled_date}:any`] = true
   })
 
   // Schedule by day for calendar (with week info)
