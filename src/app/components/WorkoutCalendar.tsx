@@ -199,10 +199,20 @@ export default function WorkoutCalendar({ scheduleByDay, scheduleByWeekAndDay, c
     try {
       const dateStr = formatDateLocal(date)
       
-      // Get workout log for this date - use limit(1) instead of single() to avoid errors
+      // Get current user for filtering
+      const { data: { user } } = await supabase.auth.getUser()
+      if (!user) {
+        console.error('No user found for fetching workout details')
+        setWorkoutDetails([])
+        setLoadingDetails(false)
+        return
+      }
+      
+      // Get workout log for this date - filter by client_id for RLS
       const { data: workoutLogs, error: logError } = await supabase
         .from('workout_logs')
         .select('id')
+        .eq('client_id', user.id)
         .eq('workout_id', workoutId)
         .eq('scheduled_date', dateStr)
         .order('completed_at', { ascending: false })
@@ -222,6 +232,7 @@ export default function WorkoutCalendar({ scheduleByDay, scheduleByWeekAndDay, c
       const { data: fallbackLogs, error: fallbackError } = await supabase
         .from('workout_logs')
         .select('id, completed_at')
+        .eq('client_id', user.id)
         .eq('workout_id', workoutId)
         .gte('completed_at', `${dateStr}T00:00:00`)
         .lte('completed_at', `${dateStr}T23:59:59`)
@@ -256,7 +267,7 @@ export default function WorkoutCalendar({ scheduleByDay, scheduleByWeekAndDay, c
         set_number,
         weight_kg,
         reps_completed,
-        workout_exercises (exercise_name)
+        swapped_exercise_name
       `)
       .eq('workout_log_id', workoutLogId)
       .order('exercise_id')
@@ -273,11 +284,21 @@ export default function WorkoutCalendar({ scheduleByDay, scheduleByWeekAndDay, c
       return
     }
     
+    // Get exercise names from workout_exercises table
+    const exerciseIds = [...new Set(setLogs.map(l => l.exercise_id))]
+    const { data: exercises } = await supabase
+      .from('workout_exercises')
+      .select('id, exercise_name')
+      .in('id', exerciseIds)
+    
+    const exerciseNameMap = new Map(exercises?.map(e => [e.id, e.exercise_name]) || [])
+    
     // Group by exercise
     const exerciseMap = new Map<string, WorkoutLogDetail>()
     
     setLogs.forEach(log => {
-      const exerciseName = (log.workout_exercises as any)?.exercise_name || 'Unknown'
+      // Prefer swapped name, then lookup from workout_exercises
+      const exerciseName = log.swapped_exercise_name || exerciseNameMap.get(log.exercise_id) || 'Unknown Exercise'
       const exerciseId = log.exercise_id
       
       if (!exerciseMap.has(exerciseId)) {
