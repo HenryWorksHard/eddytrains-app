@@ -7,26 +7,44 @@ export async function GET() {
   try {
     const supabase = getSupabaseAdmin()
     
-    // Fetch all exercises from the exercises table
-    // Override default 1000 limit - get them all
-    const { data: exercises, error, count } = await supabase
-      .from('exercises')
-      .select('*', { count: 'exact' })
-      .order('name', { ascending: true })
-      .limit(5000) // Override default 1000 limit
+    // Supabase has a default 1000 row limit per request
+    // We need to paginate to get all exercises
+    const PAGE_SIZE = 1000
+    let allExercises: any[] = []
+    let page = 0
+    let hasMore = true
     
-    if (error) {
-      console.error('Error fetching exercises:', error)
-      return NextResponse.json({ 
-        error: 'Failed to fetch exercises',
-        details: error.message 
-      }, { status: 500 })
+    while (hasMore) {
+      const from = page * PAGE_SIZE
+      const to = from + PAGE_SIZE - 1
+      
+      const { data: exercises, error } = await supabase
+        .from('exercises')
+        .select('*')
+        .order('name', { ascending: true })
+        .range(from, to)
+      
+      if (error) {
+        console.error('Error fetching exercises:', error)
+        return NextResponse.json({ 
+          error: 'Failed to fetch exercises',
+          details: error.message 
+        }, { status: 500 })
+      }
+      
+      if (exercises && exercises.length > 0) {
+        allExercises = [...allExercises, ...exercises]
+        hasMore = exercises.length === PAGE_SIZE
+        page++
+      } else {
+        hasMore = false
+      }
     }
     
-    console.log(`Fetched ${exercises?.length || 0} exercises from database (total: ${count})`)
+    console.log(`Fetched ${allExercises.length} exercises from database (${page} pages)`)
     
     // Transform to match expected format
-    const formattedExercises = exercises?.map(ex => ({
+    const formattedExercises = allExercises.map(ex => ({
       id: ex.id || ex.uuid || ex.name.toLowerCase().replace(/\s+/g, '_'),
       name: ex.name,
       category: ex.category || 'general',
@@ -37,7 +55,7 @@ export async function GET() {
       difficulty: ex.difficulty || 'intermediate',
       tags: ex.tags || [],
       instructions: ex.instructions || '',
-    })) || []
+    }))
     
     return NextResponse.json({ 
       exercises: formattedExercises,
