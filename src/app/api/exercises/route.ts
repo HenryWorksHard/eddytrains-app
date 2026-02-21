@@ -8,11 +8,12 @@ export async function GET() {
     const supabase = getSupabaseAdmin()
     
     // Fetch all exercises from the exercises table
-    // No limit - get them all
+    // Override default 1000 limit - get them all
     const { data: exercises, error, count } = await supabase
       .from('exercises')
       .select('*', { count: 'exact' })
       .order('name', { ascending: true })
+      .limit(5000) // Override default 1000 limit
     
     if (error) {
       console.error('Error fetching exercises:', error)
