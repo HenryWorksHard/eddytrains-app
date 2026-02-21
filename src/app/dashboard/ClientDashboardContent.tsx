@@ -29,11 +29,13 @@ interface DashboardClientProps {
   programCount: number
   completedWorkouts: string[] // Array of "workoutId:clientProgramId" strings
   scheduleByDay: Record<number, WorkoutSchedule[]>
+  scheduleByWeekAndDay?: Record<number, Record<number, WorkoutSchedule[]>>
   calendarCompletions: Record<string, boolean>
   programStartDate?: string
+  maxWeek?: number
 }
 
-export default function DashboardClient({ firstName, workoutsByDay, programCount, completedWorkouts, scheduleByDay, calendarCompletions, programStartDate }: DashboardClientProps) {
+export default function DashboardClient({ firstName, workoutsByDay, programCount, completedWorkouts, scheduleByDay, scheduleByWeekAndDay, calendarCompletions, programStartDate, maxWeek = 1 }: DashboardClientProps) {
   const completedSet = new Set(completedWorkouts)
   const [mounted, setMounted] = useState(false)
   const [greeting, setGreeting] = useState('Hello')
@@ -284,9 +286,11 @@ export default function DashboardClient({ firstName, workoutsByDay, programCount
           <h2 className="text-xs font-medium text-zinc-500 uppercase tracking-wider mb-2">This Month</h2>
           <WorkoutCalendar 
             scheduleByDay={scheduleByDay}
+            scheduleByWeekAndDay={scheduleByWeekAndDay}
             completedWorkouts={calendarCompletions}
             compact={true}
             programStartDate={programStartDate}
+            maxWeek={maxWeek}
           />
         </section>
       </main>

@@ -15,9 +15,11 @@ interface WorkoutSchedule {
 
 interface WorkoutCalendarProps {
   scheduleByDay: Record<number, WorkoutSchedule[]>
+  scheduleByWeekAndDay?: Record<number, Record<number, WorkoutSchedule[]>> // Week-specific schedules
   completedWorkouts: Record<string, boolean>
   compact?: boolean // For home screen - smaller version
   programStartDate?: string // Earliest active program start date
+  maxWeek?: number // Maximum week number in the program
 }
 
 interface WorkoutLogDetail {
@@ -26,7 +28,7 @@ interface WorkoutLogDetail {
   sets: { setNumber: number; weight: number; reps: number }[]
 }
 
-export default function WorkoutCalendar({ scheduleByDay, completedWorkouts, compact = false, programStartDate }: WorkoutCalendarProps) {
+export default function WorkoutCalendar({ scheduleByDay, scheduleByWeekAndDay, completedWorkouts, compact = false, programStartDate, maxWeek = 1 }: WorkoutCalendarProps) {
   const [mounted, setMounted] = useState(false)
   const [today, setToday] = useState(new Date())
   const [currentMonth, setCurrentMonth] = useState(new Date())
@@ -56,6 +58,50 @@ export default function WorkoutCalendar({ scheduleByDay, completedWorkouts, comp
     return `${year}-${month}-${day}`
   }
 
+  // Calculate which week number a date falls into based on program start
+  const getWeekNumberForDate = (date: Date): number => {
+    if (!programStartDate) return 1
+    
+    const programStart = new Date(programStartDate + 'T00:00:00')
+    const dateStart = new Date(date)
+    dateStart.setHours(0, 0, 0, 0)
+    
+    // If date is before program start, return week 1
+    if (dateStart < programStart) return 1
+    
+    // Calculate days since program start
+    const diffTime = dateStart.getTime() - programStart.getTime()
+    const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24))
+    
+    // Week number (1-indexed, cycling through maxWeek)
+    const weekNum = Math.floor(diffDays / 7) + 1
+    
+    // Cycle through weeks if program repeats
+    if (maxWeek > 0) {
+      return ((weekNum - 1) % maxWeek) + 1
+    }
+    return weekNum
+  }
+
+  // Get workouts for a specific date (using week-specific schedule if available)
+  const getWorkoutsForDate = (date: Date): WorkoutSchedule[] => {
+    const dayOfWeek = date.getDay() // JS day (0=Sun)
+    const weekNum = getWeekNumberForDate(date)
+    
+    // Try week-specific schedule first
+    if (scheduleByWeekAndDay?.[weekNum]?.[dayOfWeek] !== undefined) {
+      return scheduleByWeekAndDay[weekNum][dayOfWeek]
+    }
+    
+    // If no week-specific data exists at all, fallback to legacy scheduleByDay
+    if (!scheduleByWeekAndDay || Object.keys(scheduleByWeekAndDay).length === 0) {
+      return scheduleByDay[dayOfWeek] || []
+    }
+    
+    // Week-specific data exists but no workouts for this week+day = rest day
+    return []
+  }
+
   // Check if a specific workout is completed for a date
   const isWorkoutCompleted = (date: Date, workout: WorkoutSchedule): boolean => {
     const dateStr = formatDateLocal(date)
@@ -73,8 +119,7 @@ export default function WorkoutCalendar({ scheduleByDay, completedWorkouts, comp
 
   // Get status for a specific date
   const getDateStatus = (date: Date): 'completed' | 'partial' | 'skipped' | 'upcoming' | 'rest' => {
-    const dayOfWeek = date.getDay()
-    const workouts = scheduleByDay[dayOfWeek] || []
+    const workouts = getWorkoutsForDate(date)
     
     if (workouts.length === 0) return 'rest'
     
@@ -309,7 +354,7 @@ export default function WorkoutCalendar({ scheduleByDay, completedWorkouts, comp
             
             const isToday = date.toDateString() === today.toDateString()
             const status = getDateStatus(date)
-            const workouts = scheduleByDay[date.getDay()] || []
+            const workouts = getWorkoutsForDate(date)
             const hasWorkouts = workouts.length > 0
             
             // Get the first workout for navigation (if any)
@@ -408,7 +453,7 @@ export default function WorkoutCalendar({ scheduleByDay, completedWorkouts, comp
             {/* Modal Content */}
             <div className="p-3 overflow-y-auto max-h-[50vh]">
               {(() => {
-                const workouts = scheduleByDay[selectedDate.getDay()] || []
+                const workouts = getWorkoutsForDate(selectedDate)
                 const isDateToday = selectedDate.toDateString() === today.toDateString()
                 const isPast = selectedDate < today && !isDateToday
                 

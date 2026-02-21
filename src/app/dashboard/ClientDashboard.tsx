@@ -52,8 +52,10 @@ export default function ClientDashboard() {
         programCount={data.programCount}
         completedWorkouts={data.completedWorkouts}
         scheduleByDay={data.scheduleByDay}
+        scheduleByWeekAndDay={data.scheduleByWeekAndDay}
         calendarCompletions={data.calendarCompletions}
         programStartDate={data.programStartDate}
+        maxWeek={data.maxWeek}
       />
       <BottomNav />
     </div>
