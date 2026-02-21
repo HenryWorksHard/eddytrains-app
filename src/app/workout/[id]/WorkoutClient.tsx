@@ -294,6 +294,34 @@ export default function WorkoutClient({ workoutId, exercises, oneRMs, personalBe
       }
     }
   }, [setLogs])
+  
+  // CRITICAL: Force save when leaving page (unmount or navigation)
+  useEffect(() => {
+    const handleBeforeUnload = (e: BeforeUnloadEvent) => {
+      if (pendingLogsRef.current.size > 0 && !isSavingRef.current) {
+        // Try to save synchronously before page unloads
+        saveWorkoutLogs()
+        // Show browser warning
+        e.preventDefault()
+        e.returnValue = ''
+      }
+    }
+    
+    window.addEventListener('beforeunload', handleBeforeUnload)
+    
+    // Cleanup: force save on unmount (navigation within app)
+    return () => {
+      window.removeEventListener('beforeunload', handleBeforeUnload)
+      // Clear any pending debounce and save immediately
+      if (saveTimeoutRef.current) {
+        clearTimeout(saveTimeoutRef.current)
+      }
+      // Force immediate save if there's pending data
+      if (pendingLogsRef.current.size > 0 && !isSavingRef.current) {
+        saveWorkoutLogs()
+      }
+    }
+  }, [])
 
   const saveWorkoutLogs = async () => {
     // Prevent concurrent saves
@@ -353,6 +381,7 @@ export default function WorkoutClient({ workoutId, exercises, oneRMs, personalBe
           // Check if this exercise was swapped
           const swapped = swappedExercisesRef.current.get(log.exercise_id)
           return {
+            user_id: user.id, // Required for RLS and queries
             workout_log_id: logId,
             exercise_id: log.exercise_id,
             set_number: log.set_number,
