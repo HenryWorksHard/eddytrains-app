@@ -293,18 +293,21 @@ export async function DELETE(request: NextRequest) {
     
     console.log('[DELETE user] Related data cleaned up, deleting auth user')
     
-    // Delete from auth
-    const { error: authError } = await adminClient.auth.admin.deleteUser(userId)
-    
-    if (authError) {
-      console.error('[DELETE user] Auth delete error:', authError)
-      return NextResponse.json({ 
-        error: 'Failed to delete user from auth', 
-        details: authError.message 
-      }, { status: 500 })
+    // Try to delete from auth - but don't fail the whole operation if it doesn't work
+    // User might only exist in profiles (manual creation, already deleted from auth, etc)
+    let authDeleted = false
+    try {
+      const { error: authError } = await adminClient.auth.admin.deleteUser(userId)
+      if (authError) {
+        console.error('[DELETE user] Auth delete error (continuing anyway):', authError.message)
+      } else {
+        authDeleted = true
+      }
+    } catch (authErr) {
+      console.error('[DELETE user] Auth delete exception (continuing anyway):', authErr)
     }
     
-    // Also delete profile explicitly (in case no cascade trigger)
+    // Delete profile - this is the critical part
     const { error: profileDeleteError } = await adminClient
       .from('profiles')
       .delete()
@@ -312,11 +315,14 @@ export async function DELETE(request: NextRequest) {
     
     if (profileDeleteError) {
       console.error('[DELETE user] Profile delete error:', profileDeleteError)
-      // User is already deleted from auth, so this is a partial success
+      return NextResponse.json({ 
+        error: 'Failed to delete user profile', 
+        details: profileDeleteError.message 
+      }, { status: 500 })
     }
     
-    console.log('[DELETE user] Successfully deleted user:', userId)
-    return NextResponse.json({ success: true })
+    console.log('[DELETE user] Successfully deleted user:', { userId, authDeleted })
+    return NextResponse.json({ success: true, authDeleted })
   } catch (error) {
     console.error('[DELETE user] Error:', error)
     return NextResponse.json({ 
