@@ -109,15 +109,19 @@ export default function ScheduleClient({ scheduleByDay, scheduleByWeekAndDay, co
   }
 
   // Check if a specific workout is completed for a date
-  // Uses STRICT matching: must match exact date + workout + program
+  // Uses same matching logic as WorkoutCalendar for consistency
   const isWorkoutCompleted = (date: Date, workout: WorkoutSchedule): boolean => {
     const dateStr = formatDateLocal(date)
-    // Primary: exact match with date, workout, and program
+    // Check multiple key formats for compatibility:
+    // 1. Exact match with program ID
     const keyWithProgram = `${dateStr}:${workout.workoutId}:${workout.clientProgramId}`
     if (completedWorkouts[keyWithProgram] === true) return true
-    // Fallback: match without program (for old completions without client_program_id)
+    // 2. Match without program ID (old completions)
     const keyWithoutProgram = `${dateStr}:${workout.workoutId}`
-    return completedWorkouts[keyWithoutProgram] === true
+    if (completedWorkouts[keyWithoutProgram] === true) return true
+    // 3. Any completion on that date (handles program changes)
+    const keyDateOnly = `${dateStr}:any`
+    return completedWorkouts[keyDateOnly] === true
   }
 
   // Get status for a specific date (overall - for calendar view)

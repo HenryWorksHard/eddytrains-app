@@ -143,20 +143,16 @@ export default async function SchedulePage() {
   // Legacy scheduleByDay (uses week 1) for backward compatibility
   const scheduleByDay: Record<number, WorkoutSchedule[]> = scheduleByWeekAndDay[1] || {}
 
-  // Format completions - use STRICT date matching only
+  // Format completions - match same logic as dashboard/WorkoutCalendar
   // Key format: "YYYY-MM-DD:workoutId:clientProgramId"
-  // This ensures Week 1's completion doesn't show as complete for Week 2
   const completedWorkouts: Record<string, boolean> = {}
   completions?.forEach(c => {
     // Primary key: exact match with date, workout, and program
-    const keyWithProgram = `${c.scheduled_date}:${c.workout_id}:${c.client_program_id}`
-    completedWorkouts[keyWithProgram] = true
-    // Fallback for old completions without client_program_id
-    if (!c.client_program_id) {
-      const keyWithoutProgram = `${c.scheduled_date}:${c.workout_id}`
-      completedWorkouts[keyWithoutProgram] = true
-    }
-    // REMOVED: keyDateOnly fallback - was too loose and could match wrong workouts
+    completedWorkouts[`${c.scheduled_date}:${c.workout_id}:${c.client_program_id}`] = true
+    // Secondary: match without program (for old completions or program changes)
+    completedWorkouts[`${c.scheduled_date}:${c.workout_id}`] = true
+    // Fallback: any completion on date (handles program reassignments)
+    completedWorkouts[`${c.scheduled_date}:any`] = true
   })
 
   // Separate future programs for display
