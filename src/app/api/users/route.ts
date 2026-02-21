@@ -246,31 +246,83 @@ export async function DELETE(request: NextRequest) {
     const adminClient = getAdminClient()
     
     // Verify this is a client (not admin/trainer)
-    const { data: profile } = await adminClient
+    const { data: profile, error: profileError } = await adminClient
       .from('profiles')
-      .select('role')
+      .select('role, full_name, email')
       .eq('id', userId)
       .single()
     
-    if (!profile || profile.role !== 'client') {
+    console.log('[DELETE user] Profile lookup:', { userId, profile, error: profileError?.message })
+    
+    if (!profile) {
+      return NextResponse.json({ error: 'User not found' }, { status: 404 })
+    }
+    
+    if (profile.role !== 'client') {
       return NextResponse.json({ error: 'Can only delete client accounts' }, { status: 403 })
     }
     
-    // Delete from auth (this will cascade to profile via trigger or we delete manually)
+    // Delete related data first (foreign key constraints)
+    // Order matters - delete child records before parent
+    console.log('[DELETE user] Cleaning up related data for:', userId)
+    
+    // Get client_program IDs first for cascade deletes
+    const { data: clientPrograms } = await adminClient
+      .from('client_programs')
+      .select('id')
+      .eq('user_id', userId)
+    
+    const programIds = clientPrograms?.map(p => p.id) || []
+    
+    if (programIds.length > 0) {
+      // Delete client_exercise_sets linked to client_programs
+      await adminClient.from('client_exercise_sets').delete().in('client_program_id', programIds)
+    }
+    
+    // Delete other related records
+    await adminClient.from('client_programs').delete().eq('user_id', userId)
+    await adminClient.from('client_nutrition').delete().eq('client_id', userId)
+    await adminClient.from('client_1rms').delete().eq('user_id', userId)
+    await adminClient.from('client_1rm_history').delete().eq('user_id', userId)
+    await adminClient.from('client_streaks').delete().eq('user_id', userId)
+    await adminClient.from('personal_records').delete().eq('user_id', userId)
+    await adminClient.from('workout_logs').delete().eq('user_id', userId)
+    await adminClient.from('workout_completions').delete().eq('user_id', userId)
+    await adminClient.from('progress_images').delete().eq('user_id', userId)
+    await adminClient.from('set_logs').delete().eq('user_id', userId)
+    
+    console.log('[DELETE user] Related data cleaned up, deleting auth user')
+    
+    // Delete from auth
     const { error: authError } = await adminClient.auth.admin.deleteUser(userId)
     
     if (authError) {
-      console.error('Auth delete error:', authError)
-      return NextResponse.json({ error: 'Failed to delete user' }, { status: 500 })
+      console.error('[DELETE user] Auth delete error:', authError)
+      return NextResponse.json({ 
+        error: 'Failed to delete user from auth', 
+        details: authError.message 
+      }, { status: 500 })
     }
     
-    // Also delete profile explicitly (in case no cascade)
-    await adminClient.from('profiles').delete().eq('id', userId)
+    // Also delete profile explicitly (in case no cascade trigger)
+    const { error: profileDeleteError } = await adminClient
+      .from('profiles')
+      .delete()
+      .eq('id', userId)
     
+    if (profileDeleteError) {
+      console.error('[DELETE user] Profile delete error:', profileDeleteError)
+      // User is already deleted from auth, so this is a partial success
+    }
+    
+    console.log('[DELETE user] Successfully deleted user:', userId)
     return NextResponse.json({ success: true })
   } catch (error) {
-    console.error('Delete user error:', error)
-    return NextResponse.json({ error: 'Failed to delete user' }, { status: 500 })
+    console.error('[DELETE user] Error:', error)
+    return NextResponse.json({ 
+      error: 'Failed to delete user', 
+      details: error instanceof Error ? error.message : String(error)
+    }, { status: 500 })
   }
 }
 
