@@ -126,7 +126,7 @@ export default function TrainerDetailPage() {
               .limit(1)
               .single()
             
-            const programData = activeProgram?.programs as { name: string } | null
+            const programData = activeProgram?.programs as unknown as { name: string } | null
             return {
               ...client,
               activeProgram: programData?.name || null
