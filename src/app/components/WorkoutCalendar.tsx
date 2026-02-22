@@ -542,7 +542,13 @@ export default function WorkoutCalendar({ scheduleByDay, scheduleByWeekAndDay, c
                             {/* View/Start Workout button */}
                             <Link
                               href={`/workout/${workout.workoutId}?clientProgramId=${workout.clientProgramId}${isPast ? `&scheduledDate=${formatDateLocal(selectedDate)}` : ''}`}
-                              onClick={() => setSelectedDate(null)}
+                              onClick={() => {
+                                if (!workout.workoutId) {
+                                  console.error('Missing workoutId:', workout)
+                                  alert('Debug: workoutId is missing. Check console.')
+                                }
+                                setSelectedDate(null)
+                              }}
                               className="flex-1 text-center py-2 bg-zinc-800 hover:bg-zinc-700 text-white text-xs font-medium rounded-lg transition-colors"
                             >
                               {workoutCompleted ? 'View Workout' : isPast ? 'View Workout' : 'Start Workout'}
