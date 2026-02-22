@@ -376,13 +376,8 @@ export default async function WorkoutDetailPage({
           />
         ) : workout.notes ? (
           /* Active Rest / Notes-only workout */
-          <div className="bg-zinc-900 border border-zinc-800 rounded-2xl p-6">
-            <div className="flex items-center gap-3 mb-4">
-              <div className="w-10 h-10 bg-green-500/20 rounded-xl flex items-center justify-center">
-                <span className="text-green-400 text-lg">📋</span>
-              </div>
-              <h3 className="text-white font-semibold">Instructions</h3>
-            </div>
+          <div className="bg-zinc-900/50 border border-zinc-800 rounded-xl p-4">
+            <p className="text-zinc-500 text-xs font-medium uppercase tracking-wide mb-2">Instructions</p>
             <div className="text-zinc-300 text-sm whitespace-pre-wrap leading-relaxed">
               {workout.notes}
             </div>
