@@ -186,7 +186,13 @@ export default async function WorkoutDetailPage({
   const workout = workoutResult.data
   const finisherWorkouts = finishersResult.data
 
+  // Debug logging
+  console.log('Workout query for ID:', workoutId)
+  console.log('Workout result:', workout ? 'Found' : 'NOT FOUND')
+  console.log('Workout error:', workoutResult.error)
+
   if (!workout) {
+    console.error('404 - Workout not found for ID:', workoutId, 'User:', user.id)
     notFound()
   }
 
