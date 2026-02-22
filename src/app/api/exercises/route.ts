@@ -55,6 +55,7 @@ export async function GET() {
       difficulty: ex.difficulty || 'intermediate',
       tags: ex.tags || [],
       instructions: ex.instructions || '',
+      exerciseType: ex.exercise_type || 'strength', // strength, cardio, steps, timed
     }))
     
     return NextResponse.json({ 

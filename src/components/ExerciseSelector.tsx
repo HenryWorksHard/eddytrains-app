@@ -13,6 +13,7 @@ interface Exercise {
   primaryMuscles: string[]
   difficulty: string
   tags?: string[]
+  exerciseType?: 'strength' | 'cardio' | 'steps' | 'timed'
 }
 
 interface ExerciseSelectorProps {

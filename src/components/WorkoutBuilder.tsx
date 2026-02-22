@@ -27,7 +27,7 @@ interface ExerciseSet {
   id: string
   setNumber: number
   reps: string
-  intensityType: 'percentage' | 'rir' | 'rpe' | 'failure' | 'time'
+  intensityType: 'percentage' | 'rir' | 'rpe' | 'failure' | 'time' | 'target'
   intensityValue: string
   restSeconds: number
   restBracket: string
@@ -219,8 +219,44 @@ function generateId() {
   return Math.random().toString(36).substring(2, 9)
 }
 
-function createDefaultSet(setNumber: number, weightType: string = 'freeweight', programType: string = 'strength'): ExerciseSet {
-  if (programType === 'cardio') {
+function createDefaultSet(setNumber: number, weightType: string = 'freeweight', programType: string = 'strength', exerciseType?: string): ExerciseSet {
+  // Exercise type takes precedence over program type for specific exercise categories
+  const effectiveType = exerciseType || programType
+  
+  // Steps exercise - single set with step count target
+  if (effectiveType === 'steps') {
+    return {
+      id: generateId(),
+      setNumber,
+      reps: '5000', // Default step target
+      intensityType: 'target',
+      intensityValue: 'daily',
+      restSeconds: 0,
+      restBracket: '0',
+      weightType: 'bodyweight',
+      notes: '',
+      cardioType: 'steps',
+      cardioValue: '5000',
+      cardioUnit: 'steps',
+    }
+  }
+  
+  // Timed exercise - duration-based (planks, holds)
+  if (effectiveType === 'timed') {
+    return {
+      id: generateId(),
+      setNumber,
+      reps: '1',
+      intensityType: 'time',
+      intensityValue: '30',
+      restSeconds: 60,
+      restBracket: '60-90',
+      weightType: 'bodyweight',
+      notes: '',
+    }
+  }
+  
+  if (effectiveType === 'cardio') {
     return {
       id: generateId(),
       setNumber,
@@ -238,7 +274,7 @@ function createDefaultSet(setNumber: number, weightType: string = 'freeweight', 
     }
   }
   
-  if (programType === 'hyrox') {
+  if (effectiveType === 'hyrox') {
     return {
       id: generateId(),
       setNumber,
@@ -582,15 +618,16 @@ export default function WorkoutBuilder({ workouts, onChange, programType }: Work
     onChange(workouts.filter(w => w.id !== workoutId))
   }
 
-  const addExercise = (workoutId: string, exercise: { id: string; name: string; category: string }) => {
+  const addExercise = (workoutId: string, exercise: { id: string; name: string; category: string; exerciseType?: string }) => {
     const workout = workouts.find(w => w.id === workoutId)
     if (!workout) return
 
     const defaultWeightType = getDefaultWeightType(exercise.id)
     const pType = programType || 'strength'
+    const exType = exercise.exerciseType // 'strength' | 'cardio' | 'steps' | 'timed'
     
-    // For hyrox, only 1 set per station by default
-    const setCount = pType === 'hyrox' ? 1 : 3
+    // For steps/timed, only 1 set by default. For hyrox, 1 set. Otherwise 3.
+    const setCount = (exType === 'steps' || exType === 'timed' || pType === 'hyrox') ? 1 : 3
 
     const newExercise: WorkoutExercise = {
       id: generateId(),
@@ -598,7 +635,7 @@ export default function WorkoutBuilder({ workouts, onChange, programType }: Work
       exerciseName: exercise.name,
       category: exercise.category,
       order: workout.exercises.length,
-      sets: Array.from({ length: setCount }, (_, i) => createDefaultSet(i + 1, defaultWeightType, pType)),
+      sets: Array.from({ length: setCount }, (_, i) => createDefaultSet(i + 1, defaultWeightType, pType, exType)),
       notes: '',
     }
 
@@ -643,23 +680,24 @@ export default function WorkoutBuilder({ workouts, onChange, programType }: Work
     })
   }
 
-  const addSuperset = (workoutId: string, exercises: { id: string; name: string; category: string }[]) => {
+  const addSuperset = (workoutId: string, exercises: { id: string; name: string; category: string; exerciseType?: string }[]) => {
     const workout = workouts.find(w => w.id === workoutId)
     if (!workout || exercises.length < 2) return
 
     const supersetGroupId = `superset_${generateId()}`
     const pType = programType || 'strength'
-    const setCount = pType === 'hyrox' ? 1 : 3
     
     const newExercises: WorkoutExercise[] = exercises.map((exercise, index) => {
       const defaultWeightType = getDefaultWeightType(exercise.id)
+      const exType = exercise.exerciseType
+      const setCount = (exType === 'steps' || exType === 'timed' || pType === 'hyrox') ? 1 : 3
       return {
         id: generateId(),
         exerciseId: exercise.id,
         exerciseName: exercise.name,
         category: exercise.category,
         order: workout.exercises.length + index,
-        sets: Array.from({ length: setCount }, (_, i) => createDefaultSet(i + 1, defaultWeightType, pType)),
+        sets: Array.from({ length: setCount }, (_, i) => createDefaultSet(i + 1, defaultWeightType, pType, exType)),
         notes: '',
         supersetGroup: supersetGroupId,
       }
@@ -853,12 +891,14 @@ export default function WorkoutBuilder({ workouts, onChange, programType }: Work
     updateWorkout(workoutId, { finisher: undefined })
   }
 
-  const addExerciseToFinisher = (workoutId: string, exercise: { id: string; name: string; category: string }) => {
+  const addExerciseToFinisher = (workoutId: string, exercise: { id: string; name: string; category: string; exerciseType?: string }) => {
     const workout = workouts.find(w => w.id === workoutId)
     if (!workout?.finisher) return
 
     const defaultWeightType = getDefaultWeightType(exercise.id)
     const finisherCategory = workout.finisher.category
+    const exType = exercise.exerciseType
+    const setCount = (exType === 'steps' || exType === 'timed' || finisherCategory === 'hyrox') ? 1 : 3
 
     const newExercise: WorkoutExercise = {
       id: generateId(),
@@ -866,8 +906,8 @@ export default function WorkoutBuilder({ workouts, onChange, programType }: Work
       exerciseName: exercise.name,
       category: exercise.category,
       order: workout.finisher.exercises.length,
-      sets: Array.from({ length: finisherCategory === 'hyrox' ? 1 : 3 }, (_, i) => 
-        createDefaultSet(i + 1, defaultWeightType, finisherCategory)
+      sets: Array.from({ length: setCount }, (_, i) => 
+        createDefaultSet(i + 1, defaultWeightType, finisherCategory, exType)
       ),
       notes: '',
     }
@@ -879,16 +919,17 @@ export default function WorkoutBuilder({ workouts, onChange, programType }: Work
   }
 
   // Add superset to finisher
-  const addSupersetToFinisher = (workoutId: string, exercises: { id: string; name: string; category: string }[]) => {
+  const addSupersetToFinisher = (workoutId: string, exercises: { id: string; name: string; category: string; exerciseType?: string }[]) => {
     const workout = workouts.find(w => w.id === workoutId)
     if (!workout?.finisher || exercises.length < 2) return
 
     const supersetGroupId = `superset_${generateId()}`
     const finisherCategory = workout.finisher.category
-    const setCount = finisherCategory === 'hyrox' ? 1 : 3
 
     const newExercises: WorkoutExercise[] = exercises.map((exercise, index) => {
       const defaultWeightType = getDefaultWeightType(exercise.id)
+      const exType = exercise.exerciseType
+      const setCount = (exType === 'steps' || exType === 'timed' || finisherCategory === 'hyrox') ? 1 : 3
       return {
         id: generateId(),
         exerciseId: exercise.id,
@@ -896,7 +937,7 @@ export default function WorkoutBuilder({ workouts, onChange, programType }: Work
         category: exercise.category,
         order: workout.finisher!.exercises.length + index,
         sets: Array.from({ length: setCount }, (_, i) => 
-          createDefaultSet(i + 1, defaultWeightType, finisherCategory)
+          createDefaultSet(i + 1, defaultWeightType, finisherCategory, exType)
         ),
         notes: '',
         supersetGroup: supersetGroupId,
