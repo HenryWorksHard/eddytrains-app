@@ -136,8 +136,9 @@ export async function GET() {
             }
             
             scheduleByWeekAndDay[weekNum][workout.day_of_week].push({
-              id: workout.id,
-              name: workout.name,
+              dayOfWeek: workout.day_of_week,
+              workoutId: workout.id,
+              workoutName: workout.name,
               programName: program.name,
               programCategory: program.category || 'strength',
               clientProgramId: up.id,
