@@ -361,9 +361,13 @@ export default async function WorkoutDetailPage({
               <h1 className="text-2xl font-bold text-white">{workout.name}</h1>
               <p className="text-zinc-400 text-sm mt-1">{program?.name}</p>
               <div className="flex items-center gap-3 mt-2">
-                <p className="text-zinc-500 text-sm">{exercises.length} exercises</p>
-                {/* Debug info - remove after fixing */}
-                <p className="text-zinc-700 text-xs">ID: {workoutId.slice(0,8)}...</p>
+                <p className="text-zinc-500 text-sm">
+                  {exercises.length > 0 
+                    ? `${exercises.length} exercise${exercises.length !== 1 ? 's' : ''}`
+                    : workout.notes 
+                      ? 'Rest Day' 
+                      : '0 exercises'}
+                </p>
                 {workout.is_emom && (
                   <span className="px-2 py-0.5 bg-yellow-400/20 text-yellow-400 text-xs font-semibold rounded-full">
                     EMOM {workout.emom_interval ? `${workout.emom_interval >= 60 ? `${workout.emom_interval / 60}min` : `${workout.emom_interval}s`}` : ''}
@@ -376,6 +380,16 @@ export default async function WorkoutDetailPage({
       </header>
 
       <main className="px-6 py-6">
+        {/* Always show workout notes/instructions if they exist */}
+        {workout.notes && (
+          <div className="bg-zinc-900/50 border border-zinc-800 rounded-xl p-4 mb-6">
+            <p className="text-zinc-500 text-xs font-medium uppercase tracking-wide mb-2">Instructions</p>
+            <div className="text-zinc-300 text-sm whitespace-pre-wrap leading-relaxed">
+              {workout.notes}
+            </div>
+          </div>
+        )}
+        
         {exercises.length > 0 ? (
           <WorkoutClient
             workoutId={workoutId}
@@ -386,15 +400,8 @@ export default async function WorkoutDetailPage({
             scheduledDate={scheduledDate}
             finishers={finishers}
           />
-        ) : workout.notes ? (
-          /* Active Rest / Notes-only workout */
-          <div className="bg-zinc-900/50 border border-zinc-800 rounded-xl p-4">
-            <p className="text-zinc-500 text-xs font-medium uppercase tracking-wide mb-2">Instructions</p>
-            <div className="text-zinc-300 text-sm whitespace-pre-wrap leading-relaxed">
-              {workout.notes}
-            </div>
-          </div>
-        ) : (
+        ) : !workout.notes ? (
+          /* Only show "No Exercises Yet" if there are also no notes */
           <div className="bg-zinc-900 border border-zinc-800 rounded-2xl p-8 text-center">
             <div className="w-16 h-16 bg-zinc-800 rounded-full flex items-center justify-center mx-auto mb-4">
               <span className="text-2xl font-bold text-zinc-600">?</span>
@@ -404,7 +411,7 @@ export default async function WorkoutDetailPage({
               Your coach will add exercises to this workout soon.
             </p>
           </div>
-        )}
+        ) : null}
         
         {exercises.length > 0 && <div className="h-24" />}
         {exercises.length > 0 && <div id="workout-end-sentinel" className="h-1" />}
