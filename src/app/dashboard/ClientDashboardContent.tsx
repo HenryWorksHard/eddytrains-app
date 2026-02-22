@@ -6,8 +6,8 @@ import { SlideOutMenu, HamburgerButton } from '../components/SlideOutMenu'
 import WorkoutCalendar from '../components/WorkoutCalendar'
 
 interface Workout {
-  id: string
-  name: string
+  workoutId: string
+  workoutName: string
   programName: string
   programCategory: string
   clientProgramId: string
@@ -94,7 +94,7 @@ export default function DashboardClient({ firstName, workoutsByDay, programCount
   
   // Check if a workout is completed
   const isWorkoutCompleted = (workout: Workout) => {
-    return completedSet.has(`${workout.id}:${workout.clientProgramId}`)
+    return completedSet.has(`${workout.workoutId}:${workout.clientProgramId}`)
   }
   
   // Get category color
@@ -173,7 +173,7 @@ export default function DashboardClient({ firstName, workoutsByDay, programCount
                 const completed = isWorkoutCompleted(workout)
                 return (
                   <div 
-                    key={`${workout.id}-${workout.clientProgramId}`}
+                    key={`${workout.workoutId}-${workout.clientProgramId}`}
                     className={`rounded-xl overflow-hidden transition-all ${
                       completed 
                         ? 'bg-green-500/10 border border-green-500/30' 
@@ -197,7 +197,7 @@ export default function DashboardClient({ firstName, workoutsByDay, programCount
                           )}
                         </div>
                         <div className="flex-1 min-w-0">
-                          <h3 className={`font-semibold text-sm ${completed ? 'text-green-400' : 'text-white'}`}>{workout.name}</h3>
+                          <h3 className={`font-semibold text-sm ${completed ? 'text-green-400' : 'text-white'}`}>{workout.workoutName}</h3>
                           <p className="text-zinc-500 text-xs">{workout.programName}</p>
                         </div>
                         {completed ? (
@@ -211,7 +211,7 @@ export default function DashboardClient({ firstName, workoutsByDay, programCount
                     {/* Start Button - only show if not completed */}
                     {!completed && (
                       <Link
-                        href={`/workout/${workout.id}?clientProgramId=${workout.clientProgramId}`}
+                        href={`/workout/${workout.workoutId}?clientProgramId=${workout.clientProgramId}`}
                         className="block w-full bg-yellow-400 hover:bg-yellow-500 active:scale-[0.98] text-black font-semibold py-2.5 text-sm text-center transition-all touch-feedback tap-target"
                       >
                         Start Workout →
@@ -227,11 +227,11 @@ export default function DashboardClient({ firstName, workoutsByDay, programCount
                   <p className="text-zinc-500 text-xs mb-1.5">Tomorrow</p>
                   {tomorrowWorkouts.map((workout) => (
                     <Link
-                      key={`tomorrow-${workout.id}`}
-                      href={`/workout/${workout.id}?clientProgramId=${workout.clientProgramId}&preview=true`}
+                      key={`tomorrow-${workout.workoutId}`}
+                      href={`/workout/${workout.workoutId}?clientProgramId=${workout.clientProgramId}&preview=true`}
                       className="flex items-center justify-between py-1.5 hover:bg-zinc-800/50 -mx-1.5 px-1.5 rounded-lg transition-colors touch-feedback"
                     >
-                      <span className="text-theme-primary text-sm">{workout.name}</span>
+                      <span className="text-theme-primary text-sm">{workout.workoutName}</span>
                       <div className="flex items-center gap-2">
                         <span className="text-zinc-500 text-xs">{workout.programName}</span>
                         <span className="text-yellow-400 text-sm">→</span>
@@ -261,7 +261,7 @@ export default function DashboardClient({ firstName, workoutsByDay, programCount
             <div className="bg-zinc-900/50 border border-zinc-800 rounded-xl p-3">
               {tomorrowWorkouts.map((workout) => (
                 <div
-                  key={`tomorrow-${workout.id}`}
+                  key={`tomorrow-${workout.workoutId}`}
                   className="flex items-center justify-between"
                 >
                   <div className="flex items-center gap-3">
@@ -271,7 +271,7 @@ export default function DashboardClient({ firstName, workoutsByDay, programCount
                       </span>
                     </div>
                     <div>
-                      <p className="text-white text-sm font-medium">{workout.name}</p>
+                      <p className="text-white text-sm font-medium">{workout.workoutName}</p>
                       <p className="text-zinc-500 text-xs">{workout.exerciseCount} exercises</p>
                     </div>
                   </div>
