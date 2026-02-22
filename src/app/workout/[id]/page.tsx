@@ -190,6 +190,12 @@ export default async function WorkoutDetailPage({
   console.log('Workout query for ID:', workoutId)
   console.log('Workout result:', workout ? 'Found' : 'NOT FOUND')
   console.log('Workout error:', workoutResult.error)
+  if (workout) {
+    console.log('Workout name:', workout.name)
+    console.log('Workout exercises count:', workout.workout_exercises?.length || 0)
+    console.log('Workout notes:', workout.notes ? 'Has notes' : 'No notes')
+    console.log('Raw workout_exercises:', JSON.stringify(workout.workout_exercises?.slice(0, 2)))
+  }
 
   if (!workout) {
     console.error('404 - Workout not found for ID:', workoutId, 'User:', user.id)
