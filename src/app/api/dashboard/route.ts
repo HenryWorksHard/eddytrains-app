@@ -85,8 +85,9 @@ export async function GET() {
 
   // Build schedule data by week and day
   interface WorkoutData {
-    id: string
-    name: string
+    dayOfWeek: number
+    workoutId: string
+    workoutName: string
     programName: string
     programCategory: string
     clientProgramId: string
@@ -174,8 +175,8 @@ export async function GET() {
   for (let i = 0; i < 7; i++) {
     scheduleByDay[i] = (workoutsByDay[i] || []).map(w => ({
       dayOfWeek: i,
-      workoutId: w.id,
-      workoutName: w.name,
+      workoutId: w.workoutId,
+      workoutName: w.workoutName,
       programName: w.programName,
       programCategory: w.programCategory,
       clientProgramId: w.clientProgramId
