@@ -372,6 +372,19 @@ export default async function WorkoutDetailPage({
             scheduledDate={scheduledDate}
             finishers={finishers}
           />
+        ) : workout.notes ? (
+          /* Active Rest / Notes-only workout */
+          <div className="bg-zinc-900 border border-zinc-800 rounded-2xl p-6">
+            <div className="flex items-center gap-3 mb-4">
+              <div className="w-10 h-10 bg-green-500/20 rounded-xl flex items-center justify-center">
+                <span className="text-green-400 text-lg">📋</span>
+              </div>
+              <h3 className="text-white font-semibold">Instructions</h3>
+            </div>
+            <div className="text-zinc-300 text-sm whitespace-pre-wrap leading-relaxed">
+              {workout.notes}
+            </div>
+          </div>
         ) : (
           <div className="bg-zinc-900 border border-zinc-800 rounded-2xl p-8 text-center">
             <div className="w-16 h-16 bg-zinc-800 rounded-full flex items-center justify-center mx-auto mb-4">
@@ -388,7 +401,7 @@ export default async function WorkoutDetailPage({
         {exercises.length > 0 && <div id="workout-end-sentinel" className="h-1" />}
       </main>
 
-      {exercises.length > 0 && workout.day_of_week === new Date().getDay() && (
+      {(exercises.length > 0 || workout.notes) && workout.day_of_week === new Date().getDay() && (
         <CompleteWorkoutButton 
           workoutId={workoutId}
           clientProgramId={clientProgramId}
