@@ -350,6 +350,8 @@ export default async function WorkoutDetailPage({
               <p className="text-zinc-400 text-sm mt-1">{program?.name}</p>
               <div className="flex items-center gap-3 mt-2">
                 <p className="text-zinc-500 text-sm">{exercises.length} exercises</p>
+                {/* Debug info - remove after fixing */}
+                <p className="text-zinc-700 text-xs">ID: {workoutId.slice(0,8)}...</p>
                 {workout.is_emom && (
                   <span className="px-2 py-0.5 bg-yellow-400/20 text-yellow-400 text-xs font-semibold rounded-full">
                     EMOM {workout.emom_interval ? `${workout.emom_interval >= 60 ? `${workout.emom_interval / 60}min` : `${workout.emom_interval}s`}` : ''}
