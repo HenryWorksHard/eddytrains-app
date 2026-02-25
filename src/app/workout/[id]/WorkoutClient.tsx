@@ -494,7 +494,6 @@ export default function WorkoutClient({ workoutId, exercises, oneRMs, personalBe
           // Check if this exercise was swapped
           const swapped = swappedExercisesRef.current.get(log.exercise_id)
           return {
-            user_id: user.id, // Required for RLS and queries
             workout_log_id: logId,
             exercise_id: log.exercise_id,
             set_number: log.set_number,
