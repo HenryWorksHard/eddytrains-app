@@ -192,10 +192,56 @@ export default function WorkoutClient({ workoutId, exercises, oneRMs, personalBe
     return set.reps || '?'
   }
 
-  // Load previous logs for each exercise
+  // Load previous logs AND today's session (if any)
   useEffect(() => {
+    loadTodaySession()
     loadPreviousLogs()
   }, [workoutId])
+
+  // Load existing session for today (resume partial workout)
+  const loadTodaySession = async () => {
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) return
+
+    // Check if there's an existing workout_log for today's scheduled workout
+    const { data: todayLog } = await supabase
+      .from('workout_logs')
+      .select('id')
+      .eq('client_id', user.id)
+      .eq('workout_id', workoutId)
+      .eq('scheduled_date', scheduledDate || new Date().toISOString().split('T')[0])
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .single()
+
+    if (todayLog) {
+      console.log('[loadTodaySession] Found existing session for today:', todayLog.id)
+      setWorkoutLogId(todayLog.id)
+      workoutLogIdRef.current = todayLog.id
+
+      // Load today's set_logs into setLogs state (these are CONFIRMED logs)
+      const { data: todaySets } = await supabase
+        .from('set_logs')
+        .select('exercise_id, set_number, weight_kg, reps_completed')
+        .eq('workout_log_id', todayLog.id)
+
+      if (todaySets && todaySets.length > 0) {
+        console.log('[loadTodaySession] Restoring', todaySets.length, 'logged sets from today')
+        const logMap = new Map<string, SetLog>()
+        todaySets.forEach(s => {
+          const key = `${s.exercise_id}-${s.set_number}`
+          logMap.set(key, {
+            exercise_id: s.exercise_id,
+            set_number: s.set_number,
+            weight_kg: s.weight_kg,
+            reps_completed: s.reps_completed
+          })
+        })
+        setSetLogs(logMap)
+        pendingLogsRef.current = logMap
+      }
+    }
+  }
 
   const loadPreviousLogs = async () => {
     const { data: { user } } = await supabase.auth.getUser()
@@ -204,17 +250,22 @@ export default function WorkoutClient({ workoutId, exercises, oneRMs, personalBe
     console.log('[loadPreviousLogs] Loading for workout:', workoutId)
     console.log('[loadPreviousLogs] Exercises:', exercises.map(e => ({ id: e.id, name: e.exercise_name })))
 
-    // APPROACH 1: Try to find previous logs for THIS EXACT workout (most accurate)
+    // Get today's date to EXCLUDE from previous logs
+    const todayStart = new Date()
+    todayStart.setHours(0, 0, 0, 0)
+
+    // APPROACH 1: Try to find previous logs for THIS EXACT workout (BEFORE today)
     const { data: recentWorkoutLog, error: workoutLogError } = await supabase
       .from('workout_logs')
       .select('id, completed_at')
       .eq('client_id', user.id)
       .eq('workout_id', workoutId)
+      .lt('completed_at', todayStart.toISOString())  // EXCLUDE today
       .order('completed_at', { ascending: false })
       .limit(1)
       .single()
 
-    console.log('[loadPreviousLogs] Recent workout log:', recentWorkoutLog, 'Error:', workoutLogError?.message)
+    console.log('[loadPreviousLogs] Recent workout log (before today):', recentWorkoutLog, 'Error:', workoutLogError?.message)
 
     if (recentWorkoutLog) {
       // Get set logs for this workout log - match by exercise_id (same workout structure)
@@ -248,7 +299,7 @@ export default function WorkoutClient({ workoutId, exercises, oneRMs, personalBe
     
     const exerciseNames = exercises.map(e => e.exercise_name.toLowerCase())
     
-    // Get recent workout logs (last 60 days)
+    // Get recent workout logs (last 60 days, EXCLUDING today)
     const sixtyDaysAgo = new Date()
     sixtyDaysAgo.setDate(sixtyDaysAgo.getDate() - 60)
     
@@ -257,6 +308,7 @@ export default function WorkoutClient({ workoutId, exercises, oneRMs, personalBe
       .select('id, completed_at')
       .eq('client_id', user.id)
       .gte('completed_at', sixtyDaysAgo.toISOString())
+      .lt('completed_at', todayStart.toISOString())  // EXCLUDE today
       .order('completed_at', { ascending: false })
     
     if (!allWorkoutLogs || allWorkoutLogs.length === 0) {
