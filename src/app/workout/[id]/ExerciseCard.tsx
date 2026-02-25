@@ -705,9 +705,19 @@ export default function ExerciseCard({
             {/* Regular Set Rows (non-cardio) */}
             {!isCardioExercise && sets.map((set) => {
               const log = localLogs.get(set.set_number)
+              const prevLog = previousLogs.find(p => p.set_number === set.set_number)
               const isLogged = isStepsExercise 
                 ? (log?.steps_completed !== null && log?.steps_completed !== undefined)
                 : (log?.reps_completed !== null && log?.reps_completed !== undefined)
+              
+              // Display values: logged > previous > calculated > placeholder
+              const displayWeight = log?.weight_kg ?? prevLog?.weight_kg ?? calculatedWeight ?? null
+              const displayReps = log?.reps_completed ?? prevLog?.reps_completed ?? null
+              const displaySteps = log?.steps_completed ?? null
+              
+              // Has previous data to show (but not logged yet)
+              const hasPreviousData = !isLogged && (prevLog?.weight_kg || prevLog?.reps_completed)
+              
               return (
                 <div 
                   key={set.set_number}
@@ -737,14 +747,14 @@ export default function ExerciseCard({
                         className={`flex items-center gap-2 px-3 py-2 rounded-lg transition-all active:scale-95 ${
                           isLogged 
                             ? 'bg-green-500/20 border border-green-500/30' 
-                            : 'bg-yellow-400/10 border border-yellow-400/30 hover:bg-yellow-400/20'
+                            : 'bg-zinc-700/50 border border-zinc-600/50 hover:bg-zinc-700'
                         }`}
                       >
                       {isStepsExercise ? (
                         /* Steps display */
                         <div className="text-center min-w-[60px]">
-                          <span className={`font-bold text-sm ${isLogged ? 'text-green-400' : 'text-white'}`}>
-                            {log?.steps_completed ?? '—'}
+                          <span className={`font-bold text-sm ${isLogged ? 'text-green-400' : 'text-zinc-400'}`}>
+                            {displaySteps ?? '—'}
                           </span>
                           <span className="text-zinc-500 text-[10px] ml-0.5">steps</span>
                         </div>
@@ -752,8 +762,8 @@ export default function ExerciseCard({
                         <>
                           {/* Weight display */}
                           <div className="text-center min-w-[40px]">
-                            <span className={`font-bold text-sm ${isLogged ? 'text-green-400' : 'text-white'}`}>
-                              {log?.weight_kg ?? (calculatedWeight || '—')}
+                            <span className={`font-bold text-sm ${isLogged ? 'text-green-400' : 'text-zinc-400'}`}>
+                              {displayWeight ?? '—'}
                             </span>
                             <span className="text-zinc-500 text-[10px] ml-0.5">kg</span>
                           </div>
@@ -762,20 +772,17 @@ export default function ExerciseCard({
                           
                           {/* Reps display */}
                           <div className="text-center min-w-[24px]">
-                            <span className={`font-bold text-sm ${isLogged ? 'text-green-400' : 'text-white'}`}>
-                              {log?.reps_completed ?? '—'}
+                            <span className={`font-bold text-sm ${isLogged ? 'text-green-400' : 'text-zinc-400'}`}>
+                              {displayReps ?? '—'}
                             </span>
                           </div>
                         </>
                       )}
                       </button>
-                      {/* Show last used weight */}
-                      {(() => {
-                        const prevLog = previousLogs.find(p => p.set_number === set.set_number)
-                        return prevLog?.weight_kg ? (
-                          <span className="text-[9px] text-zinc-500 mt-0.5">Last: {prevLog.weight_kg}kg</span>
-                        ) : null
-                      })()}
+                      {/* Show "Last:" hint only if showing previous data and not logged */}
+                      {hasPreviousData && (
+                        <span className="text-[9px] text-zinc-500 mt-0.5">Last week</span>
+                      )}
                     </div>
                   </div>
                 </div>
