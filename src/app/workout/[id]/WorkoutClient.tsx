@@ -201,83 +201,131 @@ export default function WorkoutClient({ workoutId, exercises, oneRMs, personalBe
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) return
 
-    // Get exercise names from current workout
-    const exerciseNames = exercises.map(e => e.exercise_name.toLowerCase())
-    
-    // Get all previous workout logs for this user (last 30 days for performance)
-    const thirtyDaysAgo = new Date()
-    thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30)
-    
-    const { data: workoutLogs } = await supabase
+    console.log('[loadPreviousLogs] Loading for workout:', workoutId)
+    console.log('[loadPreviousLogs] Exercises:', exercises.map(e => ({ id: e.id, name: e.exercise_name })))
+
+    // APPROACH 1: Try to find previous logs for THIS EXACT workout (most accurate)
+    const { data: recentWorkoutLog, error: workoutLogError } = await supabase
       .from('workout_logs')
       .select('id, completed_at')
       .eq('client_id', user.id)
-      .gte('completed_at', thirtyDaysAgo.toISOString())
+      .eq('workout_id', workoutId)
+      .order('completed_at', { ascending: false })
+      .limit(1)
+      .single()
+
+    console.log('[loadPreviousLogs] Recent workout log:', recentWorkoutLog, 'Error:', workoutLogError?.message)
+
+    if (recentWorkoutLog) {
+      // Get set logs for this workout log - match by exercise_id (same workout structure)
+      const { data: setLogs, error: setLogsError } = await supabase
+        .from('set_logs')
+        .select('exercise_id, set_number, weight_kg, reps_completed')
+        .eq('workout_log_id', recentWorkoutLog.id)
+
+      console.log('[loadPreviousLogs] Set logs found:', setLogs?.length || 0, 'Error:', setLogsError?.message)
+
+      if (setLogs && setLogs.length > 0) {
+        const logsByExercise = new Map<string, PreviousSetLog[]>()
+        setLogs.forEach(log => {
+          const existing = logsByExercise.get(log.exercise_id) || []
+          existing.push({
+            exercise_id: log.exercise_id,
+            set_number: log.set_number,
+            weight_kg: log.weight_kg,
+            reps_completed: log.reps_completed
+          })
+          logsByExercise.set(log.exercise_id, existing)
+        })
+        console.log('[loadPreviousLogs] Mapped logs for exercises:', Array.from(logsByExercise.keys()))
+        setPreviousLogs(logsByExercise)
+        return
+      }
+    }
+
+    // APPROACH 2: Fallback - find previous logs by exercise NAME (handles program restructuring)
+    console.log('[loadPreviousLogs] Fallback: searching by exercise name')
+    
+    const exerciseNames = exercises.map(e => e.exercise_name.toLowerCase())
+    
+    // Get recent workout logs (last 60 days)
+    const sixtyDaysAgo = new Date()
+    sixtyDaysAgo.setDate(sixtyDaysAgo.getDate() - 60)
+    
+    const { data: allWorkoutLogs } = await supabase
+      .from('workout_logs')
+      .select('id, completed_at')
+      .eq('client_id', user.id)
+      .gte('completed_at', sixtyDaysAgo.toISOString())
       .order('completed_at', { ascending: false })
     
-    if (!workoutLogs || workoutLogs.length === 0) return
-    
-    const workoutLogIds = workoutLogs.map(wl => wl.id)
-    
-    // Get all set_logs for these workout_logs, joined with workout_exercises to get names
-    const { data: setLogs } = await supabase
+    if (!allWorkoutLogs || allWorkoutLogs.length === 0) {
+      console.log('[loadPreviousLogs] No workout logs found in last 60 days')
+      return
+    }
+
+    // Get all set_logs for these workout logs
+    const workoutLogIds = allWorkoutLogs.map(wl => wl.id)
+    const { data: allSetLogs } = await supabase
       .from('set_logs')
-      .select(`
-        set_number,
-        weight_kg,
-        reps_completed,
-        workout_log_id,
-        exercise_id,
-        swapped_exercise_name,
-        workout_exercises!inner(exercise_name)
-      `)
+      .select('exercise_id, set_number, weight_kg, reps_completed, workout_log_id')
       .in('workout_log_id', workoutLogIds)
-    
-    if (!setLogs) return
-    
-    // Create a map of workout_log_id to completed_at for sorting
-    const logDates = new Map(workoutLogs.map(wl => [wl.id, wl.completed_at]))
-    
+
+    if (!allSetLogs || allSetLogs.length === 0) {
+      console.log('[loadPreviousLogs] No set logs found')
+      return
+    }
+
+    // Get exercise names for these exercise_ids
+    const exerciseIds = [...new Set(allSetLogs.map(sl => sl.exercise_id))]
+    const { data: exerciseData } = await supabase
+      .from('workout_exercises')
+      .select('id, exercise_name')
+      .in('id', exerciseIds)
+
+    const exerciseNameMap = new Map(exerciseData?.map(e => [e.id, e.exercise_name.toLowerCase()]) || [])
+    const logDates = new Map(allWorkoutLogs.map(wl => [wl.id, wl.completed_at]))
+
     // Group by exercise name, keeping most recent for each set_number
-    const mostRecentByExercise = new Map<string, Map<number, PreviousSetLog>>()
+    const mostRecentByName = new Map<string, Map<number, { log: PreviousSetLog; date: string }>>()
     
-    setLogs.forEach(log => {
-      // Get the exercise name (either swapped name or original)
-      const exerciseData = log.workout_exercises as { exercise_name: string }
-      const exerciseName = (log.swapped_exercise_name || exerciseData?.exercise_name || '').toLowerCase()
+    allSetLogs.forEach(log => {
+      const exerciseName = exerciseNameMap.get(log.exercise_id)
+      if (!exerciseName || !exerciseNames.includes(exerciseName)) return
       
-      if (!exerciseNames.includes(exerciseName)) return
-      
-      const setMap = mostRecentByExercise.get(exerciseName) || new Map()
+      const logDate = logDates.get(log.workout_log_id) || ''
+      const setMap = mostRecentByName.get(exerciseName) || new Map()
       const existing = setMap.get(log.set_number)
       
-      // Keep the most recent (compare by workout_log completion date)
-      if (!existing || 
-          (logDates.get(log.workout_log_id) || '') > (logDates.get(existing.exercise_id.split('|')[0]) || '')) {
+      if (!existing || logDate > existing.date) {
         setMap.set(log.set_number, {
-          exercise_id: `${log.workout_log_id}|${log.exercise_id}`, // Temp: include log_id for date comparison
-          set_number: log.set_number,
-          weight_kg: log.weight_kg,
-          reps_completed: log.reps_completed
+          log: {
+            exercise_id: log.exercise_id,
+            set_number: log.set_number,
+            weight_kg: log.weight_kg,
+            reps_completed: log.reps_completed
+          },
+          date: logDate
         })
       }
-      mostRecentByExercise.set(exerciseName, setMap)
+      mostRecentByName.set(exerciseName, setMap)
     })
-    
-    // Now map back to current exercise IDs
+
+    // Map back to current exercise IDs
     const logsByExercise = new Map<string, PreviousSetLog[]>()
     exercises.forEach(exercise => {
       const exerciseName = exercise.exercise_name.toLowerCase()
-      const setMap = mostRecentByExercise.get(exerciseName)
+      const setMap = mostRecentByName.get(exerciseName)
       if (setMap) {
-        const logs = Array.from(setMap.values()).map(log => ({
-          ...log,
-          exercise_id: exercise.id // Map to current exercise ID
+        const logs = Array.from(setMap.values()).map(item => ({
+          ...item.log,
+          exercise_id: exercise.id
         }))
         logsByExercise.set(exercise.id, logs)
       }
     })
-    
+
+    console.log('[loadPreviousLogs] Fallback found logs for:', Array.from(logsByExercise.keys()))
     setPreviousLogs(logsByExercise)
   }
 
@@ -379,16 +427,23 @@ export default function WorkoutClient({ workoutId, exercises, oneRMs, personalBe
     isSavingRef.current = true
     setSaving(true)
     
+    console.log('[saveWorkoutLogs] Starting save for workout:', workoutId)
+    console.log('[saveWorkoutLogs] Logs to save:', Array.from(logsToProcess.values()))
+    
     try {
       const { data: { user } } = await supabase.auth.getUser()
-      if (!user) return
+      if (!user) {
+        console.log('[saveWorkoutLogs] No user found!')
+        return
+      }
+      console.log('[saveWorkoutLogs] User:', user.id)
 
       let logId = workoutLogIdRef.current
 
       // Create or get workout log
       if (!logId) {
         // Use upsert to handle race condition - find existing or create new
-        const { data: existingLog } = await supabase
+        const { data: existingLog, error: existingLogError } = await supabase
           .from('workout_logs')
           .select('id')
           .eq('client_id', user.id)
@@ -398,20 +453,27 @@ export default function WorkoutClient({ workoutId, exercises, oneRMs, personalBe
           .limit(1)
           .single()
 
+        console.log('[saveWorkoutLogs] Existing log check:', existingLog, 'Error:', existingLogError?.message)
+
         if (existingLog) {
           logId = existingLog.id
         } else {
+          const insertData = {
+            client_id: user.id,
+            workout_id: workoutId,
+            completed_at: new Date().toISOString(),
+            scheduled_date: scheduledDate || new Date().toISOString().split('T')[0]
+          }
+          console.log('[saveWorkoutLogs] Creating new workout_log:', insertData)
+          
           const { data: newLog, error: logError } = await supabase
             .from('workout_logs')
-            .insert({
-              client_id: user.id,
-              workout_id: workoutId,
-              completed_at: new Date().toISOString(),
-              scheduled_date: scheduledDate || new Date().toISOString().split('T')[0]
-            })
+            .insert(insertData)
             .select('id')
             .single()
 
+          console.log('[saveWorkoutLogs] Created workout_log:', newLog, 'Error:', logError?.message)
+          
           if (logError) throw logError
           logId = newLog.id
         }
@@ -437,32 +499,47 @@ export default function WorkoutClient({ workoutId, exercises, oneRMs, personalBe
           }
         })
 
+      console.log('[saveWorkoutLogs] Saving set_logs:', logsToSave.length, 'entries')
+      
       if (logsToSave.length > 0) {
+        console.log('[saveWorkoutLogs] Set logs data:', logsToSave)
+        
         // Use upsert instead of delete+insert for atomicity
-        const { error: setError } = await supabase
+        const { data: upsertResult, error: setError } = await supabase
           .from('set_logs')
           .upsert(logsToSave, {
             onConflict: 'workout_log_id,exercise_id,set_number',
             ignoreDuplicates: false
           })
+          .select()
+
+        console.log('[saveWorkoutLogs] Upsert result:', upsertResult, 'Error:', setError?.message)
 
         if (setError) {
           // Fallback to delete+insert if upsert fails (constraint might not exist yet)
-          console.warn('Upsert failed, falling back to delete+insert:', setError)
-          await supabase
+          console.warn('[saveWorkoutLogs] Upsert failed, falling back to delete+insert:', setError)
+          
+          const { error: deleteError } = await supabase
             .from('set_logs')
             .delete()
             .eq('workout_log_id', logId)
           
-          const { error: insertError } = await supabase
+          console.log('[saveWorkoutLogs] Delete result, Error:', deleteError?.message)
+          
+          const { data: insertResult, error: insertError } = await supabase
             .from('set_logs')
             .insert(logsToSave)
+            .select()
+          
+          console.log('[saveWorkoutLogs] Insert result:', insertResult, 'Error:', insertError?.message)
           
           if (insertError) throw insertError
         }
+        
+        console.log('[saveWorkoutLogs] ✅ Save complete!')
       }
     } catch (err) {
-      console.error('Failed to save workout logs:', err)
+      console.error('[saveWorkoutLogs] ❌ Failed to save workout logs:', err)
     } finally {
       isSavingRef.current = false
       setSaving(false)
