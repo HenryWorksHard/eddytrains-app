@@ -611,7 +611,7 @@ export default function ExerciseCard({
                 )}
               </>
             ) : (
-              /* Strength: show sets × reps · intensity · weight */
+              /* Strength: show sets × reps · intensity · weight + previous */
               <>
                 <span className="text-white font-medium">
                   {sets.length} × {sets[0]?.reps || '-'}
@@ -620,14 +620,37 @@ export default function ExerciseCard({
                 <span className="text-yellow-400">
                   {intensitySummary}
                 </span>
-                {calculatedWeight && (
-                  <>
-                    <span className="text-zinc-600">•</span>
-                    <span className="text-green-400 font-medium">
-                      {calculatedWeight}kg
-                    </span>
-                  </>
-                )}
+                {/* Show logged weight (green) or previous weight (gray) or calculated weight */}
+                {(() => {
+                  // Check if any set is logged this session
+                  const loggedWeight = Array.from(localLogs.values()).find(l => l.weight_kg !== null)?.weight_kg
+                  // Get previous session weight
+                  const prevWeight = previousLogs.find(p => p.weight_kg)?.weight_kg
+                  
+                  if (loggedWeight) {
+                    return (
+                      <>
+                        <span className="text-zinc-600">•</span>
+                        <span className="text-green-400 font-medium">{loggedWeight}kg ✓</span>
+                      </>
+                    )
+                  } else if (prevWeight) {
+                    return (
+                      <>
+                        <span className="text-zinc-600">•</span>
+                        <span className="text-zinc-400">Last: {prevWeight}kg</span>
+                      </>
+                    )
+                  } else if (calculatedWeight) {
+                    return (
+                      <>
+                        <span className="text-zinc-600">•</span>
+                        <span className="text-zinc-500">{calculatedWeight}kg</span>
+                      </>
+                    )
+                  }
+                  return null
+                })()}
               </>
             )}
           </div>

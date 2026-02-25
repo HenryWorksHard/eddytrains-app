@@ -201,38 +201,84 @@ export default function WorkoutClient({ workoutId, exercises, oneRMs, personalBe
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) return
 
-    // Get the most recent workout log for this workout
-    const { data: recentLog } = await supabase
+    // Get exercise names from current workout
+    const exerciseNames = exercises.map(e => e.exercise_name.toLowerCase())
+    
+    // Get all previous workout logs for this user (last 30 days for performance)
+    const thirtyDaysAgo = new Date()
+    thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30)
+    
+    const { data: workoutLogs } = await supabase
       .from('workout_logs')
-      .select('id')
+      .select('id, completed_at')
       .eq('client_id', user.id)
-      .eq('workout_id', workoutId)
+      .gte('completed_at', thirtyDaysAgo.toISOString())
       .order('completed_at', { ascending: false })
-      .limit(1)
-      .single()
-
-    if (recentLog) {
-      // Get set logs for this workout log
-      const { data: logs } = await supabase
-        .from('set_logs')
-        .select('exercise_id, set_number, weight_kg, reps_completed')
-        .eq('workout_log_id', recentLog.id)
-
-      if (logs) {
-        const logsByExercise = new Map<string, PreviousSetLog[]>()
-        logs.forEach(log => {
-          const existing = logsByExercise.get(log.exercise_id) || []
-          existing.push({
-            exercise_id: log.exercise_id,
-            set_number: log.set_number,
-            weight_kg: log.weight_kg,
-            reps_completed: log.reps_completed
-          })
-          logsByExercise.set(log.exercise_id, existing)
+    
+    if (!workoutLogs || workoutLogs.length === 0) return
+    
+    const workoutLogIds = workoutLogs.map(wl => wl.id)
+    
+    // Get all set_logs for these workout_logs, joined with workout_exercises to get names
+    const { data: setLogs } = await supabase
+      .from('set_logs')
+      .select(`
+        set_number,
+        weight_kg,
+        reps_completed,
+        workout_log_id,
+        exercise_id,
+        swapped_exercise_name,
+        workout_exercises!inner(exercise_name)
+      `)
+      .in('workout_log_id', workoutLogIds)
+    
+    if (!setLogs) return
+    
+    // Create a map of workout_log_id to completed_at for sorting
+    const logDates = new Map(workoutLogs.map(wl => [wl.id, wl.completed_at]))
+    
+    // Group by exercise name, keeping most recent for each set_number
+    const mostRecentByExercise = new Map<string, Map<number, PreviousSetLog>>()
+    
+    setLogs.forEach(log => {
+      // Get the exercise name (either swapped name or original)
+      const exerciseData = log.workout_exercises as { exercise_name: string }
+      const exerciseName = (log.swapped_exercise_name || exerciseData?.exercise_name || '').toLowerCase()
+      
+      if (!exerciseNames.includes(exerciseName)) return
+      
+      const setMap = mostRecentByExercise.get(exerciseName) || new Map()
+      const existing = setMap.get(log.set_number)
+      
+      // Keep the most recent (compare by workout_log completion date)
+      if (!existing || 
+          (logDates.get(log.workout_log_id) || '') > (logDates.get(existing.exercise_id.split('|')[0]) || '')) {
+        setMap.set(log.set_number, {
+          exercise_id: `${log.workout_log_id}|${log.exercise_id}`, // Temp: include log_id for date comparison
+          set_number: log.set_number,
+          weight_kg: log.weight_kg,
+          reps_completed: log.reps_completed
         })
-        setPreviousLogs(logsByExercise)
       }
-    }
+      mostRecentByExercise.set(exerciseName, setMap)
+    })
+    
+    // Now map back to current exercise IDs
+    const logsByExercise = new Map<string, PreviousSetLog[]>()
+    exercises.forEach(exercise => {
+      const exerciseName = exercise.exercise_name.toLowerCase()
+      const setMap = mostRecentByExercise.get(exerciseName)
+      if (setMap) {
+        const logs = Array.from(setMap.values()).map(log => ({
+          ...log,
+          exercise_id: exercise.id // Map to current exercise ID
+        }))
+        logsByExercise.set(exercise.id, logs)
+      }
+    })
+    
+    setPreviousLogs(logsByExercise)
   }
 
   // Handle log updates from exercise cards
