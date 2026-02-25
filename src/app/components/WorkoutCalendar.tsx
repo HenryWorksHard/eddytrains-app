@@ -200,7 +200,6 @@ export default function WorkoutCalendar({ scheduleByDay, scheduleByWeekAndDay, c
       const dateStr = formatDateLocal(date)
       
       console.log('🔍 [Calendar] Fetching details for workout:', workoutId, 'date:', dateStr)
-alert('Debug: Fetching workout ' + workoutId) // TEMP - will show popup
       
       // Get current user for filtering
       const { data: { user } } = await supabase.auth.getUser()

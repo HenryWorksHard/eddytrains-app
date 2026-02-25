@@ -331,10 +331,12 @@ export default function WorkoutClient({ workoutId, exercises, oneRMs, personalBe
 
   // Handle log updates from exercise cards
   const handleLogUpdate = useCallback((exerciseId: string, setNumber: number, weight: number | null, reps: number | null) => {
+    console.log('📝 [handleLogUpdate] Logging set:', { exerciseId, setNumber, weight, reps })
     const key = `${exerciseId}-${setNumber}`
     setSetLogs(prev => {
       const updated = new Map(prev)
       updated.set(key, { exercise_id: exerciseId, set_number: setNumber, weight_kg: weight, reps_completed: reps })
+      console.log('📝 [handleLogUpdate] Updated setLogs, total entries:', updated.size)
       return updated
     })
   }, [])
@@ -372,6 +374,8 @@ export default function WorkoutClient({ workoutId, exercises, oneRMs, personalBe
   useEffect(() => {
     if (setLogs.size === 0) return
     
+    console.log('💾 [Save Trigger] setLogs changed, scheduling save in 1.5s...', setLogs.size, 'entries')
+    
     // Clear existing timeout
     if (saveTimeoutRef.current) {
       clearTimeout(saveTimeoutRef.current)
@@ -379,6 +383,7 @@ export default function WorkoutClient({ workoutId, exercises, oneRMs, personalBe
     
     // Set new debounced save
     saveTimeoutRef.current = setTimeout(() => {
+      console.log('💾 [Save Trigger] Debounce complete, calling saveWorkoutLogs...')
       saveWorkoutLogs()
     }, 1500)
     
