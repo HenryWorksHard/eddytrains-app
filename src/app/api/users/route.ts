@@ -286,10 +286,22 @@ export async function DELETE(request: NextRequest) {
     await adminClient.from('client_1rm_history').delete().eq('user_id', userId)
     await adminClient.from('client_streaks').delete().eq('user_id', userId)
     await adminClient.from('personal_records').delete().eq('user_id', userId)
+    // Get workout_log IDs first for set_logs deletion (set_logs doesn't have user_id column)
+    const { data: workoutLogs } = await adminClient
+      .from('workout_logs')
+      .select('id')
+      .eq('user_id', userId)
+    
+    const workoutLogIds = workoutLogs?.map(wl => wl.id) || []
+    
+    // Delete set_logs by workout_log_id (not user_id - that column doesn't exist)
+    if (workoutLogIds.length > 0) {
+      await adminClient.from('set_logs').delete().in('workout_log_id', workoutLogIds)
+    }
+    
     await adminClient.from('workout_logs').delete().eq('user_id', userId)
     await adminClient.from('workout_completions').delete().eq('user_id', userId)
     await adminClient.from('progress_images').delete().eq('user_id', userId)
-    await adminClient.from('set_logs').delete().eq('user_id', userId)
     
     console.log('[DELETE user] Related data cleaned up, deleting auth user')
     

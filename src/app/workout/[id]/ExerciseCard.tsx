@@ -316,20 +316,10 @@ export default function ExerciseCard({
     init()
   }, [exerciseName])
 
-  // Initialize from previous logs - merge with existing to avoid losing freshly logged sets
-  useEffect(() => {
-    setLocalLogs(prev => {
-      const newMap = new Map(prev)
-      previousLogs.forEach(log => {
-        // Only update if we don't have a more recent local entry
-        const existing = newMap.get(log.set_number)
-        if (!existing || (existing.weight_kg === null && existing.reps_completed === null)) {
-          newMap.set(log.set_number, log)
-        }
-      })
-      return newMap
-    })
-  }, [previousLogs])
+  // NOTE: We intentionally do NOT copy previousLogs into localLogs
+  // previousLogs is historical data (last session) - for "Last: Xkg" display only
+  // localLogs should only contain data entered in THIS session
+  // This prevents old workout data from showing as "logged" when viewing future dates
 
   const handleWeightChange = (setNumber: number, value: string) => {
     // Allow empty, numbers, and decimal point
