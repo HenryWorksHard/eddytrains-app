@@ -3,6 +3,9 @@ import { redirect, notFound } from 'next/navigation'
 import BottomNav from '../../components/BottomNav'
 import Link from 'next/link'
 
+// Force dynamic rendering - no caching
+export const dynamic = 'force-dynamic'
+
 interface ExerciseSet {
   id: string
   set_number: number
@@ -123,7 +126,7 @@ export default async function ProgramDetailPage({ params }: { params: Promise<{ 
         {exercise.exercise_name}
       </h3>
       {exercise.notes && (
-        <p className="text-zinc-500 text-xs mt-1">{exercise.notes}</p>
+        <p className="text-zinc-400 text-sm mt-2 italic">{exercise.notes}</p>
       )}
       
       {/* Sets */}
@@ -220,7 +223,9 @@ export default async function ProgramDetailPage({ params }: { params: Promise<{ 
                     )}
                   </div>
                   {workout.notes && (
-                    <p className="text-zinc-500 text-sm mt-1">{workout.notes}</p>
+                    <div className="mt-2 p-3 bg-zinc-800/50 rounded-lg border border-zinc-700">
+                      <p className="text-zinc-400 text-sm">{workout.notes}</p>
+                    </div>
                   )}
                 </div>
 
