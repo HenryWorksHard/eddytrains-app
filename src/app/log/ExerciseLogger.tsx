@@ -26,6 +26,12 @@ interface SetLog {
   reps: number | null
 }
 
+interface PreviousLog {
+  setNumber: number
+  weight: number | null
+  reps: number | null
+}
+
 interface ExerciseLoggerProps {
   exercise: Exercise
   index: number
@@ -34,6 +40,7 @@ interface ExerciseLoggerProps {
   getOrCreateWorkoutLog: (workoutId: string, scheduledDate: string) => Promise<string | null>
   existingLogId?: string
   onDataChange?: () => void
+  previousLogs?: PreviousLog[]  // Previous week's logs for reference
 }
 
 export default function ExerciseLogger({
@@ -43,7 +50,8 @@ export default function ExerciseLogger({
   scheduledDate,
   getOrCreateWorkoutLog,
   existingLogId,
-  onDataChange
+  onDataChange,
+  previousLogs = []
 }: ExerciseLoggerProps) {
   const supabase = createClient()
   const [expanded, setExpanded] = useState(false)
@@ -180,58 +188,64 @@ export default function ExerciseLogger({
           {exercise.sets.map((set) => {
             const log = logs.get(set.setNumber)
             const isLogged = log?.weight !== null || log?.reps !== null
+            const prevLog = previousLogs.find(p => p.setNumber === set.setNumber)
             
             return (
-              <div 
-                key={set.setNumber}
-                className={`flex items-center gap-2 p-2 rounded-lg ${
-                  isLogged ? 'bg-green-500/10' : 'bg-zinc-800'
-                }`}
-              >
-                {/* Set number */}
-                <span className={`w-6 h-6 rounded flex items-center justify-center text-xs font-bold ${
-                  isLogged ? 'bg-green-500/20 text-green-400' : 'bg-zinc-700 text-zinc-400'
-                }`}>
-                  {set.setNumber}
-                </span>
+              <div key={set.setNumber} className="space-y-1">
+                <div 
+                  className={`flex items-center gap-2 p-2 rounded-lg ${
+                    isLogged ? 'bg-green-500/10' : 'bg-zinc-800'
+                  }`}
+                >
+                  {/* Set number */}
+                  <span className={`w-6 h-6 rounded flex items-center justify-center text-xs font-bold ${
+                    isLogged ? 'bg-green-500/20 text-green-400' : 'bg-zinc-700 text-zinc-400'
+                  }`}>
+                    {set.setNumber}
+                  </span>
 
-                {/* Target info */}
-                <span className="text-zinc-500 text-xs flex-shrink-0">
-                  {set.reps} @ {formatIntensity(set.intensityType, set.intensityValue)}
-                </span>
+                  {/* Target info */}
+                  <span className="text-zinc-500 text-xs flex-shrink-0">
+                    {set.reps} @ {formatIntensity(set.intensityType, set.intensityValue)}
+                  </span>
 
-                <div className="flex-1" />
+                  <div className="flex-1" />
 
-                {/* Weight input */}
-                <div className="flex items-center gap-1">
+                  {/* Weight input */}
+                  <div className="flex items-center gap-1">
+                    <input
+                      type="number"
+                      inputMode="decimal"
+                      placeholder={prevLog?.weight?.toString() || '0'}
+                      value={log?.weight ?? ''}
+                      onChange={(e) => {
+                        const weight = e.target.value === '' ? null : parseFloat(e.target.value)
+                        saveSet(set.setNumber, weight, log?.reps ?? null)
+                      }}
+                      className="w-14 px-2 py-1.5 bg-zinc-900 border border-zinc-700 rounded text-white text-sm text-center focus:outline-none focus:ring-1 focus:ring-yellow-400"
+                    />
+                    <span className="text-zinc-500 text-xs">kg</span>
+                  </div>
+
+                  <span className="text-zinc-600">×</span>
+
+                  {/* Reps input */}
                   <input
                     type="number"
-                    inputMode="decimal"
-                    placeholder="0"
-                    value={log?.weight ?? ''}
+                    inputMode="numeric"
+                    placeholder={prevLog?.reps?.toString() || '0'}
+                    value={log?.reps ?? ''}
                     onChange={(e) => {
-                      const weight = e.target.value === '' ? null : parseFloat(e.target.value)
-                      saveSet(set.setNumber, weight, log?.reps ?? null)
+                      const reps = e.target.value === '' ? null : parseInt(e.target.value)
+                      saveSet(set.setNumber, log?.weight ?? null, reps)
                     }}
-                    className="w-14 px-2 py-1.5 bg-zinc-900 border border-zinc-700 rounded text-white text-sm text-center focus:outline-none focus:ring-1 focus:ring-yellow-400"
+                    className="w-12 px-2 py-1.5 bg-zinc-900 border border-zinc-700 rounded text-white text-sm text-center focus:outline-none focus:ring-1 focus:ring-yellow-400"
                   />
-                  <span className="text-zinc-500 text-xs">kg</span>
                 </div>
-
-                <span className="text-zinc-600">×</span>
-
-                {/* Reps input */}
-                <input
-                  type="number"
-                  inputMode="numeric"
-                  placeholder="0"
-                  value={log?.reps ?? ''}
-                  onChange={(e) => {
-                    const reps = e.target.value === '' ? null : parseInt(e.target.value)
-                    saveSet(set.setNumber, log?.weight ?? null, reps)
-                  }}
-                  className="w-12 px-2 py-1.5 bg-zinc-900 border border-zinc-700 rounded text-white text-sm text-center focus:outline-none focus:ring-1 focus:ring-yellow-400"
-                />
+                {/* Show previous week's weight as reference */}
+                {prevLog?.weight && !isLogged && (
+                  <p className="text-zinc-500 text-[10px] text-right pr-2">Last: {prevLog.weight}kg × {prevLog.reps || '?'}</p>
+                )}
               </div>
             )
           })}

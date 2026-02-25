@@ -91,6 +91,8 @@ export default function LogClient({ scheduleByDay }: LogClientProps) {
   const [workoutLogIds, setWorkoutLogIds] = useState<Record<string, string>>({})
   const [saving, setSaving] = useState(false)
   const [workoutsWithChanges, setWorkoutsWithChanges] = useState<Record<string, boolean>>({})
+  // Previous week's logs for each workout+exercise: { workoutId: { exerciseId: [{setNumber, weight, reps}] } }
+  const [previousLogs, setPreviousLogs] = useState<Record<string, Record<string, {setNumber: number; weight: number | null; reps: number | null}[]>>>({}))
   
   // Check if selected date is today
   const isToday = formatDate(selectedDate) === formatDate(new Date())
@@ -136,6 +138,79 @@ export default function LogClient({ scheduleByDay }: LogClientProps) {
       logIds[l.workout_id] = l.id
     })
     setWorkoutLogIds(logIds)
+    
+    // Fetch previous week's logs for reference
+    await fetchPreviousLogs(user.id)
+  }
+  
+  // Fetch previous logs for each workout (from previous weeks)
+  const fetchPreviousLogs = async (userId: string) => {
+    // Get all workout IDs we need to look up
+    const workoutIds = workouts.map(w => w.workoutId)
+    if (workoutIds.length === 0) return
+    
+    // Find the most recent workout_log for each workout_id (excluding today)
+    const { data: prevLogs } = await supabase
+      .from('workout_logs')
+      .select('id, workout_id, scheduled_date')
+      .eq('client_id', userId)
+      .in('workout_id', workoutIds)
+      .lt('scheduled_date', dateStr) // Before current date
+      .order('scheduled_date', { ascending: false })
+    
+    if (!prevLogs || prevLogs.length === 0) {
+      setPreviousLogs({})
+      return
+    }
+    
+    // Get most recent log per workout
+    const mostRecentPerWorkout = new Map<string, string>()
+    prevLogs.forEach(log => {
+      if (!mostRecentPerWorkout.has(log.workout_id)) {
+        mostRecentPerWorkout.set(log.workout_id, log.id)
+      }
+    })
+    
+    // Fetch set_logs for these workout_logs
+    const workoutLogIds = Array.from(mostRecentPerWorkout.values())
+    const { data: setLogs } = await supabase
+      .from('set_logs')
+      .select('workout_log_id, exercise_id, set_number, weight_kg, reps_completed')
+      .in('workout_log_id', workoutLogIds)
+    
+    if (!setLogs) {
+      setPreviousLogs({})
+      return
+    }
+    
+    // Build the structure: { workoutId: { exerciseId: [logs] } }
+    const logsByWorkoutAndExercise: Record<string, Record<string, {setNumber: number; weight: number | null; reps: number | null}[]>> = {}
+    
+    // First, map workout_log_id back to workout_id
+    const logIdToWorkoutId = new Map<string, string>()
+    mostRecentPerWorkout.forEach((logId, workoutId) => {
+      logIdToWorkoutId.set(logId, workoutId)
+    })
+    
+    setLogs.forEach(log => {
+      const workoutId = logIdToWorkoutId.get(log.workout_log_id)
+      if (!workoutId) return
+      
+      if (!logsByWorkoutAndExercise[workoutId]) {
+        logsByWorkoutAndExercise[workoutId] = {}
+      }
+      if (!logsByWorkoutAndExercise[workoutId][log.exercise_id]) {
+        logsByWorkoutAndExercise[workoutId][log.exercise_id] = []
+      }
+      
+      logsByWorkoutAndExercise[workoutId][log.exercise_id].push({
+        setNumber: log.set_number,
+        weight: log.weight_kg,
+        reps: log.reps_completed
+      })
+    })
+    
+    setPreviousLogs(logsByWorkoutAndExercise)
   }
 
   // Navigation - update URL when date changes
@@ -378,6 +453,7 @@ export default function LogClient({ scheduleByDay }: LogClientProps) {
                         getOrCreateWorkoutLog={getOrCreateWorkoutLog}
                         existingLogId={workoutLogIds[workout.workoutId]}
                         onDataChange={() => setWorkoutsWithChanges(prev => ({ ...prev, [workout.workoutId]: true }))}
+                        previousLogs={previousLogs[workout.workoutId]?.[exercise.id] || []}
                       />
                     ))}
                   </div>
