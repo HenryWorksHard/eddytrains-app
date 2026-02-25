@@ -102,22 +102,14 @@ export default function TrainerDetailPage() {
         if (company) setCompanyName(company.name)
       }
 
-      // Fetch trainer's clients
-      const { data: clientsData } = await supabase
-        .from('profiles')
-        .select('id, full_name, is_active, created_at, status')
-        .eq('trainer_id', trainerId)
-        .eq('role', 'client')
-        .order('created_at', { ascending: false })
-
-      if (clientsData) {
-        // Get emails for clients
-        const clientsResponse = await fetch(`/api/admin/users?trainerFilter=${trainerId}`)
-        const clientsWithEmail = await clientsResponse.json()
-        
+      // Fetch trainer's clients via API (bypasses RLS)
+      const clientsResponse = await fetch(`/api/admin/users?trainerFilter=${trainerId}`)
+      const clientsData = await clientsResponse.json()
+      
+      if (clientsData.users && clientsData.users.length > 0) {
         // Get active programs for each client
         const clientsWithPrograms = await Promise.all(
-          (clientsWithEmail.users || clientsData).map(async (client: Client) => {
+          clientsData.users.map(async (client: Client) => {
             const { data: activeProgram } = await supabase
               .from('client_programs')
               .select('programs(name)')
@@ -135,6 +127,8 @@ export default function TrainerDetailPage() {
         )
         
         setClients(clientsWithPrograms)
+      } else {
+        setClients([])
       }
     } catch (error) {
       console.error('Error fetching trainer data:', error)
