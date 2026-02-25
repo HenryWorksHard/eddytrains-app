@@ -2016,9 +2016,9 @@ export default function UserProfilePage() {
                     cp.is_active ? 'bg-yellow-400/5 border-yellow-400/20' : 'bg-zinc-800/30 border-zinc-800'
                   }`}
                 >
-                  {/* Clickable area - links to program */}
+                  {/* Clickable area - links to program edit (trainers edit programs) */}
                   <Link 
-                    href={`/programs/${cp.program_id}`}
+                    href={`/programs/${cp.program_id}/edit`}
                     className="flex items-center gap-4 flex-1 min-w-0 hover:opacity-80 transition-opacity"
                   >
                     <div className={`w-12 h-12 rounded-xl flex items-center justify-center ${getCategoryColor(cp.program?.category)}`}>
