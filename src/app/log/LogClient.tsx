@@ -180,10 +180,10 @@ export default function LogClient({ scheduleByDay }: LogClientProps) {
     }
 
     if (!logs || logs.length === 0) {
-      // No historical logs for this date - fall back to schedule template
-      setHistoricalWorkouts(null)
+      // No historical logs for this date - show empty (NOT current schedule)
+      setHistoricalWorkouts([])  // Empty array, not null
       setLoadingHistory(false)
-      return null
+      return []
     }
 
     // Transform to WorkoutSchedule format
@@ -556,13 +556,20 @@ export default function LogClient({ scheduleByDay }: LogClientProps) {
             <p className="text-zinc-500">Loading workout history...</p>
           </div>
         ) : workouts.length === 0 ? (
-          // Rest day
+          // No workouts - either rest day (today) or no logged workout (past)
           <div className="flex flex-col items-center justify-center py-16">
             <div className="w-20 h-20 bg-zinc-800 rounded-full flex items-center justify-center mb-4">
-              <span className="text-4xl">😴</span>
+              <span className="text-4xl">{isToday ? '😴' : '📭'}</span>
             </div>
-            <h2 className="text-xl font-bold text-white mb-2">Rest Day</h2>
-            <p className="text-zinc-500 text-center">No workout scheduled for {getDayName(selectedDate)}</p>
+            <h2 className="text-xl font-bold text-white mb-2">
+              {isToday ? 'Rest Day' : 'No Workout Logged'}
+            </h2>
+            <p className="text-zinc-500 text-center">
+              {isToday 
+                ? `No workout scheduled for ${getDayName(selectedDate)}`
+                : `No workout was logged on ${getDayName(selectedDate)}`
+              }
+            </p>
             <p className="text-zinc-600 text-sm mt-4">Swipe to view other days</p>
           </div>
         ) : (

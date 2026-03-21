@@ -252,49 +252,73 @@ export default function WorkoutClient({ workoutId, exercises, oneRMs, personalBe
 
     // Get the scheduled date to EXCLUDE from previous logs
     const viewingDateStr = scheduledDate || new Date().toISOString().split('T')[0]
+    const viewingDateStart = new Date(viewingDateStr + 'T00:00:00')
 
     const logsByExercise = new Map<string, PreviousSetLog[]>()
 
-    // Find the most recent completed session of THIS SAME WORKOUT before the viewing date
-    // Query workout_logs by client_id (fallback) OR user_id on set_logs (new data)
-    const { data: recentWorkoutLog } = await supabase
-      .from('workout_logs')
-      .select('id')
-      .eq('client_id', user.id)
-      .eq('workout_id', workoutId)
-      .lt('scheduled_date', viewingDateStr)
-      .order('scheduled_date', { ascending: false })
-      .limit(1)
-      .single()
+    // Get exercise UUIDs for cross-workout lookup
+    const exerciseUuids = exercises
+      .map(e => e.exercise_uuid)
+      .filter((uuid): uuid is string => !!uuid)
 
-    if (!recentWorkoutLog) {
-      console.log('[loadPreviousLogs] No previous session found for this workout')
+    if (exerciseUuids.length === 0) {
+      console.log('[loadPreviousLogs] No exercise UUIDs found')
       setPreviousLogs(logsByExercise)
       return
     }
 
-    console.log('[loadPreviousLogs] Found previous session:', recentWorkoutLog.id)
+    console.log('[loadPreviousLogs] Querying by exercise_uuid:', exerciseUuids.length, 'exercises')
 
-    // Get all set_logs from that previous session
-    const exerciseIds = exercises.map(e => e.id)
-    const { data: prevSetLogs } = await supabase
+    // Query most recent logs for each exercise_uuid (across ANY workout)
+    const { data: prevSetLogs, error } = await supabase
       .from('set_logs')
-      .select('exercise_id, set_number, weight_kg, reps_completed')
-      .eq('workout_log_id', recentWorkoutLog.id)
-      .in('exercise_id', exerciseIds)
+      .select('exercise_uuid, set_number, weight_kg, reps_completed, created_at')
+      .eq('user_id', user.id)
+      .in('exercise_uuid', exerciseUuids)
+      .lt('created_at', viewingDateStart.toISOString())
+      .not('weight_kg', 'is', null)
+      .order('created_at', { ascending: false })
+
+    if (error) {
+      console.error('[loadPreviousLogs] Query error:', error.message)
+      setPreviousLogs(logsByExercise)
+      return
+    }
+
+    console.log('[loadPreviousLogs] Found', prevSetLogs?.length || 0, 'previous logs')
 
     if (prevSetLogs && prevSetLogs.length > 0) {
-      console.log('[loadPreviousLogs] Found', prevSetLogs.length, 'previous sets')
+      // Group by exercise_uuid, keep most recent per set_number
+      const mostRecentByUuid = new Map<string, Map<number, PreviousSetLog>>()
       
       prevSetLogs.forEach(log => {
-        const existing = logsByExercise.get(log.exercise_id) || []
-        existing.push({
-          exercise_id: log.exercise_id,
-          set_number: log.set_number,
-          weight_kg: log.weight_kg,
-          reps_completed: log.reps_completed
-        })
-        logsByExercise.set(log.exercise_id, existing)
+        if (!log.exercise_uuid) return
+        
+        const setMap = mostRecentByUuid.get(log.exercise_uuid) || new Map()
+        // Only keep the first (most recent due to ordering)
+        if (!setMap.has(log.set_number)) {
+          setMap.set(log.set_number, {
+            exercise_id: '', // Will be mapped below
+            set_number: log.set_number,
+            weight_kg: log.weight_kg,
+            reps_completed: log.reps_completed
+          })
+        }
+        mostRecentByUuid.set(log.exercise_uuid, setMap)
+      })
+
+      // Map back to current exercise IDs
+      exercises.forEach(exercise => {
+        if (exercise.exercise_uuid) {
+          const setMap = mostRecentByUuid.get(exercise.exercise_uuid)
+          if (setMap) {
+            const logs = Array.from(setMap.values()).map(log => ({
+              ...log,
+              exercise_id: exercise.id
+            }))
+            logsByExercise.set(exercise.id, logs)
+          }
+        }
       })
     }
 
