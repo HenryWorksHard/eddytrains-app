@@ -20,7 +20,8 @@ export async function POST(request: NextRequest) {
       scheduledDate,
       notes, 
       rating,
-      sets 
+      sets,
+      exercises // Array of { id, exercise_name } for exercise_uuid lookup
     } = body
     
     if (!clientId || !workoutId) {
@@ -49,11 +50,24 @@ export async function POST(request: NextRequest) {
       throw logError
     }
 
-    // Create set logs
+    // Create set logs with user_id and exercise_uuid for proper history lookup
     if (sets && sets.length > 0 && workoutLog) {
+      // Get exercise_uuid for each exercise_id from workout_exercises
+      const exerciseIds = [...new Set(sets.map((s: any) => s.exercise_id))]
+      const { data: exerciseData } = await adminClient
+        .from('workout_exercises')
+        .select('id, exercise_uuid')
+        .in('id', exerciseIds)
+      
+      const exerciseUuidMap = new Map(
+        exerciseData?.map(e => [e.id, e.exercise_uuid]) || []
+      )
+
       const setLogsToInsert = sets.map((set: any) => ({
         workout_log_id: workoutLog.id,
         exercise_id: set.exercise_id,
+        exercise_uuid: exerciseUuidMap.get(set.exercise_id) || null,
+        user_id: clientId, // Save under client's profile for history lookup
         set_number: set.set_number,
         weight_kg: set.weight_kg || null,
         reps_completed: set.reps_completed || null
