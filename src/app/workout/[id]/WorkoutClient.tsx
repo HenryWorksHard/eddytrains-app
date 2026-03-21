@@ -251,9 +251,10 @@ export default function WorkoutClient({ workoutId, exercises, oneRMs, personalBe
     console.log('[loadPreviousLogs] Loading for workout:', workoutId)
     console.log('[loadPreviousLogs] Exercises:', exercises.map(e => ({ id: e.id, name: e.exercise_name, uuid: e.exercise_uuid })))
 
-    // Get today's date to EXCLUDE from previous logs
-    const todayStart = new Date()
-    todayStart.setHours(0, 0, 0, 0)
+    // Get the scheduled date to EXCLUDE from previous logs (not actual today)
+    // This ensures when viewing March 14, we show logs BEFORE March 14 as "previous"
+    const viewingDateStr = scheduledDate || new Date().toISOString().split('T')[0]
+    const viewingDateStart = new Date(viewingDateStr + 'T00:00:00')
 
     // Get exercise UUIDs for cross-workout lookup
     const exerciseUuids = exercises
@@ -271,7 +272,7 @@ export default function WorkoutClient({ workoutId, exercises, oneRMs, personalBe
         .select('exercise_uuid, set_number, weight_kg, reps_completed, created_at')
         .eq('user_id', user.id)
         .in('exercise_uuid', exerciseUuids)
-        .lt('created_at', todayStart.toISOString())
+        .lt('created_at', viewingDateStart.toISOString())
         .not('weight_kg', 'is', null)
         .order('created_at', { ascending: false })
 
@@ -326,7 +327,7 @@ export default function WorkoutClient({ workoutId, exercises, oneRMs, personalBe
         .select('id')
         .eq('client_id', user.id)
         .eq('workout_id', workoutId)
-        .lt('completed_at', todayStart.toISOString())
+        .lt('completed_at', viewingDateStart.toISOString())
         .order('completed_at', { ascending: false })
         .limit(1)
         .single()

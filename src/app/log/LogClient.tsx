@@ -93,6 +93,9 @@ export default function LogClient({ scheduleByDay }: LogClientProps) {
   const [workoutsWithChanges, setWorkoutsWithChanges] = useState<Record<string, boolean>>({})
   // Previous week's logs for each workout+exercise: { workoutId: { exerciseId: [{setNumber, weight, reps}] } }
   const [previousLogs, setPreviousLogs] = useState<Record<string, Record<string, {setNumber: number; weight: number | null; reps: number | null}[]>>>({})
+  // Historical workouts loaded from workout_logs for past dates
+  const [historicalWorkouts, setHistoricalWorkouts] = useState<WorkoutSchedule[] | null>(null)
+  const [loadingHistory, setLoadingHistory] = useState(false)
   
   // Check if selected date is today
   const isToday = formatDate(selectedDate) === formatDate(new Date())
@@ -101,13 +104,120 @@ export default function LogClient({ scheduleByDay }: LogClientProps) {
 
   // Get workouts for selected date
   const dayOfWeek = selectedDate.getDay()
-  const workouts = scheduleByDay[dayOfWeek] || []
   const dateStr = formatDate(selectedDate)
+  
+  // For today: use current schedule. For past dates: use historical data if available
+  const workouts = historicalWorkouts ?? scheduleByDay[dayOfWeek] ?? []
 
   // Fetch completion status and existing logs for selected date
   useEffect(() => {
     fetchCompletionStatus()
-  }, [dateStr])
+    // For past dates, try to load historical workout data
+    if (!isToday) {
+      loadHistoricalWorkouts()
+    } else {
+      setHistoricalWorkouts(null) // Use current schedule for today
+    }
+  }, [dateStr, isToday])
+  
+  // Load historical workout data from workout_logs for past dates
+  const loadHistoricalWorkouts = async () => {
+    setLoadingHistory(true)
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) {
+      setLoadingHistory(false)
+      return
+    }
+
+    // Get workout_logs for this specific date with workout details
+    const { data: logs, error } = await supabase
+      .from('workout_logs')
+      .select(`
+        id,
+        workout_id,
+        program_workouts:workout_id (
+          id,
+          name,
+          programs:program_id (
+            name,
+            category
+          ),
+          workout_exercises (
+            id,
+            exercise_name,
+            order_index,
+            notes,
+            superset_group,
+            exercise_sets (
+              set_number,
+              reps,
+              intensity_type,
+              intensity_value
+            )
+          )
+        )
+      `)
+      .eq('client_id', user.id)
+      .eq('scheduled_date', dateStr)
+
+    if (error) {
+      console.error('[loadHistoricalWorkouts] Error:', error)
+      setHistoricalWorkouts(null)
+      setLoadingHistory(false)
+      return
+    }
+
+    if (!logs || logs.length === 0) {
+      // No historical logs for this date - fall back to schedule template
+      setHistoricalWorkouts(null)
+      setLoadingHistory(false)
+      return
+    }
+
+    // Transform to WorkoutSchedule format
+    const historical: WorkoutSchedule[] = []
+    const seenWorkoutIds = new Set<string>()
+    
+    for (const log of logs) {
+      // Skip duplicates (multiple logs for same workout on same day)
+      if (seenWorkoutIds.has(log.workout_id)) continue
+      seenWorkoutIds.add(log.workout_id)
+      
+      const workout = log.program_workouts as any
+      if (!workout) continue
+      
+      const program = workout.programs
+      const exercises = (workout.workout_exercises || [])
+        .sort((a: any, b: any) => a.order_index - b.order_index)
+        .map((ex: any) => ({
+          id: ex.id,
+          name: ex.exercise_name,
+          orderIndex: ex.order_index,
+          notes: ex.notes,
+          supersetGroup: ex.superset_group,
+          sets: (ex.exercise_sets || [])
+            .sort((a: any, b: any) => a.set_number - b.set_number)
+            .map((s: any) => ({
+              setNumber: s.set_number,
+              reps: s.reps,
+              intensityType: s.intensity_type,
+              intensityValue: s.intensity_value
+            }))
+        }))
+
+      historical.push({
+        workoutId: workout.id,
+        workoutName: workout.name,
+        programName: program?.name || 'Unknown Program',
+        programCategory: program?.category || 'strength',
+        clientProgramId: '', // Not needed for historical view
+        exercises
+      })
+    }
+
+    setHistoricalWorkouts(historical.length > 0 ? historical : null)
+    setLoadingHistory(false)
+  }
 
   const fetchCompletionStatus = async () => {
     const { data: { user } } = await supabase.auth.getUser()
@@ -143,19 +253,20 @@ export default function LogClient({ scheduleByDay }: LogClientProps) {
     await fetchPreviousLogs(user.id)
   }
   
-  // Fetch previous logs for each workout (from previous weeks)
+  // Fetch previous logs for each workout (from the week BEFORE the selected date)
   const fetchPreviousLogs = async (userId: string) => {
     // Get all workout IDs we need to look up
     const workoutIds = workouts.map(w => w.workoutId)
     if (workoutIds.length === 0) return
     
-    // Find the most recent workout_log for each workout_id (excluding today)
+    // Find the most recent workout_log for each workout_id BEFORE the selected date
+    // This means: if viewing March 14, look for logs before March 14 (e.g. March 7)
     const { data: prevLogs } = await supabase
       .from('workout_logs')
       .select('id, workout_id, scheduled_date')
       .eq('client_id', userId)
       .in('workout_id', workoutIds)
-      .lt('scheduled_date', dateStr) // Before current date
+      .lt('scheduled_date', dateStr) // Before selected date
       .order('scheduled_date', { ascending: false })
     
     if (!prevLogs || prevLogs.length === 0) {
@@ -219,6 +330,8 @@ export default function LogClient({ scheduleByDay }: LogClientProps) {
     setWorkoutsWithChanges({}) // Reset changes when navigating to new date
     setWorkoutLogIds({}) // Reset log IDs to force fresh fetch
     setCompletedWorkouts({}) // Reset completions
+    setHistoricalWorkouts(null) // Reset historical data to trigger fresh load
+    setPreviousLogs({}) // Reset previous logs
     const dateStr = formatDate(date)
     router.replace(`/log?date=${dateStr}`, { scroll: false })
   }
@@ -397,7 +510,13 @@ export default function LogClient({ scheduleByDay }: LogClientProps) {
 
       {/* Content */}
       <main className="px-4 py-4 pb-24">
-        {workouts.length === 0 ? (
+        {loadingHistory ? (
+          // Loading historical data
+          <div className="flex flex-col items-center justify-center py-16">
+            <div className="w-8 h-8 border-2 border-yellow-400 border-t-transparent rounded-full animate-spin mb-4" />
+            <p className="text-zinc-500">Loading workout history...</p>
+          </div>
+        ) : workouts.length === 0 ? (
           // Rest day
           <div className="flex flex-col items-center justify-center py-16">
             <div className="w-20 h-20 bg-zinc-800 rounded-full flex items-center justify-center mb-4">
