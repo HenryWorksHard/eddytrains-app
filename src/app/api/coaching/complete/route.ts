@@ -82,12 +82,13 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // Create workout completion record
+    // Create workout completion record (include workout_log_id for lookup)
     const { error: completionError } = await adminClient
       .from('workout_completions')
       .insert({
         client_id: clientId,
         workout_id: workoutId,
+        workout_log_id: workoutLog.id,
         client_program_id: clientProgramId || null,
         scheduled_date: scheduledDate || completedAt?.split('T')[0] || new Date().toISOString().split('T')[0],
         completed_at: completedAt || new Date().toISOString()
