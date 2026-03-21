@@ -20,6 +20,7 @@ interface Exercise {
   notes?: string
   supersetGroup?: string
   sets: ExerciseSet[]
+  exercise_uuid?: string  // Global exercise ID for cross-workout tracking
 }
 
 interface WorkoutSchedule {
@@ -96,6 +97,8 @@ export default function LogClient({ scheduleByDay }: LogClientProps) {
   // Historical workouts loaded from workout_logs for past dates
   const [historicalWorkouts, setHistoricalWorkouts] = useState<WorkoutSchedule[] | null>(null)
   const [loadingHistory, setLoadingHistory] = useState(false)
+  // Track which exercises have all sets logged: { workoutId: { exerciseId: true/false } }
+  const [exerciseCompletionStatus, setExerciseCompletionStatus] = useState<Record<string, Record<string, boolean>>>({})
   
   // Check if selected date is today
   const isToday = formatDate(selectedDate) === formatDate(new Date())
@@ -153,6 +156,7 @@ export default function LogClient({ scheduleByDay }: LogClientProps) {
           workout_exercises (
             id,
             exercise_name,
+            exercise_uuid,
             order_index,
             notes,
             superset_group,
@@ -200,6 +204,7 @@ export default function LogClient({ scheduleByDay }: LogClientProps) {
         .map((ex: any) => ({
           id: ex.id,
           name: ex.exercise_name,
+          exercise_uuid: ex.exercise_uuid,  // Global exercise ID
           orderIndex: ex.order_index,
           notes: ex.notes,
           supersetGroup: ex.superset_group,
@@ -365,6 +370,26 @@ export default function LogClient({ scheduleByDay }: LogClientProps) {
   const goToToday = () => {
     navigateToDate(new Date())
   }
+
+  // Auto-complete workout when all exercises have all sets logged
+  useEffect(() => {
+    for (const workout of workouts) {
+      // Skip if already completed
+      if (completedWorkouts[workout.workoutId]) continue
+      
+      // Check if all exercises in this workout are fully logged
+      const exerciseStatuses = exerciseCompletionStatus[workout.workoutId]
+      if (!exerciseStatuses) continue
+      
+      const allExercisesComplete = workout.exercises.length > 0 && 
+        workout.exercises.every(ex => exerciseStatuses[ex.id] === true)
+      
+      if (allExercisesComplete) {
+        console.log('[Auto-complete] All sets logged for workout:', workout.workoutId)
+        completeWorkout(workout.workoutId, workout.clientProgramId)
+      }
+    }
+  }, [exerciseCompletionStatus, workouts, completedWorkouts])
 
   // Complete workout
   const completeWorkout = async (workoutId: string, clientProgramId: string) => {
@@ -586,6 +611,15 @@ export default function LogClient({ scheduleByDay }: LogClientProps) {
                         getOrCreateWorkoutLog={getOrCreateWorkoutLog}
                         existingLogId={workoutLogIds[workout.workoutId]}
                         onDataChange={() => setWorkoutsWithChanges(prev => ({ ...prev, [workout.workoutId]: true }))}
+                        onAllSetsLogged={(exerciseId, allLogged) => {
+                          setExerciseCompletionStatus(prev => ({
+                            ...prev,
+                            [workout.workoutId]: {
+                              ...prev[workout.workoutId],
+                              [exerciseId]: allLogged
+                            }
+                          }))
+                        }}
                         previousLogs={previousLogs[workout.workoutId]?.[exercise.id] || []}
                       />
                     ))}

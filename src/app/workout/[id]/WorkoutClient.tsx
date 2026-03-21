@@ -249,114 +249,56 @@ export default function WorkoutClient({ workoutId, exercises, oneRMs, personalBe
     if (!user) return
 
     console.log('[loadPreviousLogs] Loading for workout:', workoutId)
-    console.log('[loadPreviousLogs] Exercises:', exercises.map(e => ({ id: e.id, name: e.exercise_name, uuid: e.exercise_uuid })))
 
-    // Get the scheduled date to EXCLUDE from previous logs (not actual today)
-    // This ensures when viewing March 14, we show logs BEFORE March 14 as "previous"
+    // Get the scheduled date to EXCLUDE from previous logs
     const viewingDateStr = scheduledDate || new Date().toISOString().split('T')[0]
-    const viewingDateStart = new Date(viewingDateStr + 'T00:00:00')
-
-    // Get exercise UUIDs for cross-workout lookup
-    const exerciseUuids = exercises
-      .map(e => e.exercise_uuid)
-      .filter((uuid): uuid is string => !!uuid)
 
     const logsByExercise = new Map<string, PreviousSetLog[]>()
 
-    // PRIMARY: Query by exercise_uuid (works across ALL workouts with same exercise)
-    if (exerciseUuids.length > 0) {
-      console.log('[loadPreviousLogs] Querying by exercise_uuid:', exerciseUuids.length, 'exercises')
-      
-      const { data: prevSetLogs, error: prevError } = await supabase
-        .from('set_logs')
-        .select('exercise_uuid, set_number, weight_kg, reps_completed, created_at')
-        .eq('user_id', user.id)
-        .in('exercise_uuid', exerciseUuids)
-        .lt('created_at', viewingDateStart.toISOString())
-        .not('weight_kg', 'is', null)
-        .order('created_at', { ascending: false })
+    // Find the most recent completed session of THIS SAME WORKOUT before the viewing date
+    // Query workout_logs by client_id (fallback) OR user_id on set_logs (new data)
+    const { data: recentWorkoutLog } = await supabase
+      .from('workout_logs')
+      .select('id')
+      .eq('client_id', user.id)
+      .eq('workout_id', workoutId)
+      .lt('scheduled_date', viewingDateStr)
+      .order('scheduled_date', { ascending: false })
+      .limit(1)
+      .single()
 
-      console.log('[loadPreviousLogs] Found', prevSetLogs?.length || 0, 'previous logs by UUID. Error:', prevError?.message)
-
-      if (prevSetLogs && prevSetLogs.length > 0) {
-        // Group by exercise_uuid, keep most recent per set_number
-        const mostRecentByUuid = new Map<string, Map<number, PreviousSetLog>>()
-        
-        prevSetLogs.forEach(log => {
-          if (!log.exercise_uuid) return
-          
-          const setMap = mostRecentByUuid.get(log.exercise_uuid) || new Map()
-          // Only keep the first (most recent due to ordering)
-          if (!setMap.has(log.set_number)) {
-            setMap.set(log.set_number, {
-              exercise_id: '', // Will be mapped to current exercise.id below
-              set_number: log.set_number,
-              weight_kg: log.weight_kg,
-              reps_completed: log.reps_completed
-            })
-          }
-          mostRecentByUuid.set(log.exercise_uuid, setMap)
-        })
-
-        // Map back to current exercise IDs
-        exercises.forEach(exercise => {
-          if (exercise.exercise_uuid) {
-            const setMap = mostRecentByUuid.get(exercise.exercise_uuid)
-            if (setMap) {
-              const logs = Array.from(setMap.values()).map(log => ({
-                ...log,
-                exercise_id: exercise.id
-              }))
-              logsByExercise.set(exercise.id, logs)
-            }
-          }
-        })
-
-        console.log('[loadPreviousLogs] Mapped previous logs for', logsByExercise.size, 'exercises')
-      }
+    if (!recentWorkoutLog) {
+      console.log('[loadPreviousLogs] No previous session found for this workout')
+      setPreviousLogs(logsByExercise)
+      return
     }
 
-    // FALLBACK: For exercises without UUID, try same workout's previous session
-    const exercisesWithoutLogs = exercises.filter(e => !logsByExercise.has(e.id))
-    
-    if (exercisesWithoutLogs.length > 0) {
-      console.log('[loadPreviousLogs] Fallback for', exercisesWithoutLogs.length, 'exercises without UUID matches')
+    console.log('[loadPreviousLogs] Found previous session:', recentWorkoutLog.id)
+
+    // Get all set_logs from that previous session
+    const exerciseIds = exercises.map(e => e.id)
+    const { data: prevSetLogs } = await supabase
+      .from('set_logs')
+      .select('exercise_id, set_number, weight_kg, reps_completed')
+      .eq('workout_log_id', recentWorkoutLog.id)
+      .in('exercise_id', exerciseIds)
+
+    if (prevSetLogs && prevSetLogs.length > 0) {
+      console.log('[loadPreviousLogs] Found', prevSetLogs.length, 'previous sets')
       
-      const { data: recentWorkoutLog } = await supabase
-        .from('workout_logs')
-        .select('id')
-        .eq('client_id', user.id)
-        .eq('workout_id', workoutId)
-        .lt('completed_at', viewingDateStart.toISOString())
-        .order('completed_at', { ascending: false })
-        .limit(1)
-        .single()
-
-      if (recentWorkoutLog) {
-        const exerciseIdsToFind = exercisesWithoutLogs.map(e => e.id)
-        
-        const { data: fallbackLogs } = await supabase
-          .from('set_logs')
-          .select('exercise_id, set_number, weight_kg, reps_completed')
-          .eq('workout_log_id', recentWorkoutLog.id)
-          .in('exercise_id', exerciseIdsToFind)
-
-        if (fallbackLogs) {
-          fallbackLogs.forEach(log => {
-            const existing = logsByExercise.get(log.exercise_id) || []
-            existing.push({
-              exercise_id: log.exercise_id,
-              set_number: log.set_number,
-              weight_kg: log.weight_kg,
-              reps_completed: log.reps_completed
-            })
-            logsByExercise.set(log.exercise_id, existing)
-          })
-        }
-      }
+      prevSetLogs.forEach(log => {
+        const existing = logsByExercise.get(log.exercise_id) || []
+        existing.push({
+          exercise_id: log.exercise_id,
+          set_number: log.set_number,
+          weight_kg: log.weight_kg,
+          reps_completed: log.reps_completed
+        })
+        logsByExercise.set(log.exercise_id, existing)
+      })
     }
 
-    console.log('[loadPreviousLogs] Final: found logs for', logsByExercise.size, 'exercises')
+    console.log('[loadPreviousLogs] Loaded previous logs for', logsByExercise.size, 'exercises')
     setPreviousLogs(logsByExercise)
   }
 
@@ -530,6 +472,7 @@ export default function WorkoutClient({ workoutId, exercises, oneRMs, personalBe
             workout_log_id: logId,
             exercise_id: log.exercise_id,
             exercise_uuid: exercise?.exercise_uuid || null,
+            user_id: user.id,  // For access control and queries
             set_number: log.set_number,
             weight_kg: log.weight_kg,
             reps_completed: log.reps_completed,

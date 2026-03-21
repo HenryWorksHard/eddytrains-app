@@ -555,7 +555,12 @@ export default function WorkoutCalendar({ scheduleByDay, scheduleByWeekAndDay, c
                           <div className="flex gap-2 mt-3">
                             {/* View/Start Workout button */}
                             <Link
-                              href={`/workout/${workout.workoutId}?clientProgramId=${workout.clientProgramId}${isPast ? `&scheduledDate=${formatDateLocal(selectedDate)}` : ''}`}
+                              href={
+                                // Past/completed workouts go to log page, today/future go to workout page
+                                (isPast || workoutCompleted) 
+                                  ? `/log?date=${formatDateLocal(selectedDate)}`
+                                  : `/workout/${workout.workoutId}?clientProgramId=${workout.clientProgramId}`
+                              }
                               onClick={() => {
                                 if (!workout.workoutId) {
                                   console.error('Missing workoutId:', workout)

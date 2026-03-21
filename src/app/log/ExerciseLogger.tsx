@@ -18,6 +18,7 @@ interface Exercise {
   notes?: string
   supersetGroup?: string
   sets: ExerciseSet[]
+  exercise_uuid?: string  // Global exercise ID for cross-workout tracking
 }
 
 interface SetLog {
@@ -40,6 +41,7 @@ interface ExerciseLoggerProps {
   getOrCreateWorkoutLog: (workoutId: string, scheduledDate: string) => Promise<string | null>
   existingLogId?: string
   onDataChange?: () => void
+  onAllSetsLogged?: (exerciseId: string, allLogged: boolean) => void  // Notify parent when all sets logged
   previousLogs?: PreviousLog[]  // Previous week's logs for reference
 }
 
@@ -51,6 +53,7 @@ export default function ExerciseLogger({
   getOrCreateWorkoutLog,
   existingLogId,
   onDataChange,
+  onAllSetsLogged,
   previousLogs = []
 }: ExerciseLoggerProps) {
   const supabase = createClient()
@@ -95,6 +98,11 @@ export default function ExerciseLogger({
   const totalSets = exercise.sets.length
   const allLogged = loggedCount === totalSets && totalSets > 0
 
+  // Notify parent when completion state changes
+  useEffect(() => {
+    onAllSetsLogged?.(exercise.id, allLogged)
+  }, [allLogged, exercise.id, onAllSetsLogged])
+
   // Format intensity display
   const formatIntensity = (type: string, value: string) => {
     switch (type) {
@@ -122,6 +130,13 @@ export default function ExerciseLogger({
     // Save to database with explicit scheduledDate
     setSaving(true)
     try {
+      // Get user for user_id
+      const { data: { user } } = await supabase.auth.getUser()
+      if (!user) {
+        setSaving(false)
+        return
+      }
+
       const workoutLogId = await getOrCreateWorkoutLog(workoutId, scheduledDate)
       if (!workoutLogId) {
         setSaving(false)
@@ -133,6 +148,8 @@ export default function ExerciseLogger({
         .upsert({
           workout_log_id: workoutLogId,
           exercise_id: exercise.id,
+          exercise_uuid: exercise.exercise_uuid || null,  // Global exercise ID
+          user_id: user.id,  // For access control and queries
           set_number: setNumber,
           weight_kg: weight,
           reps_completed: reps
@@ -143,7 +160,7 @@ export default function ExerciseLogger({
       console.error('Failed to save set:', err)
     }
     setSaving(false)
-  }, [workoutId, exercise.id, scheduledDate, getOrCreateWorkoutLog])
+  }, [workoutId, exercise.id, exercise.exercise_uuid, scheduledDate, getOrCreateWorkoutLog])
 
   return (
     <div className={`bg-zinc-800/50 rounded-xl overflow-hidden ${allLogged ? 'ring-1 ring-green-500/30' : ''}`}>

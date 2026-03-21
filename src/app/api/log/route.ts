@@ -27,6 +27,7 @@ export async function GET() {
           workout_exercises (
             id,
             exercise_name,
+            exercise_uuid,
             order_index,
             notes,
             superset_group,
@@ -64,6 +65,7 @@ export async function GET() {
               .map((ex: any) => ({
                 id: ex.id,
                 name: ex.exercise_name,
+                exercise_uuid: ex.exercise_uuid,  // Global exercise ID
                 orderIndex: ex.order_index,
                 notes: ex.notes,
                 supersetGroup: ex.superset_group,
