@@ -111,22 +111,30 @@ export default function LogClient({ scheduleByDay }: LogClientProps) {
 
   // Fetch completion status and existing logs for selected date
   useEffect(() => {
-    fetchCompletionStatus()
-    // For past dates, try to load historical workout data
-    if (!isToday) {
-      loadHistoricalWorkouts()
-    } else {
-      setHistoricalWorkouts(null) // Use current schedule for today
+    const loadData = async () => {
+      let activeWorkouts: WorkoutSchedule[] | null = null
+      
+      // For past dates, load historical workout data FIRST
+      if (!isToday) {
+        activeWorkouts = await loadHistoricalWorkouts()
+      } else {
+        setHistoricalWorkouts(null)
+        activeWorkouts = scheduleByDay[dayOfWeek] || []
+      }
+      
+      // Pass the active workouts to fetchCompletionStatus so it uses correct IDs
+      await fetchCompletionStatus(activeWorkouts)
     }
+    loadData()
   }, [dateStr, isToday])
   
   // Load historical workout data from workout_logs for past dates
-  const loadHistoricalWorkouts = async () => {
+  const loadHistoricalWorkouts = async (): Promise<WorkoutSchedule[] | null> => {
     setLoadingHistory(true)
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) {
       setLoadingHistory(false)
-      return
+      return null
     }
 
     // Get workout_logs for this specific date with workout details
@@ -164,14 +172,14 @@ export default function LogClient({ scheduleByDay }: LogClientProps) {
       console.error('[loadHistoricalWorkouts] Error:', error)
       setHistoricalWorkouts(null)
       setLoadingHistory(false)
-      return
+      return null
     }
 
     if (!logs || logs.length === 0) {
       // No historical logs for this date - fall back to schedule template
       setHistoricalWorkouts(null)
       setLoadingHistory(false)
-      return
+      return null
     }
 
     // Transform to WorkoutSchedule format
@@ -217,9 +225,13 @@ export default function LogClient({ scheduleByDay }: LogClientProps) {
 
     setHistoricalWorkouts(historical.length > 0 ? historical : null)
     setLoadingHistory(false)
+    
+    // Return the historical workouts so caller can use them immediately
+    // (state updates are async, so we can't rely on `workouts` being updated yet)
+    return historical.length > 0 ? historical : null
   }
 
-  const fetchCompletionStatus = async () => {
+  const fetchCompletionStatus = async (activeWorkouts?: WorkoutSchedule[] | null) => {
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) return
 
@@ -250,13 +262,15 @@ export default function LogClient({ scheduleByDay }: LogClientProps) {
     setWorkoutLogIds(logIds)
     
     // Fetch previous week's logs for reference
-    await fetchPreviousLogs(user.id)
+    // Use activeWorkouts if provided (for correct workout IDs when viewing past dates)
+    await fetchPreviousLogs(user.id, activeWorkouts)
   }
   
   // Fetch previous logs for each workout (from the week BEFORE the selected date)
-  const fetchPreviousLogs = async (userId: string) => {
-    // Get all workout IDs we need to look up
-    const workoutIds = workouts.map(w => w.workoutId)
+  const fetchPreviousLogs = async (userId: string, activeWorkouts?: WorkoutSchedule[] | null) => {
+    // Use passed workouts if available (handles async state timing issues)
+    const workoutsToUse = activeWorkouts ?? workouts
+    const workoutIds = workoutsToUse.map(w => w.workoutId)
     if (workoutIds.length === 0) return
     
     // Find the most recent workout_log for each workout_id BEFORE the selected date
