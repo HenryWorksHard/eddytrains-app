@@ -33,6 +33,7 @@ interface WorkoutExercise {
   id: string
   exercise_id: string
   exercise_name: string
+  exercise_uuid?: string  // Links to exercises table for cross-workout history
   order_index: number
   notes?: string
   superset_group?: string

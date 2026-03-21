@@ -27,6 +27,7 @@ interface ExerciseSet {
 interface WorkoutExercise {
   id: string
   exercise_name: string
+  exercise_uuid?: string  // Links to exercises table for cross-workout history
   order_index: number
   notes?: string
   superset_group?: string
@@ -248,136 +249,113 @@ export default function WorkoutClient({ workoutId, exercises, oneRMs, personalBe
     if (!user) return
 
     console.log('[loadPreviousLogs] Loading for workout:', workoutId)
-    console.log('[loadPreviousLogs] Exercises:', exercises.map(e => ({ id: e.id, name: e.exercise_name })))
+    console.log('[loadPreviousLogs] Exercises:', exercises.map(e => ({ id: e.id, name: e.exercise_name, uuid: e.exercise_uuid })))
 
     // Get today's date to EXCLUDE from previous logs
     const todayStart = new Date()
     todayStart.setHours(0, 0, 0, 0)
 
-    // APPROACH 1: Try to find previous logs for THIS EXACT workout (BEFORE today)
-    const { data: recentWorkoutLog, error: workoutLogError } = await supabase
-      .from('workout_logs')
-      .select('id, completed_at')
-      .eq('client_id', user.id)
-      .eq('workout_id', workoutId)
-      .lt('completed_at', todayStart.toISOString())  // EXCLUDE today
-      .order('completed_at', { ascending: false })
-      .limit(1)
-      .single()
+    // Get exercise UUIDs for cross-workout lookup
+    const exerciseUuids = exercises
+      .map(e => e.exercise_uuid)
+      .filter((uuid): uuid is string => !!uuid)
 
-    console.log('[loadPreviousLogs] Recent workout log (before today):', recentWorkoutLog, 'Error:', workoutLogError?.message)
-
-    if (recentWorkoutLog) {
-      // Get set logs for this workout log - match by exercise_id (same workout structure)
-      const { data: setLogs, error: setLogsError } = await supabase
-        .from('set_logs')
-        .select('exercise_id, set_number, weight_kg, reps_completed')
-        .eq('workout_log_id', recentWorkoutLog.id)
-
-      console.log('[loadPreviousLogs] Set logs found:', setLogs?.length || 0, 'Error:', setLogsError?.message)
-
-      if (setLogs && setLogs.length > 0) {
-        const logsByExercise = new Map<string, PreviousSetLog[]>()
-        setLogs.forEach(log => {
-          const existing = logsByExercise.get(log.exercise_id) || []
-          existing.push({
-            exercise_id: log.exercise_id,
-            set_number: log.set_number,
-            weight_kg: log.weight_kg,
-            reps_completed: log.reps_completed
-          })
-          logsByExercise.set(log.exercise_id, existing)
-        })
-        console.log('[loadPreviousLogs] Mapped logs for exercises:', Array.from(logsByExercise.keys()))
-        setPreviousLogs(logsByExercise)
-        return
-      }
-    }
-
-    // APPROACH 2: Fallback - find previous logs by exercise NAME (handles program restructuring)
-    console.log('[loadPreviousLogs] Fallback: searching by exercise name')
-    
-    const exerciseNames = exercises.map(e => e.exercise_name.toLowerCase())
-    
-    // Get recent workout logs (last 60 days, EXCLUDING today)
-    const sixtyDaysAgo = new Date()
-    sixtyDaysAgo.setDate(sixtyDaysAgo.getDate() - 60)
-    
-    const { data: allWorkoutLogs } = await supabase
-      .from('workout_logs')
-      .select('id, completed_at')
-      .eq('client_id', user.id)
-      .gte('completed_at', sixtyDaysAgo.toISOString())
-      .lt('completed_at', todayStart.toISOString())  // EXCLUDE today
-      .order('completed_at', { ascending: false })
-    
-    if (!allWorkoutLogs || allWorkoutLogs.length === 0) {
-      console.log('[loadPreviousLogs] No workout logs found in last 60 days')
-      return
-    }
-
-    // Get all set_logs for these workout logs
-    const workoutLogIds = allWorkoutLogs.map(wl => wl.id)
-    const { data: allSetLogs } = await supabase
-      .from('set_logs')
-      .select('exercise_id, set_number, weight_kg, reps_completed, workout_log_id')
-      .in('workout_log_id', workoutLogIds)
-
-    if (!allSetLogs || allSetLogs.length === 0) {
-      console.log('[loadPreviousLogs] No set logs found')
-      return
-    }
-
-    // Get exercise names for these exercise_ids
-    const exerciseIds = [...new Set(allSetLogs.map(sl => sl.exercise_id))]
-    const { data: exerciseData } = await supabase
-      .from('workout_exercises')
-      .select('id, exercise_name')
-      .in('id', exerciseIds)
-
-    const exerciseNameMap = new Map(exerciseData?.map(e => [e.id, e.exercise_name.toLowerCase()]) || [])
-    const logDates = new Map(allWorkoutLogs.map(wl => [wl.id, wl.completed_at]))
-
-    // Group by exercise name, keeping most recent for each set_number
-    const mostRecentByName = new Map<string, Map<number, { log: PreviousSetLog; date: string }>>()
-    
-    allSetLogs.forEach(log => {
-      const exerciseName = exerciseNameMap.get(log.exercise_id)
-      if (!exerciseName || !exerciseNames.includes(exerciseName)) return
-      
-      const logDate = logDates.get(log.workout_log_id) || ''
-      const setMap = mostRecentByName.get(exerciseName) || new Map()
-      const existing = setMap.get(log.set_number)
-      
-      if (!existing || logDate > existing.date) {
-        setMap.set(log.set_number, {
-          log: {
-            exercise_id: log.exercise_id,
-            set_number: log.set_number,
-            weight_kg: log.weight_kg,
-            reps_completed: log.reps_completed
-          },
-          date: logDate
-        })
-      }
-      mostRecentByName.set(exerciseName, setMap)
-    })
-
-    // Map back to current exercise IDs
     const logsByExercise = new Map<string, PreviousSetLog[]>()
-    exercises.forEach(exercise => {
-      const exerciseName = exercise.exercise_name.toLowerCase()
-      const setMap = mostRecentByName.get(exerciseName)
-      if (setMap) {
-        const logs = Array.from(setMap.values()).map(item => ({
-          ...item.log,
-          exercise_id: exercise.id
-        }))
-        logsByExercise.set(exercise.id, logs)
-      }
-    })
 
-    console.log('[loadPreviousLogs] Fallback found logs for:', Array.from(logsByExercise.keys()))
+    // PRIMARY: Query by exercise_uuid (works across ALL workouts with same exercise)
+    if (exerciseUuids.length > 0) {
+      console.log('[loadPreviousLogs] Querying by exercise_uuid:', exerciseUuids.length, 'exercises')
+      
+      const { data: prevSetLogs, error: prevError } = await supabase
+        .from('set_logs')
+        .select('exercise_uuid, set_number, weight_kg, reps_completed, created_at')
+        .eq('user_id', user.id)
+        .in('exercise_uuid', exerciseUuids)
+        .lt('created_at', todayStart.toISOString())
+        .not('weight_kg', 'is', null)
+        .order('created_at', { ascending: false })
+
+      console.log('[loadPreviousLogs] Found', prevSetLogs?.length || 0, 'previous logs by UUID. Error:', prevError?.message)
+
+      if (prevSetLogs && prevSetLogs.length > 0) {
+        // Group by exercise_uuid, keep most recent per set_number
+        const mostRecentByUuid = new Map<string, Map<number, PreviousSetLog>>()
+        
+        prevSetLogs.forEach(log => {
+          if (!log.exercise_uuid) return
+          
+          const setMap = mostRecentByUuid.get(log.exercise_uuid) || new Map()
+          // Only keep the first (most recent due to ordering)
+          if (!setMap.has(log.set_number)) {
+            setMap.set(log.set_number, {
+              exercise_id: '', // Will be mapped to current exercise.id below
+              set_number: log.set_number,
+              weight_kg: log.weight_kg,
+              reps_completed: log.reps_completed
+            })
+          }
+          mostRecentByUuid.set(log.exercise_uuid, setMap)
+        })
+
+        // Map back to current exercise IDs
+        exercises.forEach(exercise => {
+          if (exercise.exercise_uuid) {
+            const setMap = mostRecentByUuid.get(exercise.exercise_uuid)
+            if (setMap) {
+              const logs = Array.from(setMap.values()).map(log => ({
+                ...log,
+                exercise_id: exercise.id
+              }))
+              logsByExercise.set(exercise.id, logs)
+            }
+          }
+        })
+
+        console.log('[loadPreviousLogs] Mapped previous logs for', logsByExercise.size, 'exercises')
+      }
+    }
+
+    // FALLBACK: For exercises without UUID, try same workout's previous session
+    const exercisesWithoutLogs = exercises.filter(e => !logsByExercise.has(e.id))
+    
+    if (exercisesWithoutLogs.length > 0) {
+      console.log('[loadPreviousLogs] Fallback for', exercisesWithoutLogs.length, 'exercises without UUID matches')
+      
+      const { data: recentWorkoutLog } = await supabase
+        .from('workout_logs')
+        .select('id')
+        .eq('client_id', user.id)
+        .eq('workout_id', workoutId)
+        .lt('completed_at', todayStart.toISOString())
+        .order('completed_at', { ascending: false })
+        .limit(1)
+        .single()
+
+      if (recentWorkoutLog) {
+        const exerciseIdsToFind = exercisesWithoutLogs.map(e => e.id)
+        
+        const { data: fallbackLogs } = await supabase
+          .from('set_logs')
+          .select('exercise_id, set_number, weight_kg, reps_completed')
+          .eq('workout_log_id', recentWorkoutLog.id)
+          .in('exercise_id', exerciseIdsToFind)
+
+        if (fallbackLogs) {
+          fallbackLogs.forEach(log => {
+            const existing = logsByExercise.get(log.exercise_id) || []
+            existing.push({
+              exercise_id: log.exercise_id,
+              set_number: log.set_number,
+              weight_kg: log.weight_kg,
+              reps_completed: log.reps_completed
+            })
+            logsByExercise.set(log.exercise_id, existing)
+          })
+        }
+      }
+    }
+
+    console.log('[loadPreviousLogs] Final: found logs for', logsByExercise.size, 'exercises')
     setPreviousLogs(logsByExercise)
   }
 
@@ -545,9 +523,12 @@ export default function WorkoutClient({ workoutId, exercises, oneRMs, personalBe
         .map(log => {
           // Check if this exercise was swapped
           const swapped = swappedExercisesRef.current.get(log.exercise_id)
+          // Get exercise_uuid for cross-workout history lookup
+          const exercise = exercises.find(e => e.id === log.exercise_id)
           return {
             workout_log_id: logId,
             exercise_id: log.exercise_id,
+            exercise_uuid: exercise?.exercise_uuid || null,
             set_number: log.set_number,
             weight_kg: log.weight_kg,
             reps_completed: log.reps_completed,

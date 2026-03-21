@@ -92,7 +92,7 @@ export default function LogClient({ scheduleByDay }: LogClientProps) {
   const [saving, setSaving] = useState(false)
   const [workoutsWithChanges, setWorkoutsWithChanges] = useState<Record<string, boolean>>({})
   // Previous week's logs for each workout+exercise: { workoutId: { exerciseId: [{setNumber, weight, reps}] } }
-  const [previousLogs, setPreviousLogs] = useState<Record<string, Record<string, {setNumber: number; weight: number | null; reps: number | null}[]>>>({}))
+  const [previousLogs, setPreviousLogs] = useState<Record<string, Record<string, {setNumber: number; weight: number | null; reps: number | null}[]>>>({})
   
   // Check if selected date is today
   const isToday = formatDate(selectedDate) === formatDate(new Date())
