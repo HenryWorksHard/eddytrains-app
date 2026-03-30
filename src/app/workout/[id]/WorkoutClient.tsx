@@ -367,22 +367,23 @@ export default function WorkoutClient({ workoutId, exercises, oneRMs, personalBe
     swappedExercisesRef.current = new Map(swappedExercises)
   }, [swappedExercises])
 
-  // Trigger save whenever setLogs changes
+  // Save IMMEDIATELY on each set change (no debounce - critical for phone lock/background)
+  // Use a short delay just to batch rapid changes (e.g., user adjusting weight picker)
   useEffect(() => {
     if (setLogs.size === 0) return
     
-    console.log('💾 [Save Trigger] setLogs changed, scheduling save in 1.5s...', setLogs.size, 'entries')
+    console.log('💾 [Save Trigger] setLogs changed, saving in 500ms...', setLogs.size, 'entries')
     
     // Clear existing timeout
     if (saveTimeoutRef.current) {
       clearTimeout(saveTimeoutRef.current)
     }
     
-    // Set new debounced save
+    // Short delay to batch rapid wheel picker changes, but save quickly
     saveTimeoutRef.current = setTimeout(() => {
-      console.log('💾 [Save Trigger] Debounce complete, calling saveWorkoutLogs...')
+      console.log('💾 [Save Trigger] Saving now...')
       saveWorkoutLogs()
-    }, 1500)
+    }, 500)
     
     return () => {
       if (saveTimeoutRef.current) {
@@ -391,28 +392,55 @@ export default function WorkoutClient({ workoutId, exercises, oneRMs, personalBe
     }
   }, [setLogs])
   
-  // CRITICAL: Force save when leaving page (unmount or navigation)
+  // CRITICAL: Save when page visibility changes (phone lock, app background, tab switch)
   useEffect(() => {
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'hidden' && pendingLogsRef.current.size > 0) {
+        console.log('💾 [Visibility] Page hidden, forcing save...')
+        // Clear debounce and save immediately
+        if (saveTimeoutRef.current) {
+          clearTimeout(saveTimeoutRef.current)
+        }
+        saveWorkoutLogs()
+      }
+    }
+    
     const handleBeforeUnload = (e: BeforeUnloadEvent) => {
       if (pendingLogsRef.current.size > 0 && !isSavingRef.current) {
-        // Try to save synchronously before page unloads
         saveWorkoutLogs()
-        // Show browser warning
         e.preventDefault()
         e.returnValue = ''
       }
     }
     
-    window.addEventListener('beforeunload', handleBeforeUnload)
-    
-    // Cleanup: force save on unmount (navigation within app)
-    return () => {
-      window.removeEventListener('beforeunload', handleBeforeUnload)
-      // Clear any pending debounce and save immediately
+    // Handle "Update Workout" button click from CompleteWorkoutButton
+    const handleForceSave = () => {
+      console.log('💾 [ForceSave] Update Workout clicked, saving...')
       if (saveTimeoutRef.current) {
         clearTimeout(saveTimeoutRef.current)
       }
-      // Force immediate save if there's pending data
+      saveWorkoutLogs()
+    }
+    
+    // Handle phone lock, app switch, tab switch
+    document.addEventListener('visibilitychange', handleVisibilityChange)
+    window.addEventListener('beforeunload', handleBeforeUnload)
+    window.addEventListener('forceSaveWorkout', handleForceSave)
+    // iOS-specific: pagehide fires more reliably than beforeunload
+    window.addEventListener('pagehide', () => {
+      if (pendingLogsRef.current.size > 0) {
+        saveWorkoutLogs()
+      }
+    })
+    
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibilityChange)
+      window.removeEventListener('beforeunload', handleBeforeUnload)
+      window.removeEventListener('forceSaveWorkout', handleForceSave)
+      // Force save on unmount
+      if (saveTimeoutRef.current) {
+        clearTimeout(saveTimeoutRef.current)
+      }
       if (pendingLogsRef.current.size > 0 && !isSavingRef.current) {
         saveWorkoutLogs()
       }

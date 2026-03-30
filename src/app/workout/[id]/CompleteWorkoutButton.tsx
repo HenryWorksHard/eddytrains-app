@@ -270,15 +270,35 @@ export default function CompleteWorkoutButton({
     submitWorkoutCompletion()
   }
 
-  if (isCompleted) {
+  // For already-completed workouts, show "Update Workout" button
+  if (isCompleted && !showRatingModal) {
     return (
       <div className="fixed bottom-20 left-4 right-4 z-40">
-        <div className="bg-green-500 text-white py-4 px-6 rounded-2xl text-center font-semibold flex items-center justify-center gap-2">
-          <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+        <button
+          onClick={async () => {
+            // Trigger a save by dispatching a custom event that WorkoutClient listens to
+            window.dispatchEvent(new CustomEvent('forceSaveWorkout'))
+            // Show brief feedback
+            const btn = document.getElementById('update-workout-btn')
+            if (btn) {
+              btn.textContent = 'Saved!'
+              btn.classList.remove('bg-zinc-700')
+              btn.classList.add('bg-green-500')
+              setTimeout(() => {
+                btn.textContent = 'Update Workout'
+                btn.classList.remove('bg-green-500')
+                btn.classList.add('bg-zinc-700')
+              }, 1500)
+            }
+          }}
+          id="update-workout-btn"
+          className="w-full bg-zinc-700 hover:bg-zinc-600 text-white py-4 px-6 rounded-2xl font-semibold transition-colors flex items-center justify-center gap-2"
+        >
+          <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
           </svg>
-          Workout Complete!
-        </div>
+          Update Workout
+        </button>
       </div>
     )
   }
