@@ -57,16 +57,17 @@ export async function GET() {
     
     supabase
       .from('workout_completions')
-      .select('workout_id, client_program_id')
+      .select('workout_id, client_program_id, completed_at')
       .eq('client_id', user.id)
-      .eq('scheduled_date', todayStr),
+      .gte('completed_at', `${todayStr}T00:00:00`)
+      .lte('completed_at', `${todayStr}T23:59:59`),
     
     supabase
       .from('workout_completions')
-      .select('workout_id, client_program_id, scheduled_date')
+      .select('workout_id, client_program_id, completed_at')
       .eq('client_id', user.id)
-      .gte('scheduled_date', monthStart)
-      .lte('scheduled_date', monthEnd),
+      .gte('completed_at', `${monthStart}T00:00:00`)
+      .lte('completed_at', `${monthEnd}T23:59:59`),
     
     supabase
       .from('client_programs')
@@ -162,12 +163,16 @@ export async function GET() {
   })
   const completedWorkoutsArray = Array.from(completedWorkoutIds)
 
-  // Build calendar completions map
+  // Build calendar completions map - use completed_at date (when they actually trained)
   const calendarCompletions: Record<string, boolean> = {}
   monthCompletions?.forEach(c => {
-    calendarCompletions[`${c.scheduled_date}:${c.workout_id}:${c.client_program_id}`] = true
-    calendarCompletions[`${c.scheduled_date}:${c.workout_id}`] = true
-    calendarCompletions[`${c.scheduled_date}:any`] = true
+    // Extract date from completed_at timestamp
+    const completedDate = c.completed_at ? c.completed_at.split('T')[0] : null
+    if (completedDate) {
+      calendarCompletions[`${completedDate}:${c.workout_id}:${c.client_program_id}`] = true
+      calendarCompletions[`${completedDate}:${c.workout_id}`] = true
+      calendarCompletions[`${completedDate}:any`] = true
+    }
   })
 
   // Schedule by day for calendar (with week info)

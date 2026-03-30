@@ -65,13 +65,13 @@ export async function GET(request: NextRequest) {
         startDateStr = formatDate(defaultStart)
     }
 
-    // Use scheduled_date (local date)
+    // Use completed_at (actual training date)
     const { data: workoutLogs } = await supabase
       .from('workout_logs')
       .select('id, completed_at, scheduled_date')
       .eq('client_id', user.id)
-      .gte('scheduled_date', startDateStr)
-      .order('scheduled_date', { ascending: true })
+      .gte('completed_at', `${startDateStr}T00:00:00`)
+      .order('completed_at', { ascending: true })
 
     if (!workoutLogs || workoutLogs.length === 0) {
       return NextResponse.json({ progression: [] })
@@ -112,7 +112,8 @@ export async function GET(request: NextRequest) {
       const workoutLog = workoutLogMap.get(log.workout_log_id)
       if (!workoutLog) return
 
-      const dateStr = workoutLog.scheduled_date || workoutLog.completed_at.split('T')[0]
+      // Use completed_at (actual training date) for progression tracking
+      const dateStr = workoutLog.completed_at ? workoutLog.completed_at.split('T')[0] : workoutLog.scheduled_date
       const existing = sessionWeights.get(dateStr)
       
       if (!existing || log.weight_kg > existing.maxWeight) {

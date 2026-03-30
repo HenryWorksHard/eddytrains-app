@@ -553,14 +553,9 @@ export default function WorkoutCalendar({ scheduleByDay, scheduleByWeekAndDay, c
                           
                           {/* Action Buttons */}
                           <div className="flex gap-2 mt-3">
-                            {/* View/Start Workout button */}
+                            {/* View/Start Workout button - always go to workout page with scheduledDate */}
                             <Link
-                              href={
-                                // Past/completed workouts go to log page, today/future go to workout page
-                                (isPast || workoutCompleted) 
-                                  ? `/log?date=${formatDateLocal(selectedDate)}`
-                                  : `/workout/${workout.workoutId}?clientProgramId=${workout.clientProgramId}`
-                              }
+                              href={`/workout/${workout.workoutId}?clientProgramId=${workout.clientProgramId}&scheduledDate=${formatDateLocal(selectedDate)}`}
                               onClick={() => {
                                 if (!workout.workoutId) {
                                   console.error('Missing workoutId:', workout)
@@ -570,19 +565,8 @@ export default function WorkoutCalendar({ scheduleByDay, scheduleByWeekAndDay, c
                               }}
                               className="flex-1 text-center py-2 bg-zinc-800 hover:bg-zinc-700 text-white text-xs font-medium rounded-lg transition-colors"
                             >
-                              {workoutCompleted ? 'View Workout' : isPast ? 'View Workout' : 'Start Workout'}
+                              {workoutCompleted ? 'View Workout' : 'Start Workout'}
                             </Link>
-                            
-                            {/* Log Workout button for missed days */}
-                            {isPast && !workoutCompleted && (
-                              <Link
-                                href={`/log?date=${formatDateLocal(selectedDate)}&workoutId=${workout.workoutId}&clientProgramId=${workout.clientProgramId}`}
-                                onClick={() => setSelectedDate(null)}
-                                className="flex-1 text-center py-2 bg-red-500/20 hover:bg-red-500/30 text-red-400 text-xs font-medium rounded-lg transition-colors"
-                              >
-                                Log Workout
-                              </Link>
-                            )}
                             
                             {/* View Log button for completed */}
                             {workoutCompleted && (

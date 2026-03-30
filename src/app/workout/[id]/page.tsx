@@ -418,11 +418,11 @@ export default async function WorkoutDetailPage({
         {exercises.length > 0 && <div id="workout-end-sentinel" className="h-1" />}
       </main>
 
-      {(exercises.length > 0 || workout.notes) && workout.day_of_week === new Date().getDay() && (
+      {(exercises.length > 0 || workout.notes) && (
         <CompleteWorkoutButton 
           workoutId={workoutId}
           clientProgramId={clientProgramId}
-          scheduledDate={scheduledDate}
+          scheduledDate={scheduledDate || today}
           isCompleted={isCompletedToday}
         />
       )}

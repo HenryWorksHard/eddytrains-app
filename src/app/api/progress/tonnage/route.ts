@@ -57,13 +57,13 @@ export async function GET(request: NextRequest) {
     }
 
     // Query workout_logs with date filter directly in SQL for accuracy
-    // Use scheduled_date for filtering (primary date field)
+    // Use completed_at for filtering (actual training date, not scheduled date)
     const { data: filteredLogs, error: logsError } = await supabase
       .from('workout_logs')
-      .select('id, scheduled_date')
+      .select('id, completed_at')
       .eq('client_id', user.id)
-      .gte('scheduled_date', startDateStr)
-      .lte('scheduled_date', endDateStr)
+      .gte('completed_at', `${startDateStr}T00:00:00`)
+      .lte('completed_at', `${endDateStr}T23:59:59`)
 
     if (logsError) {
       console.error('Workout logs query error:', logsError)
