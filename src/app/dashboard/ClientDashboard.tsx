@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation'
 import useSWR from 'swr'
 import BottomNav from '../components/BottomNav'
 import ClientDashboardContent from './ClientDashboardContent'
+import { formatDateToString } from '../lib/dateUtils'
 
 const fetcher = (url: string) => fetch(url).then(res => {
   if (!res.ok) throw new Error('Failed to fetch')
@@ -13,8 +14,13 @@ const fetcher = (url: string) => fetch(url).then(res => {
 
 export default function ClientDashboard() {
   const router = useRouter()
-  
-  const { data, error, isLoading } = useSWR('/api/dashboard', fetcher, {
+
+  // Pass the client's local "today" so the server anchors the calendar
+  // window and "today's completions" to the user's timezone, not Vercel's.
+  const today = formatDateToString(new Date())
+  const dashboardUrl = `/api/dashboard?today=${today}`
+
+  const { data, error, isLoading } = useSWR(dashboardUrl, fetcher, {
     revalidateOnFocus: false,
     revalidateOnReconnect: false,
     dedupingInterval: 30000,
@@ -22,13 +28,13 @@ export default function ClientDashboard() {
 
   useEffect(() => {
     if (error?.message === 'Failed to fetch') {
-      fetch('/api/dashboard').then(res => {
+      fetch(dashboardUrl).then(res => {
         if (res.status === 401) {
           router.push('/login')
         }
       })
     }
-  }, [error, router])
+  }, [error, router, dashboardUrl])
 
   if (isLoading || !data) {
     return (

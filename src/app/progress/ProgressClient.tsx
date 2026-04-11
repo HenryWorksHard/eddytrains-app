@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react'
 import Image from 'next/image'
 import Link from 'next/link'
 import { Flame, Weight, Camera, Dumbbell, ChevronRight, TrendingUp, ChevronDown } from 'lucide-react'
+import { formatDateToString } from '../lib/dateUtils'
 
 interface OneRM {
   exercise_name: string
@@ -68,12 +69,15 @@ export default function ProgressClient({
 
   const fetchStreak = async () => {
     try {
-      const response = await fetch('/api/workouts/streak')
+      // Anchor streak to the client's local "today" so midnight and
+      // timezone boundaries don't break the count for non-UTC users.
+      const today = formatDateToString(new Date())
+      const response = await fetch(`/api/workouts/streak?today=${today}`)
       if (response.ok) {
         const data = await response.json()
-        setStreak({ 
-          current: data.streak || 0, 
-          longest: data.longestStreak || data.streak || 0 
+        setStreak({
+          current: data.streak || 0,
+          longest: data.longestStreak || data.streak || 0
         })
       }
     } catch (err) {

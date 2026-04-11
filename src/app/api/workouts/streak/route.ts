@@ -1,13 +1,23 @@
 import { createClient } from '../../../lib/supabase/server'
-import { NextResponse } from 'next/server'
+import { formatDateToString, parseLocalDate } from '../../../lib/dateUtils'
+import { NextRequest, NextResponse } from 'next/server'
 
-export async function GET() {
+export async function GET(request: NextRequest) {
   const supabase = await createClient()
-  
+
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
+
+  // Anchor "today" on the client's local date when provided. Without
+  // this, users in non-UTC timezones can see their streak flicker or
+  // break at midnight because the server computes "today" in UTC.
+  const { searchParams } = new URL(request.url)
+  const todayParam = searchParams.get('today')
+  const todayStr = /^\d{4}-\d{2}-\d{2}$/.test(todayParam || '')
+    ? todayParam!
+    : formatDateToString(new Date())
 
   // Get user's scheduled workout days from their active program
   const { data: clientPrograms } = await supabase
@@ -44,44 +54,43 @@ export async function GET() {
     [1, 2, 3, 4, 5].forEach(d => scheduledDays.add(d))
   }
 
-  // Get all completions in the last 90 days
-  const ninetyDaysAgo = new Date()
+  // Get all completions in the last 90 days (anchored on client today).
+  const today = parseLocalDate(todayStr)
+  const ninetyDaysAgo = parseLocalDate(todayStr)
   ninetyDaysAgo.setDate(ninetyDaysAgo.getDate() - 90)
-  
+
   const { data: completions } = await supabase
     .from('workout_completions')
     .select('scheduled_date')
     .eq('client_id', user.id)
-    .gte('scheduled_date', ninetyDaysAgo.toISOString().split('T')[0])
+    .gte('scheduled_date', formatDateToString(ninetyDaysAgo))
     .order('scheduled_date', { ascending: false })
 
   const completedDates = new Set(completions?.map(c => c.scheduled_date) || [])
 
-  // Calculate streak - count consecutive scheduled workout days completed
+  // Calculate streak - count consecutive scheduled workout days completed.
+  // All date math runs through parseLocalDate + formatDateToString so the
+  // YYYY-MM-DD keys we build always line up with workout_completions rows
+  // regardless of server timezone.
   let streak = 0
-  const today = new Date()
-  today.setHours(0, 0, 0, 0)
-  
-  // Start from yesterday (today might not be over yet)
-  let checkDate = new Date(today)
-  checkDate.setDate(checkDate.getDate() - 1)
-  
+
   // Check if today is a scheduled day and has been completed
-  if (scheduledDays.has(today.getDay())) {
-    const todayStr = today.toISOString().split('T')[0]
-    if (completedDates.has(todayStr)) {
-      streak = 1
-    }
+  if (scheduledDays.has(today.getDay()) && completedDates.has(todayStr)) {
+    streak = 1
   }
 
-  // Go back day by day checking scheduled days
+  // Walk backwards from yesterday, counting consecutive scheduled days
+  // that were completed. Stop at the first missed scheduled day.
+  const checkDate = parseLocalDate(todayStr)
+  checkDate.setDate(checkDate.getDate() - 1)
+
   for (let i = 0; i < 365; i++) {
     const dayOfWeek = checkDate.getDay()
-    
+
     // Only check scheduled workout days
     if (scheduledDays.has(dayOfWeek)) {
-      const dateStr = checkDate.toISOString().split('T')[0]
-      
+      const dateStr = formatDateToString(checkDate)
+
       if (completedDates.has(dateStr)) {
         streak++
       } else {
@@ -89,7 +98,7 @@ export async function GET() {
         break
       }
     }
-    
+
     checkDate.setDate(checkDate.getDate() - 1)
   }
 

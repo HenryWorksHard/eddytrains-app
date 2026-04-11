@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react'
 import Link from 'next/link'
 import { SlideOutMenu, HamburgerButton } from '../components/SlideOutMenu'
 import WorkoutCalendar from '../components/WorkoutCalendar'
+import { formatDateToString } from '../lib/dateUtils'
 
 interface Workout {
   workoutId: string
@@ -78,7 +79,8 @@ export default function DashboardClient({ firstName, workoutsByDay, programCount
 
   const fetchStreak = async () => {
     try {
-      const response = await fetch('/api/workouts/streak')
+      const today = formatDateToString(new Date())
+      const response = await fetch(`/api/workouts/streak?today=${today}`)
       if (response.ok) {
         const data = await response.json()
         setStreak(data.streak || 0)

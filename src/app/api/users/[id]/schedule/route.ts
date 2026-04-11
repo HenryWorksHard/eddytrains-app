@@ -1,6 +1,7 @@
 import { createClient } from '@supabase/supabase-js'
 import { NextRequest, NextResponse } from 'next/server'
 import { COMPLETION_LOOKBACK_DAYS } from '@/app/lib/constants'
+import { formatDateToString } from '@/app/lib/dateUtils'
 
 function getAdminClient() {
   return createClient(
@@ -49,15 +50,17 @@ export async function GET(
     // Get active client program IDs
     const activeClientProgramIds = clientPrograms?.map(cp => cp.id) || []
 
-    // Get workout completions for the lookback period
+    // Get workout completions for the lookback period.
+    // Use local-date formatting so the boundary doesn't shift by a day
+    // depending on when the server evaluates it.
     const lookbackDate = new Date()
     lookbackDate.setDate(lookbackDate.getDate() - COMPLETION_LOOKBACK_DAYS)
-    
+
     let completionsQuery = adminClient
       .from('workout_completions')
       .select('workout_id, scheduled_date, client_program_id')
       .eq('client_id', userId)
-      .gte('scheduled_date', lookbackDate.toISOString().split('T')[0])
+      .gte('scheduled_date', formatDateToString(lookbackDate))
     
     if (activeClientProgramIds.length > 0) {
       completionsQuery = completionsQuery.in('client_program_id', activeClientProgramIds)

@@ -1,20 +1,39 @@
 import { createClient } from '../../lib/supabase/server'
-import { NextResponse } from 'next/server'
+import { formatDateToString } from '../../lib/dateUtils'
+import { NextRequest, NextResponse } from 'next/server'
 
-export async function GET() {
+// How many months of history to load for the calendar.
+// 365 days of completions is a tiny payload and gives users a full year
+// of history to scroll back through.
+const CALENDAR_HISTORY_MONTHS = 12
+
+export async function GET(request: NextRequest) {
   const supabase = await createClient()
-  
+
   const { data: { user } } = await supabase.auth.getUser()
-  
+
   if (!user) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
 
-  const today = new Date()
-  const todayStr = today.toISOString().split('T')[0]
-  const now = new Date()
-  const monthStart = new Date(now.getFullYear(), now.getMonth(), 1).toISOString().split('T')[0]
-  const monthEnd = new Date(now.getFullYear(), now.getMonth() + 1, 0).toISOString().split('T')[0]
+  // Prefer the client-supplied local date (?today=YYYY-MM-DD) so that
+  // "today" and the calendar window are anchored to the user's timezone,
+  // not the server's (Vercel = UTC). Fall back to server-local if missing
+  // or malformed.
+  const { searchParams } = new URL(request.url)
+  const todayParam = searchParams.get('today')
+  const todayStr = /^\d{4}-\d{2}-\d{2}$/.test(todayParam || '')
+    ? todayParam!
+    : formatDateToString(new Date())
+
+  // Build the calendar window anchored on todayStr. Parse as local so we
+  // don't re-introduce a UTC shift.
+  const [ty, tm] = todayStr.split('-').map(Number)
+  const windowStart = formatDateToString(
+    new Date(ty, tm - 1 - (CALENDAR_HISTORY_MONTHS - 1), 1)
+  )
+  // Day 0 of next month = last day of the current month
+  const windowEnd = formatDateToString(new Date(ty, tm, 0))
 
   // Run ALL queries in parallel
   const [
@@ -55,19 +74,25 @@ export async function GET() {
       .eq('client_id', user.id)
       .eq('is_active', true),
     
+    // "Today's" completions — used to strike through today's scheduled
+    // workouts on the home screen. Match by scheduled_date (the local day
+    // the workout was assigned to), NOT completed_at (UTC timestamp of
+    // when the user tapped complete, which can be a different day).
     supabase
       .from('workout_completions')
-      .select('workout_id, client_program_id, completed_at')
+      .select('workout_id, client_program_id, scheduled_date')
       .eq('client_id', user.id)
-      .gte('completed_at', `${todayStr}T00:00:00`)
-      .lte('completed_at', `${todayStr}T23:59:59`),
-    
+      .eq('scheduled_date', todayStr),
+
+    // Calendar completions — 12 months of history for the monthly
+    // calendar view, keyed by scheduled_date so catch-up workouts land
+    // on the day they were scheduled for, not the day they were logged.
     supabase
       .from('workout_completions')
-      .select('workout_id, client_program_id, completed_at')
+      .select('workout_id, client_program_id, scheduled_date')
       .eq('client_id', user.id)
-      .gte('completed_at', `${monthStart}T00:00:00`)
-      .lte('completed_at', `${monthEnd}T23:59:59`),
+      .gte('scheduled_date', windowStart)
+      .lte('scheduled_date', windowEnd),
     
     supabase
       .from('client_programs')
@@ -163,16 +188,16 @@ export async function GET() {
   })
   const completedWorkoutsArray = Array.from(completedWorkoutIds)
 
-  // Build calendar completions map - use completed_at date (when they actually trained)
+  // Build calendar completions map keyed by scheduled_date.
+  // This is the local calendar day the workout was assigned to — it
+  // stays stable whether the client finished on time or caught up later.
   const calendarCompletions: Record<string, boolean> = {}
   monthCompletions?.forEach(c => {
-    // Extract date from completed_at timestamp
-    const completedDate = c.completed_at ? c.completed_at.split('T')[0] : null
-    if (completedDate) {
-      calendarCompletions[`${completedDate}:${c.workout_id}:${c.client_program_id}`] = true
-      calendarCompletions[`${completedDate}:${c.workout_id}`] = true
-      calendarCompletions[`${completedDate}:any`] = true
-    }
+    const d = c.scheduled_date
+    if (!d) return
+    calendarCompletions[`${d}:${c.workout_id}:${c.client_program_id}`] = true
+    calendarCompletions[`${d}:${c.workout_id}`] = true
+    calendarCompletions[`${d}:any`] = true
   })
 
   // Schedule by day for calendar (with week info)
