@@ -24,8 +24,17 @@ interface ProgressPoint {
   reps: number
 }
 
+interface Estimated1RM {
+  exercise_name: string
+  weight_kg: number
+  reps: number
+  estimated_1rm: number
+  date: string
+}
+
 interface ProgressClientProps {
   oneRMs: OneRM[]
+  estimated1RMs: Estimated1RM[]
   progressImages: ProgressImage[]
   weeklyTonnage: number
 }
@@ -33,9 +42,10 @@ interface ProgressClientProps {
 type TonnagePeriod = 'day' | 'week' | 'month' | 'year'
 type ProgressionPeriod = 'week' | 'month' | '3months' | 'year'
 
-export default function ProgressClient({ 
-  oneRMs, 
-  progressImages, 
+export default function ProgressClient({
+  oneRMs,
+  estimated1RMs,
+  progressImages,
   weeklyTonnage: initialTonnage
 }: ProgressClientProps) {
   const [streak, setStreak] = useState({ current: 0, longest: 0 })
@@ -326,29 +336,80 @@ export default function ProgressClient({
         )}
       </section>
 
-      {/* 4. 1RM Records */}
+      {/* 4. 1RM Records - Tested & Estimated */}
       <section>
         <div className="flex items-center justify-between mb-3">
           <h2 className="text-sm font-medium text-zinc-500 uppercase tracking-wider">Personal Records</h2>
           <Link href="/profile" className="text-yellow-400 text-xs">Edit</Link>
         </div>
-        
-        {oneRMs.length > 0 ? (
-          <div className="grid grid-cols-2 gap-2">
-            {oneRMs.slice(0, 6).map((rm) => (
-              <div 
-                key={rm.exercise_name}
-                className="bg-zinc-900 border border-zinc-800 rounded-xl p-3"
-              >
-                <p className="text-xs text-zinc-500 truncate mb-1">{rm.exercise_name}</p>
-                <p className="text-lg font-bold text-white">{rm.weight_kg}kg</p>
-              </div>
-            ))}
-          </div>
-        ) : (
+
+        {/* Tested 1RMs (coach/manually entered) */}
+        {oneRMs.length > 0 && (
+          <>
+            <p className="text-xs text-zinc-400 mb-2 flex items-center gap-1.5">
+              <span className="w-2 h-2 rounded-full bg-yellow-400 inline-block" />
+              Tested 1RM
+            </p>
+            <div className="grid grid-cols-2 gap-2 mb-4">
+              {oneRMs.slice(0, 6).map((rm) => {
+                // Find matching estimated 1RM
+                const est = estimated1RMs.find(
+                  e => e.exercise_name.toLowerCase() === rm.exercise_name.toLowerCase()
+                )
+                return (
+                  <div
+                    key={rm.exercise_name}
+                    className="bg-zinc-900 border border-zinc-800 rounded-xl p-3"
+                  >
+                    <p className="text-xs text-zinc-500 truncate mb-1">{rm.exercise_name}</p>
+                    <p className="text-lg font-bold text-white">{rm.weight_kg}kg</p>
+                    {est && (
+                      <p className={`text-[10px] mt-0.5 ${
+                        est.estimated_1rm > rm.weight_kg ? 'text-green-400' : 'text-zinc-500'
+                      }`}>
+                        Est: {est.estimated_1rm}kg
+                        {est.estimated_1rm > rm.weight_kg && ' — time to retest!'}
+                      </p>
+                    )}
+                  </div>
+                )
+              })}
+            </div>
+          </>
+        )}
+
+        {/* Estimated 1RMs from tracked weights */}
+        {estimated1RMs.length > 0 && (
+          <>
+            <p className="text-xs text-zinc-400 mb-2 flex items-center gap-1.5">
+              <span className="w-2 h-2 rounded-full bg-blue-400 inline-block" />
+              Estimated 1RM <span className="text-zinc-600">(from logged sets)</span>
+            </p>
+            <div className="grid grid-cols-2 gap-2">
+              {estimated1RMs
+                .filter(est => !oneRMs.some(rm => rm.exercise_name.toLowerCase() === est.exercise_name.toLowerCase()))
+                .slice(0, 8)
+                .map((est) => (
+                  <div
+                    key={est.exercise_name}
+                    className="bg-zinc-900 border border-zinc-800/50 rounded-xl p-3"
+                  >
+                    <p className="text-xs text-zinc-500 truncate mb-1">{est.exercise_name}</p>
+                    <p className="text-lg font-bold text-white">{est.estimated_1rm}kg</p>
+                    <p className="text-[10px] text-zinc-600">
+                      {est.weight_kg}kg x {est.reps} reps
+                    </p>
+                  </div>
+                ))}
+            </div>
+          </>
+        )}
+
+        {oneRMs.length === 0 && estimated1RMs.length === 0 && (
           <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-6 text-center">
             <Dumbbell className="w-8 h-8 text-zinc-600 mx-auto mb-2" />
             <p className="text-zinc-500 text-sm">No PRs recorded yet</p>
+            <p className="text-zinc-600 text-xs mt-1">Log your workouts to see estimated 1RMs</p>
             <Link href="/profile" className="text-yellow-400 text-sm mt-2 inline-block">
               Add your 1RMs →
             </Link>

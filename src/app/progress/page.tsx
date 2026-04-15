@@ -15,7 +15,8 @@ const fetcher = (url: string) => fetch(url).then(res => {
 export default function ProgressPage() {
   const router = useRouter()
   
-  const { data, error, isLoading } = useSWR('/api/progress', fetcher, {
+  const tz = typeof window !== 'undefined' ? Intl.DateTimeFormat().resolvedOptions().timeZone : 'UTC'
+  const { data, error, isLoading } = useSWR(`/api/progress?tz=${encodeURIComponent(tz)}`, fetcher, {
     revalidateOnFocus: false,
     revalidateOnReconnect: false,
     dedupingInterval: 30000,
@@ -55,8 +56,9 @@ export default function ProgressPage() {
   return (
     <div className="min-h-screen bg-black pb-24">
       <PageHeader title="Progress" />
-      <ProgressClient 
+      <ProgressClient
         oneRMs={data.oneRMs}
+        estimated1RMs={data.estimated1RMs || []}
         progressImages={data.progressImages}
         weeklyTonnage={data.weeklyTonnage}
       />

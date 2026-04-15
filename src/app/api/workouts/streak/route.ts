@@ -102,8 +102,34 @@ export async function GET(request: NextRequest) {
     checkDate.setDate(checkDate.getDate() - 1)
   }
 
-  return NextResponse.json({ 
+  // Fetch longest streak from client_streaks (persisted best)
+  let longestStreak = streak
+  const { data: streakRow } = await supabase
+    .from('client_streaks')
+    .select('longest_streak')
+    .eq('client_id', user.id)
+    .single()
+
+  if (streakRow?.longest_streak && streakRow.longest_streak > longestStreak) {
+    longestStreak = streakRow.longest_streak
+  }
+
+  // If current streak exceeds stored longest, update it
+  if (streak > (streakRow?.longest_streak || 0)) {
+    longestStreak = streak
+    await supabase
+      .from('client_streaks')
+      .upsert({
+        client_id: user.id,
+        current_streak: streak,
+        longest_streak: streak,
+        last_workout_date: todayStr
+      }, { onConflict: 'client_id' })
+  }
+
+  return NextResponse.json({
     streak,
+    longestStreak,
     scheduledDays: Array.from(scheduledDays)
   })
 }
