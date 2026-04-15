@@ -92,6 +92,9 @@ export default async function WorkoutDetailPage({
   }
 
   const today = new Date().toISOString().split('T')[0]
+  // Use scheduledDate from the URL when viewing a past workout, falling
+  // back to today for the normal "do today's workout" flow.
+  const effectiveDate = scheduledDate || today
 
   // PHASE 1: Run all independent queries in parallel
   const [
@@ -102,15 +105,15 @@ export default async function WorkoutDetailPage({
     finishersResult,
     customSetsResult
   ] = await Promise.all([
-    // Today's completion check
+    // Completion check for the date being viewed (not hardcoded today)
     (async () => {
       let query = supabase
         .from('workout_completions')
         .select('id')
         .eq('client_id', user.id)
         .eq('workout_id', workoutId)
-        .eq('scheduled_date', today)
-      
+        .eq('scheduled_date', effectiveDate)
+
       if (clientProgramId) {
         query = query.eq('client_program_id', clientProgramId)
       }
@@ -182,7 +185,7 @@ export default async function WorkoutDetailPage({
       : Promise.resolve({ data: null })
   ])
 
-  const isCompletedToday = !!completionResult.data
+  const isCompleted = !!completionResult.data
   const oneRMs: Client1RM[] = oneRMsResult.data || []
   const workout = workoutResult.data
   const finisherWorkouts = finishersResult.data
@@ -422,8 +425,8 @@ export default async function WorkoutDetailPage({
         <CompleteWorkoutButton 
           workoutId={workoutId}
           clientProgramId={clientProgramId}
-          scheduledDate={scheduledDate || today}
-          isCompleted={isCompletedToday}
+          scheduledDate={effectiveDate}
+          isCompleted={isCompleted}
         />
       )}
 

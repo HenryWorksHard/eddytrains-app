@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { createClient } from '../../lib/supabase/client'
 import ExerciseCard from './ExerciseCard'
+import SaveIndicator from '../../components/SaveIndicator'
 
 interface ExerciseSet {
   set_number: number
@@ -193,11 +194,13 @@ export default function WorkoutClient({ workoutId, exercises, oneRMs, personalBe
     return set.reps || '?'
   }
 
-  // Load previous logs AND today's session (if any)
+  // Load previous logs AND this session's saved data (if any).
+  // Depends on both workoutId and scheduledDate so navigating between
+  // dates for the same workout reloads the correct session.
   useEffect(() => {
     loadTodaySession()
     loadPreviousLogs()
-  }, [workoutId])
+  }, [workoutId, scheduledDate])
 
   // Load existing session for today (resume partial workout)
   const loadTodaySession = async () => {
@@ -587,6 +590,18 @@ export default function WorkoutClient({ workoutId, exercises, oneRMs, personalBe
 
   const exerciseGroups = groupExercises(exercises)
 
+  // Extract per-exercise logs from the session-level setLogs map so we
+  // can pass them down to ExerciseCard as existingLogs.
+  const getExistingLogsForExercise = (exerciseId: string) => {
+    const logs: { set_number: number; weight_kg: number | null; reps_completed: number | null }[] = []
+    setLogs.forEach((log, key) => {
+      if (key.startsWith(`${exerciseId}-`)) {
+        logs.push({ set_number: log.set_number, weight_kg: log.weight_kg, reps_completed: log.reps_completed })
+      }
+    })
+    return logs.length > 0 ? logs : undefined
+  }
+
   const renderExerciseCard = (exercise: WorkoutExercise, idx: number, isInSuperset: boolean = false) => {
     const displayName = getExerciseDisplayName(exercise)
     const oneRM = find1RM(displayName, oneRMs)
@@ -594,9 +609,9 @@ export default function WorkoutClient({ workoutId, exercises, oneRMs, personalBe
     const intensityValue = exercise.sets[0]?.intensity_value || '2'
     const calculatedWeight = calculateWeight(intensityType, intensityValue, oneRM)
     const prevLogs = previousLogs.get(exercise.id) || []
-    
+
     // Find personal best for this exercise
-    const pb = personalBests.find(p => 
+    const pb = personalBests.find(p =>
       p.exercise_name.toLowerCase() === displayName.toLowerCase()
     )
 
@@ -614,6 +629,7 @@ export default function WorkoutClient({ workoutId, exercises, oneRMs, personalBe
         intensitySummary={formatIntensity(intensityType, intensityValue)}
         calculatedWeight={calculatedWeight}
         previousLogs={prevLogs}
+        existingLogs={getExistingLogsForExercise(exercise.id)}
         personalBest={pb ? { weight_kg: pb.weight_kg, reps: pb.reps } : null}
         onLogUpdate={handleLogUpdate}
         onExerciseSwap={handleExerciseSwap}
@@ -623,7 +639,12 @@ export default function WorkoutClient({ workoutId, exercises, oneRMs, personalBe
   }
 
   return (
-    <div className="space-y-3">
+    <div className="space-y-3 relative">
+      {/* Floating auto-save indicator */}
+      <div className="sticky top-2 z-20 flex justify-end pointer-events-none">
+        <SaveIndicator saving={saving} />
+      </div>
+
       {exerciseGroups.map((group, groupIndex) => {
         if (group.type === 'superset') {
           return (

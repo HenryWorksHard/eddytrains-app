@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import { ChevronDown, ChevronUp, RefreshCw, X, Check, Trophy, Search } from 'lucide-react'
 import TutorialModal from './TutorialModal'
 import { createClient } from '../../lib/supabase/client'
@@ -52,6 +52,7 @@ interface ExerciseCardProps {
   intensitySummary: string
   calculatedWeight?: number | null
   previousLogs?: SetLog[]
+  existingLogs?: SetLog[]  // Saved logs from THIS session (e.g. resuming a completed workout)
   personalBest?: PersonalBest | null
   onLogUpdate: (exerciseId: string, setNumber: number, weight: number | null, reps: number | null) => void
   onExerciseSwap?: (exerciseId: string, newExerciseName: string, isCustom: boolean) => void
@@ -270,13 +271,25 @@ export default function ExerciseCard({
   intensitySummary,
   calculatedWeight,
   previousLogs = [],
+  existingLogs,
   personalBest,
   onLogUpdate,
   onExerciseSwap,
   workoutExerciseId
 }: ExerciseCardProps) {
   const [expanded, setExpanded] = useState(false)
-  const [localLogs, setLocalLogs] = useState<Map<number, SetLog>>(new Map())
+
+  // Seed localLogs from existingLogs (saved data for this session) on
+  // first mount. This lets "View Workout" on a completed day show the
+  // weights the client already logged, while still allowing edits.
+  const [localLogs, setLocalLogs] = useState<Map<number, SetLog>>(() => {
+    if (existingLogs && existingLogs.length > 0) {
+      const m = new Map<number, SetLog>()
+      existingLogs.forEach(l => m.set(l.set_number, l))
+      return m
+    }
+    return new Map()
+  })
   const [showSwapModal, setShowSwapModal] = useState(false)
   const [currentExerciseName, setCurrentExerciseName] = useState(exerciseName)
   const [clientId, setClientId] = useState<string | null>(null)
@@ -315,6 +328,20 @@ export default function ExerciseCard({
     }
     init()
   }, [exerciseName])
+
+  // When existingLogs arrives asynchronously (loadTodaySession is async),
+  // seed localLogs once. The seededRef ensures we never overwrite user
+  // edits — once we've seeded (or the user types), we stop.
+  const seededRef = useRef(false)
+  useEffect(() => {
+    if (existingLogs && existingLogs.length > 0 && !seededRef.current) {
+      seededRef.current = true
+      const m = new Map<number, SetLog>()
+      existingLogs.forEach(l => m.set(l.set_number, l))
+      setLocalLogs(m)
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [existingLogs])
 
   // NOTE: We intentionally do NOT copy previousLogs into localLogs
   // previousLogs is historical data (last session) - for "Last: Xkg" display only

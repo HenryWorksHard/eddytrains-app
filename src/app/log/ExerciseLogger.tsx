@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback } from 'react'
 import { ChevronDown, ChevronUp, Check } from 'lucide-react'
 import { createClient } from '../lib/supabase/client'
+import SaveIndicator from '../components/SaveIndicator'
 
 interface ExerciseSet {
   setNumber: number
@@ -184,6 +185,7 @@ export default function ExerciseLogger({
         </div>
         
         <div className="flex items-center gap-2">
+          <SaveIndicator saving={saving} />
           {loggedCount > 0 && (
             <span className={`text-xs px-2 py-0.5 rounded ${
               allLogged ? 'bg-green-500/20 text-green-400' : 'bg-zinc-700 text-zinc-400'
