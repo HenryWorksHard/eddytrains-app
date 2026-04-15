@@ -23,14 +23,22 @@ export async function GET(
     const { searchParams } = new URL(request.url)
     const exerciseName = searchParams.get('exercise')
     const period = searchParams.get('period') || 'month'
-    // Get timezone from query param, default to Australia/Adelaide
-    const timezone = searchParams.get('tz') || 'Australia/Adelaide'
-    
+
     if (!exerciseName) {
       return NextResponse.json({ error: 'Exercise name required' }, { status: 400 })
     }
 
     const adminClient = getAdminClient()
+
+    // Read the client's stored timezone so trainer sees the same
+    // date boundaries the client sees.
+    let timezone = searchParams.get('tz') || 'Australia/Adelaide'
+    const { data: profileData } = await adminClient
+      .from('profiles')
+      .select('timezone')
+      .eq('id', clientId)
+      .single()
+    if (profileData?.timezone) timezone = profileData.timezone
     
     // Calculate date range based on period using user's timezone
     const nowInTz = new Date(new Date().toLocaleString('en-US', { timeZone: timezone }))

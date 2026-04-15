@@ -20,6 +20,19 @@ export default function ClientDashboard() {
   const today = formatDateToString(new Date())
   const dashboardUrl = `/api/dashboard?today=${today}`
 
+  // Silently persist the client's IANA timezone so trainer-side APIs
+  // can use it when displaying this client's data.
+  useEffect(() => {
+    const tz = Intl.DateTimeFormat().resolvedOptions().timeZone
+    if (tz) {
+      fetch('/api/me/timezone', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ timezone: tz })
+      }).catch(() => {}) // fire-and-forget
+    }
+  }, [])
+
   const { data, error, isLoading } = useSWR(dashboardUrl, fetcher, {
     revalidateOnFocus: false,
     revalidateOnReconnect: false,

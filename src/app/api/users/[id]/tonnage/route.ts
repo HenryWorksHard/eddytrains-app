@@ -22,10 +22,18 @@ export async function GET(
     const { id: clientId } = await params
     const { searchParams } = new URL(request.url)
     const period = searchParams.get('period') || 'week'
-    // Get timezone from query param, default to Australia/Adelaide
-    const timezone = searchParams.get('tz') || 'Australia/Adelaide'
-    
+
     const adminClient = getAdminClient()
+
+    // Read the client's stored timezone so trainer sees the same
+    // date boundaries the client sees (e.g. "this week" aligns).
+    let timezone = searchParams.get('tz') || 'Australia/Adelaide'
+    const { data: profileData } = await adminClient
+      .from('profiles')
+      .select('timezone')
+      .eq('id', clientId)
+      .single()
+    if (profileData?.timezone) timezone = profileData.timezone
     
     // Calculate date range based on period using user's timezone
     // Use Intl.DateTimeFormat to get the current date in user's timezone
