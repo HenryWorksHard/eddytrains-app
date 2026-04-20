@@ -14,7 +14,6 @@ interface User {
   is_active: boolean
   created_at: string
   status: string | null
-  temp_password: string | null
   password_changed: boolean | null
   can_access_strength: boolean
   can_access_cardio: boolean
@@ -33,22 +32,90 @@ interface NutritionPlan {
   name: string
 }
 
-function CopyButton({ text }: { text: string }) {
-  const [copied, setCopied] = useState(false)
-  
-  const handleCopy = async () => {
-    await navigator.clipboard.writeText(text)
-    setCopied(true)
-    setTimeout(() => setCopied(false), 2000)
+function ResendInviteButton({ userId }: { userId: string }) {
+  const [state, setState] = useState<'idle' | 'sending' | 'sent' | 'error'>('idle')
+  const [inviteLink, setInviteLink] = useState<string | null>(null)
+  const [linkCopied, setLinkCopied] = useState(false)
+
+  const handleResend = async () => {
+    setState('sending')
+    setInviteLink(null)
+    try {
+      const res = await apiFetch(`/api/users/${userId}/resend-invite`, { method: 'POST' })
+      const data = await res.json()
+      if (!res.ok) {
+        setState('error')
+        return
+      }
+      if (data.inviteSent) {
+        setState('sent')
+        setTimeout(() => setState('idle'), 2500)
+      } else if (data.inviteLink) {
+        // Email failed but we got a link — let trainer copy it
+        setInviteLink(data.inviteLink)
+        setState('error')
+      } else {
+        setState('error')
+      }
+    } catch {
+      setState('error')
+    }
   }
-  
+
+  const copyLink = async () => {
+    if (!inviteLink) return
+    await navigator.clipboard.writeText(inviteLink)
+    setLinkCopied(true)
+    setTimeout(() => setLinkCopied(false), 2000)
+  }
+
+  if (inviteLink) {
+    return (
+      <button
+        onClick={copyLink}
+        className="inline-flex items-center gap-1.5 px-2 py-1 rounded-md bg-zinc-800 hover:bg-zinc-700 text-xs text-zinc-300 transition-colors"
+        title="Email failed — copy invite link instead"
+      >
+        {linkCopied ? <Check className="w-3 h-3 text-green-400" /> : <Copy className="w-3 h-3" />}
+        {linkCopied ? 'Copied' : 'Copy link'}
+      </button>
+    )
+  }
+
   return (
-    <button 
-      onClick={handleCopy}
-      className="p-1 rounded hover:bg-zinc-800 text-zinc-400 hover:text-white transition-colors"
-      title="Copy password"
+    <button
+      onClick={handleResend}
+      disabled={state === 'sending'}
+      className={`inline-flex items-center gap-1.5 px-2 py-1 rounded-md text-xs font-medium transition-colors disabled:opacity-50 ${
+        state === 'sent'
+          ? 'bg-green-500/10 text-green-400'
+          : state === 'error'
+          ? 'bg-red-500/10 text-red-400 hover:bg-red-500/20'
+          : 'bg-zinc-800 hover:bg-zinc-700 text-zinc-300'
+      }`}
+      title="Resend invite email"
     >
-      {copied ? <Check className="w-3 h-3 text-green-500" /> : <Copy className="w-3 h-3" />}
+      {state === 'sending' ? (
+        <>
+          <Loader2 className="w-3 h-3 animate-spin" />
+          Sending
+        </>
+      ) : state === 'sent' ? (
+        <>
+          <Check className="w-3 h-3" />
+          Sent
+        </>
+      ) : state === 'error' ? (
+        <>
+          <RefreshCw className="w-3 h-3" />
+          Retry
+        </>
+      ) : (
+        <>
+          <Mail className="w-3 h-3" />
+          Resend invite
+        </>
+      )}
     </button>
   )
 }
@@ -289,7 +356,7 @@ export default function UsersPage() {
                   <th>User</th>
                   <th className="hidden md:table-cell">Email</th>
                   <th className="hidden sm:table-cell">Status</th>
-                  <th className="hidden lg:table-cell">Temp Password</th>
+                  <th className="hidden lg:table-cell">Invite</th>
                   <th className="hidden lg:table-cell">Joined</th>
                   <th className="w-12"></th>
                 </tr>
@@ -325,27 +392,18 @@ export default function UsersPage() {
                     <td className="hidden sm:table-cell">
                       {user.password_changed ? (
                         <span className="badge badge-success">Active</span>
-                      ) : user.status === 'pending' ? (
-                        <span className="badge badge-warning flex items-center gap-1">
-                          <Clock className="w-3 h-3" />
-                          Pending
-                        </span>
                       ) : (
-                        <span className="badge badge-info">Invited</span>
+                        <span className="badge badge-warning flex items-center gap-1 w-fit">
+                          <Clock className="w-3 h-3" />
+                          Pending invite
+                        </span>
                       )}
                     </td>
                     <td className="hidden lg:table-cell">
-                      {user.temp_password && !user.password_changed ? (
-                        <div className="flex items-center gap-2">
-                          <code className="bg-zinc-800 px-2 py-1 rounded text-xs text-yellow-400 font-mono">
-                            {user.temp_password}
-                          </code>
-                          <CopyButton text={user.temp_password} />
-                        </div>
-                      ) : user.password_changed ? (
-                        <span className="text-zinc-500 text-xs">Changed</span>
+                      {user.password_changed ? (
+                        <span className="text-zinc-500 text-xs">Accepted</span>
                       ) : (
-                        <span className="text-zinc-500 text-xs">—</span>
+                        <ResendInviteButton userId={user.id} />
                       )}
                     </td>
                     <td className="hidden lg:table-cell text-zinc-500">

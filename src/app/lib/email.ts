@@ -1,118 +1,117 @@
-// Klaviyo email integration for eddytrains
+import { Resend } from 'resend'
 
-const KLAVIYO_API_KEY = process.env.KLAVIYO_API_KEY || ''
-const KLAVIYO_LIST_ID = process.env.KLAVIYO_LIST_ID || '' // "Fitness app clients" list
+// Transactional email via Resend.
+// Replaces the previous Klaviyo integration (removed 2026-04-20).
 
-export async function sendWelcomeEmail({
-  to,
-  name,
-  tempPassword,
-  loginUrl
-}: {
-  to: string
-  name: string
-  tempPassword: string
-  loginUrl: string
-}) {
-  // If no Klaviyo key, return success but note email wasn't sent
-  if (!KLAVIYO_API_KEY) {
-    console.log('No Klaviyo API key - skipping email send')
-    return { success: true, data: null, skipped: true }
+function getResend() {
+  const key = process.env.RESEND_API_KEY
+  if (!key) {
+    throw new Error('RESEND_API_KEY not set')
+  }
+  return new Resend(key)
+}
+
+function getAppUrl() {
+  return process.env.NEXT_PUBLIC_APP_URL || 'https://app.cmpdcollective.com'
+}
+
+function getFromInvite() {
+  return process.env.RESEND_FROM_INVITE || 'eddy@cmpdcollective.com'
+}
+
+function getReplyTo() {
+  return process.env.RESEND_REPLY_TO || 'eddy@cmpdcollective.com'
+}
+
+type SendInviteArgs = {
+  email: string
+  fullName?: string | null
+  token: string
+  trainerName?: string | null
+  orgName?: string | null
+}
+
+export async function sendInviteEmail({
+  email,
+  fullName,
+  token,
+  trainerName,
+  orgName,
+}: SendInviteArgs) {
+  const resend = getResend()
+  const link = `${getAppUrl()}/accept-invite?token=${token}`
+  const greeting = fullName ? `Hi ${fullName.split(' ')[0]},` : 'Hi,'
+  const fromLine = trainerName
+    ? `${trainerName} has set up your CMPD Fitness account.`
+    : orgName
+    ? `${orgName} has set up your CMPD Fitness account.`
+    : 'Your CMPD Fitness account is ready.'
+
+  const html = `
+    <!doctype html>
+    <html>
+      <body style="margin:0; padding:0; background:#0a0a0a; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;">
+        <table width="100%" cellpadding="0" cellspacing="0" style="background:#0a0a0a; padding:48px 24px;">
+          <tr>
+            <td align="center">
+              <table width="560" cellpadding="0" cellspacing="0" style="max-width:560px; background:#18181b; border-radius:16px; padding:40px;">
+                <tr>
+                  <td style="padding-bottom:24px;">
+                    <div style="width:56px; height:56px; border-radius:14px; background:linear-gradient(135deg,#facc15,#eab308); display:inline-block; text-align:center; line-height:56px; color:#000; font-size:24px; font-weight:800;">C</div>
+                  </td>
+                </tr>
+                <tr>
+                  <td style="color:#fff; font-size:24px; font-weight:700; padding-bottom:16px;">
+                    You're in.
+                  </td>
+                </tr>
+                <tr>
+                  <td style="color:#d4d4d8; font-size:16px; line-height:1.6; padding-bottom:24px;">
+                    ${greeting}<br><br>
+                    ${fromLine} Click the button below to set your password and start training.
+                  </td>
+                </tr>
+                <tr>
+                  <td style="padding-bottom:24px;">
+                    <a href="${link}" style="display:inline-block; background:#facc15; color:#000; padding:14px 28px; border-radius:12px; font-weight:700; text-decoration:none; font-size:16px;">
+                      Set your password
+                    </a>
+                  </td>
+                </tr>
+                <tr>
+                  <td style="color:#71717a; font-size:13px; line-height:1.5; padding-bottom:16px;">
+                    Or copy this link into your browser:<br>
+                    <span style="color:#a1a1aa; word-break:break-all;">${link}</span>
+                  </td>
+                </tr>
+                <tr>
+                  <td style="color:#52525b; font-size:12px; line-height:1.5; border-top:1px solid #27272a; padding-top:16px;">
+                    This link expires in 7 days. If you didn't expect this invite, you can ignore it.
+                  </td>
+                </tr>
+              </table>
+            </td>
+          </tr>
+        </table>
+      </body>
+    </html>
+  `
+
+  const subject = trainerName
+    ? `${trainerName} invited you to CMPD Fitness`
+    : 'Your CMPD Fitness account is ready'
+
+  const result = await resend.emails.send({
+    from: getFromInvite(),
+    to: email,
+    replyTo: getReplyTo(),
+    subject,
+    html,
+  })
+
+  if (result.error) {
+    throw new Error(`Resend error: ${result.error.message}`)
   }
 
-  try {
-    // Step 1: Create/update profile in Klaviyo with custom properties
-    const profileResponse = await fetch('https://a.klaviyo.com/api/profiles/', {
-      method: 'POST',
-      headers: {
-        'Authorization': `Klaviyo-API-Key ${KLAVIYO_API_KEY}`,
-        'Content-Type': 'application/json',
-        'revision': '2024-02-15'
-      },
-      body: JSON.stringify({
-        data: {
-          type: 'profile',
-          attributes: {
-            email: to,
-            first_name: name,
-            properties: {
-              temp_password: tempPassword,
-              login_url: loginUrl,
-              account_type: 'fitness_client'
-            }
-          }
-        }
-      })
-    })
-
-    let profileId: string
-
-    if (profileResponse.status === 409) {
-      // Profile already exists - get the existing profile ID and update it
-      const existingData = await profileResponse.json()
-      profileId = existingData.errors?.[0]?.meta?.duplicate_profile_id
-      
-      if (profileId) {
-        // Update existing profile with temp password
-        await fetch(`https://a.klaviyo.com/api/profiles/${profileId}/`, {
-          method: 'PATCH',
-          headers: {
-            'Authorization': `Klaviyo-API-Key ${KLAVIYO_API_KEY}`,
-            'Content-Type': 'application/json',
-            'revision': '2024-02-15'
-          },
-          body: JSON.stringify({
-            data: {
-              type: 'profile',
-              id: profileId,
-              attributes: {
-                properties: {
-                  temp_password: tempPassword,
-                  login_url: loginUrl
-                }
-              }
-            }
-          })
-        })
-      }
-    } else if (!profileResponse.ok) {
-      const errorData = await profileResponse.json()
-      console.error('Klaviyo profile creation error:', errorData)
-      return { success: false, error: 'Failed to create Klaviyo profile' }
-    } else {
-      const profileData = await profileResponse.json()
-      profileId = profileData.data.id
-    }
-
-    // Step 2: Add profile to the fitness clients list (this triggers the welcome email flow)
-    if (KLAVIYO_LIST_ID && profileId) {
-      const listResponse = await fetch(`https://a.klaviyo.com/api/lists/${KLAVIYO_LIST_ID}/relationships/profiles/`, {
-        method: 'POST',
-        headers: {
-          'Authorization': `Klaviyo-API-Key ${KLAVIYO_API_KEY}`,
-          'Content-Type': 'application/json',
-          'revision': '2024-02-15'
-        },
-        body: JSON.stringify({
-          data: [
-            {
-              type: 'profile',
-              id: profileId
-            }
-          ]
-        })
-      })
-
-      if (!listResponse.ok) {
-        const errorData = await listResponse.json()
-        console.error('Klaviyo list add error:', errorData)
-        // Continue anyway - profile was created
-      }
-    }
-
-    return { success: true, data: { profileId } }
-  } catch (error) {
-    console.error('Klaviyo email error:', error)
-    return { success: false, error: 'Failed to send email via Klaviyo' }
-  }
+  return { id: result.data?.id }
 }

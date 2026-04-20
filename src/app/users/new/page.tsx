@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { createClient } from '@/app/lib/supabase/client'
-import { ArrowLeft, Mail, User, Check, AlertCircle, Dumbbell, Heart, Zap, Loader2, Apple, CreditCard } from 'lucide-react'
+import { ArrowLeft, Mail, User, Check, AlertCircle, Dumbbell, Heart, Zap, Loader2, Apple, CreditCard, Copy } from 'lucide-react'
 
 export default function NewUserPage() {
   const router = useRouter()
@@ -23,8 +23,10 @@ export default function NewUserPage() {
   const [error, setError] = useState<string | null>(null)
   const [upgradeRequired, setUpgradeRequired] = useState(false)
   const [success, setSuccess] = useState(false)
-  const [tempPassword, setTempPassword] = useState<string | null>(null)
-  const [emailSent, setEmailSent] = useState(true)
+  const [inviteSent, setInviteSent] = useState(true)
+  const [inviteLink, setInviteLink] = useState<string | null>(null)
+  const [inviteError, setInviteError] = useState<string | null>(null)
+  const [copied, setCopied] = useState(false)
   const [organizationId, setOrganizationId] = useState<string | null>(null)
 
   useEffect(() => {
@@ -75,15 +77,12 @@ export default function NewUserPage() {
       }
       
       setSuccess(true)
-      setEmailSent(data.emailSent !== false)
-      
-      // Show temp password if email wasn't sent (Klaviyo not configured or failed)
-      if (data.tempPassword) {
-        setTempPassword(data.tempPassword)
-      }
-      
-      // Only auto-redirect if email was sent successfully
-      if (data.emailSent) {
+      setInviteSent(data.inviteSent === true)
+      setInviteLink(data.inviteLink || null)
+      setInviteError(data.inviteError || null)
+
+      // Auto-redirect only if the invite email sent cleanly
+      if (data.inviteSent) {
         setTimeout(() => {
           router.push('/users')
           router.refresh()
@@ -105,44 +104,66 @@ export default function NewUserPage() {
   ]
 
   if (success) {
+    const copyLink = async () => {
+      if (!inviteLink) return
+      try {
+        await navigator.clipboard.writeText(inviteLink)
+        setCopied(true)
+        setTimeout(() => setCopied(false), 2000)
+      } catch {
+        // Fallback: select the text so user can copy manually
+      }
+    }
+
     return (
       <div className="min-h-[60vh] flex items-center justify-center">
         <div className="text-center max-w-md">
           <div className="w-20 h-20 rounded-full bg-green-500/10 flex items-center justify-center mx-auto mb-6">
             <Check className="w-10 h-10 text-green-500" />
           </div>
-          <h2 className="text-2xl font-bold text-white mb-2">Client Created!</h2>
-          
-          {emailSent && !tempPassword ? (
+          <h2 className="text-2xl font-bold text-white mb-2">Client Created</h2>
+
+          {inviteSent ? (
             <>
               <p className="text-zinc-400 mb-4">
-                {fullName || email} has been added and will receive an invite email.
+                Invite email sent to <span className="text-white font-medium">{email}</span>.
+                They&apos;ll click the link in the email to set their password.
               </p>
-              <p className="text-sm text-zinc-500">Redirecting to users list...</p>
+              <p className="text-sm text-zinc-500">Redirecting to clients list...</p>
             </>
           ) : (
             <>
               <div className="bg-yellow-500/10 border border-yellow-500/30 rounded-xl p-4 mb-4 text-left">
                 <p className="text-yellow-400 text-sm font-medium mb-2">
-                  ⚠️ Email invite could not be sent automatically
+                  Invite email didn&apos;t send
                 </p>
                 <p className="text-zinc-400 text-sm mb-3">
-                  Please share these login credentials with your client manually:
+                  {inviteError || 'The email service returned an error.'} Copy the invite link
+                  below and send it to your client directly. The link is valid for 7 days.
                 </p>
-                <div className="space-y-2 bg-zinc-900 rounded-lg p-3">
-                  <div className="flex justify-between items-center">
-                    <span className="text-zinc-500 text-sm">Email:</span>
-                    <span className="text-white font-mono text-sm">{email}</span>
+                {inviteLink && (
+                  <div className="bg-zinc-900 rounded-lg p-3 space-y-3">
+                    <div className="text-xs text-zinc-500 break-all font-mono">
+                      {inviteLink}
+                    </div>
+                    <button
+                      onClick={copyLink}
+                      className="flex items-center justify-center gap-2 w-full py-2 bg-zinc-800 hover:bg-zinc-700 text-white text-sm font-medium rounded-lg transition-colors"
+                    >
+                      {copied ? (
+                        <>
+                          <Check className="w-4 h-4" />
+                          Copied
+                        </>
+                      ) : (
+                        <>
+                          <Copy className="w-4 h-4" />
+                          Copy invite link
+                        </>
+                      )}
+                    </button>
                   </div>
-                  <div className="flex justify-between items-center">
-                    <span className="text-zinc-500 text-sm">Password:</span>
-                    <span className="text-white font-mono text-sm">{tempPassword}</span>
-                  </div>
-                  <div className="flex justify-between items-center">
-                    <span className="text-zinc-500 text-sm">Login URL:</span>
-                    <span className="text-yellow-400 font-mono text-sm">app.cmpdcollective.com</span>
-                  </div>
-                </div>
+                )}
               </div>
               <Link
                 href="/users"

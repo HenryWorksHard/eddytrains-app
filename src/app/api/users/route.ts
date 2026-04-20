@@ -1,8 +1,8 @@
 import { createClient } from '@supabase/supabase-js'
 import { createClient as createServerClient } from '@/app/lib/supabase/server'
-import { cookies } from 'next/headers'
 import { NextRequest, NextResponse } from 'next/server'
-import { getEffectiveOrgId, IMPERSONATION_COOKIE } from '@/app/lib/org-context'
+import { randomBytes } from 'crypto'
+import { sendInviteEmail } from '@/app/lib/email'
 
 // Admin client with service role for user management
 function getAdminClient() {
@@ -33,104 +33,10 @@ async function getCurrentUserProfile() {
   return profile
 }
 
-// Generate a random temp password
-function generateTempPassword(): string {
-  const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789'
-  let password = ''
-  for (let i = 0; i < 12; i++) {
-    password += chars.charAt(Math.floor(Math.random() * chars.length))
-  }
-  return password
-}
-
-// Send to Klaviyo
-async function sendToKlaviyo(email: string, name: string, tempPassword: string) {
-  const apiKey = process.env.KLAVIYO_API_KEY
-  const listId = process.env.KLAVIYO_LIST_ID
-  
-  if (!apiKey || !listId) {
-    console.log('Klaviyo not configured - skipping')
-    return { success: true, skipped: true }
-  }
-
-  try {
-    // Create/update profile
-    const profileResponse = await fetch('https://a.klaviyo.com/api/profiles/', {
-      method: 'POST',
-      headers: {
-        'Authorization': `Klaviyo-API-Key ${apiKey}`,
-        'Content-Type': 'application/json',
-        'revision': '2024-02-15'
-      },
-      body: JSON.stringify({
-        data: {
-          type: 'profile',
-          attributes: {
-            email,
-            first_name: name || email.split('@')[0],
-            properties: {
-              temp_password: tempPassword,
-              login_url: 'https://app.cmpdcollective.com/login',
-              account_type: 'fitness_client'
-            }
-          }
-        }
-      })
-    })
-
-    let profileId: string | null = null
-
-    if (profileResponse.status === 409) {
-      const existingData = await profileResponse.json()
-      profileId = existingData.errors?.[0]?.meta?.duplicate_profile_id
-      
-      if (profileId) {
-        await fetch(`https://a.klaviyo.com/api/profiles/${profileId}/`, {
-          method: 'PATCH',
-          headers: {
-            'Authorization': `Klaviyo-API-Key ${apiKey}`,
-            'Content-Type': 'application/json',
-            'revision': '2024-02-15'
-          },
-          body: JSON.stringify({
-            data: {
-              type: 'profile',
-              id: profileId,
-              attributes: {
-                properties: {
-                  temp_password: tempPassword,
-                  login_url: 'https://app.cmpdcollective.com/login'
-                }
-              }
-            }
-          })
-        })
-      }
-    } else if (profileResponse.ok) {
-      const profileData = await profileResponse.json()
-      profileId = profileData.data.id
-    }
-
-    // Add to list
-    if (profileId) {
-      await fetch(`https://a.klaviyo.com/api/lists/${listId}/relationships/profiles/`, {
-        method: 'POST',
-        headers: {
-          'Authorization': `Klaviyo-API-Key ${apiKey}`,
-          'Content-Type': 'application/json',
-          'revision': '2024-02-15'
-        },
-        body: JSON.stringify({
-          data: [{ type: 'profile', id: profileId }]
-        })
-      })
-    }
-
-    return { success: true, profileId }
-  } catch (error) {
-    console.error('Klaviyo error:', error)
-    return { success: false, error }
-  }
+// Generate a random password for the auth user. The client never sees it —
+// they'll set their own via the invite link.
+function generateRandomPassword(): string {
+  return randomBytes(32).toString('base64url')
 }
 
 export async function GET() {
@@ -420,41 +326,48 @@ export async function POST(request: NextRequest) {
       }
     }
     
-    const tempPassword = generateTempPassword()
-    
+    // Check if email already exists in auth — surface a clean error instead of DB violation
+    const { data: existingList } = await adminClient.auth.admin.listUsers()
+    const emailLower = email.toLowerCase()
+    const existing = existingList?.users?.find(u => u.email?.toLowerCase() === emailLower)
+    if (existing) {
+      return NextResponse.json({
+        error: 'A user with this email already exists',
+        details: 'If this is a client you previously created, use the "Resend invite" option from the users list.'
+      }, { status: 409 })
+    }
+
     // Generate unique slug
     const slug = await generateSlug(adminClient, full_name, email)
-    
+
     // Get current user to auto-assign trainer_id if applicable
     const currentUser = await getCurrentUserProfile()
     let assignedTrainerId = trainer_id || null
     let assignedCompanyId = null
-    
-    // If current user is a trainer and no trainer_id provided, auto-assign to them
+
     if (currentUser?.role === 'trainer' && !trainer_id) {
       assignedTrainerId = currentUser.id
       assignedCompanyId = currentUser.company_id
     } else if (currentUser?.role === 'company_admin') {
-      // Company admin adding a client - set company_id
       assignedCompanyId = currentUser.company_id || currentUser.organization_id
     }
-    
-    // Create user with service role (bypasses email confirmation)
+
+    // Create auth user with throwaway password — client will set their own via invite link
     const { data: newUser, error: createError } = await adminClient.auth.admin.createUser({
       email,
-      password: tempPassword,
+      password: generateRandomPassword(),
       email_confirm: true,
       user_metadata: {
         full_name: full_name || email.split('@')[0]
       }
     })
-    
-    if (createError) {
+
+    if (createError || !newUser?.user) {
       console.error('Create user error:', createError)
-      return NextResponse.json({ error: createError.message }, { status: 400 })
+      return NextResponse.json({ error: createError?.message || 'Failed to create user' }, { status: 400 })
     }
-    
-    // Create profile with embedded permissions
+
+    // Create profile
     const { error: profileError } = await adminClient
       .from('profiles')
       .upsert({
@@ -469,47 +382,92 @@ export async function POST(request: NextRequest) {
         is_active: true,
         must_change_password: true,
         password_changed: false,
-        temp_password: tempPassword,
         status: 'pending',
-        // Permissions embedded directly
         can_access_strength: permissions?.strength || false,
         can_access_cardio: permissions?.cardio || false,
         can_access_hyrox: permissions?.hyrox || false,
         can_access_hybrid: permissions?.hybrid || false,
         can_access_nutrition: permissions?.nutrition || false
       })
-    
+
     if (profileError) {
       console.error('Profile error:', profileError)
+      // Roll back auth user so the state stays consistent
+      await adminClient.auth.admin.deleteUser(newUser.user.id).catch(() => {})
+      return NextResponse.json({
+        error: 'Failed to create profile',
+        details: profileError.message
+      }, { status: 500 })
     }
-    
-    // Send to Klaviyo
-    const klaviyoResult = await sendToKlaviyo(email, full_name, tempPassword)
-    
-    // Log the result for debugging
-    console.log('Klaviyo result:', { 
-      email, 
-      success: klaviyoResult.success, 
-      skipped: klaviyoResult.skipped,
-      profileId: klaviyoResult.profileId,
-      error: klaviyoResult.error
-    })
-    
-    // Email is only truly sent if Klaviyo succeeded and wasn't skipped
-    const emailSent = klaviyoResult.success === true && !klaviyoResult.skipped
-    
-    return NextResponse.json({ 
-      success: true, 
+
+    // Create invite token and send email
+    const { data: tokenRow, error: tokenError } = await adminClient
+      .from('invite_tokens')
+      .insert({
+        user_id: newUser.user.id,
+        email,
+        created_by: currentUser?.id ?? null,
+      })
+      .select('token')
+      .single()
+
+    if (tokenError || !tokenRow) {
+      console.error('Invite token error:', tokenError)
+      return NextResponse.json({
+        error: 'User created but invite token could not be generated. Use Resend invite from the users list.',
+        userId: newUser.user.id,
+      }, { status: 500 })
+    }
+
+    // Fetch trainer/org names for the email greeting
+    let trainerName: string | null = null
+    let orgName: string | null = null
+    if (currentUser?.id) {
+      const { data: trainerProfile } = await adminClient
+        .from('profiles')
+        .select('full_name')
+        .eq('id', currentUser.id)
+        .single()
+      trainerName = trainerProfile?.full_name ?? null
+    }
+    if (organization_id) {
+      const { data: org } = await adminClient
+        .from('organizations')
+        .select('name')
+        .eq('id', organization_id)
+        .single()
+      orgName = org?.name ?? null
+    }
+
+    let inviteSent = false
+    let inviteError: string | null = null
+    try {
+      await sendInviteEmail({
+        email,
+        fullName: full_name || null,
+        token: tokenRow.token,
+        trainerName,
+        orgName,
+      })
+      inviteSent = true
+    } catch (e) {
+      console.error('Send invite email error:', e)
+      inviteError = e instanceof Error ? e.message : 'Email failed to send'
+    }
+
+    return NextResponse.json({
+      success: true,
       user: {
         id: newUser.user.id,
         email: newUser.user.email,
-        slug: slug
+        slug,
       },
-      emailSent,
-      // Always return temp password so trainer can manually share if needed
-      tempPassword: tempPassword
+      inviteSent,
+      inviteError,
+      // Fallback: trainer can copy this link if email failed for any reason
+      inviteLink: `${process.env.NEXT_PUBLIC_APP_URL || 'https://app.cmpdcollective.com'}/accept-invite?token=${tokenRow.token}`,
     })
-    
+
   } catch (error) {
     console.error('Create user error:', error)
     return NextResponse.json({ error: 'Failed to create user' }, { status: 500 })

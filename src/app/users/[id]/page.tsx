@@ -19,7 +19,6 @@ import {
   Clock,
   Shield,
   Edit2,
-  Key,
   User as UserIcon,
   Plus,
   X,
@@ -45,7 +44,6 @@ interface User {
   full_name: string | null
   is_active: boolean
   status: string | null
-  temp_password: string | null
   password_changed: boolean | null
   profile_picture_url: string | null
   created_at: string
@@ -1745,13 +1743,11 @@ export default function UserProfilePage() {
               )}
             </div>
 
-            {user.temp_password && !user.password_changed && (
+            {!user.password_changed && (
               <div className="mt-3 flex items-center gap-2">
-                <Key className="w-4 h-4 text-yellow-400" />
-                <span className="text-sm text-zinc-400">Temp Password:</span>
-                <code className="bg-zinc-800 px-2 py-1 rounded text-xs text-yellow-400 font-mono">
-                  {user.temp_password}
-                </code>
+                <Clock className="w-4 h-4 text-yellow-400" />
+                <span className="text-sm text-yellow-400 font-medium">Pending invite</span>
+                <span className="text-xs text-zinc-500">— client hasn&apos;t accepted yet</span>
               </div>
             )}
           </div>
@@ -2468,7 +2464,7 @@ export default function UserProfilePage() {
       <div className="card p-6 border-red-500/20 mt-6">
         <h2 className="text-lg font-semibold text-red-400 mb-4">Danger Zone</h2>
         <p className="text-zinc-400 text-sm mb-4">
-          Deleting this user will remove their account and move them to the inactive list in Klaviyo.
+          Deleting this client will remove their account and all training data.
           This action cannot be undone.
         </p>
         

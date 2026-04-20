@@ -37,58 +37,6 @@ async function resolveProfile(adminClient: ReturnType<typeof getAdminClient>, id
   return { profile, error, lookupField }
 }
 
-// Move profile to inactive list in Klaviyo
-async function moveToInactiveList(email: string) {
-  const apiKey = process.env.KLAVIYO_API_KEY
-  const activeListId = process.env.KLAVIYO_LIST_ID
-  const inactiveListId = process.env.KLAVIYO_INACTIVE_LIST_ID
-  
-  if (!apiKey) return { success: false, reason: 'No API key' }
-
-  try {
-    const searchResponse = await fetch(`https://a.klaviyo.com/api/profiles/?filter=equals(email,"${email}")`, {
-      headers: {
-        'Authorization': `Klaviyo-API-Key ${apiKey}`,
-        'revision': '2024-02-15'
-      }
-    })
-    
-    const searchData = await searchResponse.json()
-    const profileId = searchData.data?.[0]?.id
-    
-    if (!profileId) return { success: false, reason: 'Profile not found' }
-
-    if (activeListId) {
-      await fetch(`https://a.klaviyo.com/api/lists/${activeListId}/relationships/profiles/`, {
-        method: 'DELETE',
-        headers: {
-          'Authorization': `Klaviyo-API-Key ${apiKey}`,
-          'Content-Type': 'application/json',
-          'revision': '2024-02-15'
-        },
-        body: JSON.stringify({ data: [{ type: 'profile', id: profileId }] })
-      })
-    }
-
-    if (inactiveListId) {
-      await fetch(`https://a.klaviyo.com/api/lists/${inactiveListId}/relationships/profiles/`, {
-        method: 'POST',
-        headers: {
-          'Authorization': `Klaviyo-API-Key ${apiKey}`,
-          'Content-Type': 'application/json',
-          'revision': '2024-02-15'
-        },
-        body: JSON.stringify({ data: [{ type: 'profile', id: profileId }] })
-      })
-    }
-
-    return { success: true, profileId }
-  } catch (error) {
-    console.error('Klaviyo error:', error)
-    return { success: false, error }
-  }
-}
-
 export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
@@ -204,13 +152,6 @@ export async function DELETE(
     }
     
     const userId = profile.id
-    const { data: authUser } = await adminClient.auth.admin.getUserById(userId)
-    const userEmail = authUser?.user?.email || profile.email
-
-    // Move to inactive list in Klaviyo
-    if (userEmail) {
-      await moveToInactiveList(userEmail)
-    }
 
     // Delete from auth (cascades to profile if FK is set)
     const { error: authError } = await adminClient.auth.admin.deleteUser(userId)

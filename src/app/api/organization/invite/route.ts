@@ -114,8 +114,8 @@ export async function POST(req: Request) {
     
     console.log('Invite created:', { email, inviteUrl });
 
-    // In production, send email via Klaviyo or similar
-    // await sendInviteEmail(email, org.name, inviteUrl, role);
+    // TODO: wire this trainer-invite flow through Resend (sendInviteEmail in @/app/lib/email)
+    // once we extend the invite_tokens pattern to non-client roles.
 
     return NextResponse.json({
       success: true,

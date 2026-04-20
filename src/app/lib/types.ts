@@ -94,7 +94,6 @@ export interface Profile {
   is_super_admin: boolean
   is_active: boolean
   status: 'pending' | 'active' | null
-  temp_password: string | null
   password_changed: boolean
   must_change_password: boolean
   profile_picture_url: string | null
