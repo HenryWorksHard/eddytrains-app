@@ -46,6 +46,19 @@ const pascalFetcher = (url: string): Promise<PascalData> =>
     return r.json()
   })
 
+function greetingFor(tier: 1 | 2 | 3 | 4): string {
+  switch (tier) {
+    case 1:
+      return "I'm Pascal. I'm a bit rough — let's fix that together."
+    case 2:
+      return "I'm Pascal. The more you work out, the better I look."
+    case 3:
+      return "I'm Pascal. Keep showing up and I'll keep getting sharper."
+    case 4:
+      return "I'm Pascal. Look at us — don't stop now."
+  }
+}
+
 export default function DashboardClient({ firstName, workoutsByDay, programCount, completedWorkouts, scheduleByDay, scheduleByWeekAndDay, calendarCompletions, programStartDate, maxWeek = 1, streak = 0 }: DashboardClientProps) {
   const completedSet = new Set(completedWorkouts)
   const [mounted, setMounted] = useState(false)
@@ -53,6 +66,7 @@ export default function DashboardClient({ firstName, workoutsByDay, programCount
   const [todayDayOfWeek, setTodayDayOfWeek] = useState(new Date().getDay())
   const [todayDateStr, setTodayDateStr] = useState('')
   const [menuOpen, setMenuOpen] = useState(false)
+  const [showPascalGreeting, setShowPascalGreeting] = useState(false)
 
   // Pascal mascot score — cached for 5 minutes alongside the other
   // client-side SWR calls. Fetched with the user's IANA tz so the
@@ -92,7 +106,25 @@ export default function DashboardClient({ firstName, workoutsByDay, programCount
     
     // Format date in user's locale
     setTodayDateStr(now.toLocaleDateString(undefined, { day: 'numeric', month: 'long' }))
+
+    // Show Pascal's greeting bubble once per browser session.
+    try {
+      const key = 'cmpd:pascal-greeted'
+      if (!sessionStorage.getItem(key)) {
+        setShowPascalGreeting(true)
+        sessionStorage.setItem(key, '1')
+      }
+    } catch {
+      // sessionStorage unavailable (private mode) — skip.
+    }
   }, [])
+
+  // Auto-dismiss the greeting after ~7s.
+  useEffect(() => {
+    if (!showPascalGreeting) return
+    const t = setTimeout(() => setShowPascalGreeting(false), 7000)
+    return () => clearTimeout(t)
+  }, [showPascalGreeting])
 
   const todayWorkouts = workoutsByDay[todayDayOfWeek] || []
   const tomorrowDayOfWeek = (todayDayOfWeek + 1) % 7
@@ -151,11 +183,23 @@ export default function DashboardClient({ firstName, workoutsByDay, programCount
 
           {/* Pascal — fitness-consistency mascot */}
           <div className="flex flex-col items-center mb-4">
-            <div className="w-[120px] h-[120px] flex items-center justify-center">
+            <div className="relative w-[120px] h-[120px] flex items-center justify-center">
               {pascalData ? (
                 <Pascal score={pascalData.score} />
               ) : (
                 <div className="w-[96px] h-[96px] rounded-2xl bg-zinc-800/40 animate-pulse" />
+              )}
+              {/* Speech bubble — once per session */}
+              {pascalData && showPascalGreeting && (
+                <button
+                  type="button"
+                  onClick={() => setShowPascalGreeting(false)}
+                  className="pascal-bubble absolute left-[108px] top-2 max-w-[200px] text-left bg-white text-black text-xs leading-snug rounded-2xl rounded-bl-sm px-3 py-2 shadow-lg"
+                  aria-label="Dismiss Pascal's greeting"
+                >
+                  {greetingFor(pascalData.tier)}
+                  <span className="pascal-bubble-tail" aria-hidden />
+                </button>
               )}
             </div>
             {pascalData && (
@@ -169,6 +213,38 @@ export default function DashboardClient({ firstName, workoutsByDay, programCount
               </div>
             )}
           </div>
+
+          <style jsx>{`
+            @keyframes pascal-bubble-in {
+              0% {
+                opacity: 0;
+                transform: translateY(6px) scale(0.94);
+              }
+              100% {
+                opacity: 1;
+                transform: translateY(0) scale(1);
+              }
+            }
+            .pascal-bubble {
+              animation: pascal-bubble-in 320ms cubic-bezier(0.2, 0.8, 0.2, 1) both;
+              transform-origin: bottom left;
+            }
+            .pascal-bubble-tail {
+              position: absolute;
+              left: -8px;
+              bottom: 10px;
+              width: 0;
+              height: 0;
+              border-top: 8px solid transparent;
+              border-bottom: 8px solid transparent;
+              border-right: 8px solid #ffffff;
+            }
+            @media (prefers-reduced-motion: reduce) {
+              .pascal-bubble {
+                animation: none;
+              }
+            }
+          `}</style>
 
           {/* Today Banner - compact */}
           <div className="bg-zinc-800/50 rounded-lg px-3 py-2 flex items-center gap-2">
