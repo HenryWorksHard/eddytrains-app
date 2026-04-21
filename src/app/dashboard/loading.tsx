@@ -1,11 +1,18 @@
-import BrandMark from '@/components/BrandMark'
+import Image from 'next/image'
 
 export default function DashboardLoading() {
   return (
     <div className="min-h-screen bg-black flex flex-col items-center justify-center">
-      <BrandMark size="lg" className="mb-6" priority />
-      <div className="w-8 h-8 border-[3px] border-zinc-700 border-t-yellow-400 rounded-full animate-spin"></div>
-      <p className="text-zinc-500 text-sm mt-4">Loading...</p>
+      <Image
+        src="/loading.gif"
+        alt="Loading"
+        width={120}
+        height={120}
+        priority
+        unoptimized
+        className="mb-2"
+      />
+      <p className="text-zinc-500 text-sm">Loading...</p>
     </div>
   )
 }
