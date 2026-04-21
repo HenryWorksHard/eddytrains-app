@@ -63,6 +63,27 @@ const soloTrainerNavItems = [
   { name: 'Settings', href: '/settings', icon: Settings },
 ]
 
+const ROLE_CACHE_KEY = 'cmpd:sidebar-cache'
+
+type CachedSidebarState = {
+  role: string
+  orgName: string
+  isSoloTrainer: boolean
+  isImpersonating: boolean
+  impersonatedOrgName: string
+}
+
+function loadCachedState(): CachedSidebarState | null {
+  if (typeof window === 'undefined') return null
+  try {
+    const raw = localStorage.getItem(ROLE_CACHE_KEY)
+    if (!raw) return null
+    return JSON.parse(raw) as CachedSidebarState
+  } catch {
+    return null
+  }
+}
+
 export default function Sidebar() {
   const pathname = usePathname()
   const router = useRouter()
@@ -70,11 +91,17 @@ export default function Sidebar() {
   const { theme, toggleTheme } = useTheme()
   const [mounted, setMounted] = useState(false)
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
-  const [userRole, setUserRole] = useState<string>('trainer')
-  const [isSoloTrainer, setIsSoloTrainer] = useState(false)
-  const [orgName, setOrgName] = useState<string>('CMPD')
-  const [isImpersonating, setIsImpersonating] = useState(false)
-  const [impersonatedOrgName, setImpersonatedOrgName] = useState<string>('')
+  // roleLoaded gates rendering of role-dependent UI so we don't flash the
+  // default "trainer" view to a super admin before /api/me resolves.
+  // On first render we hydrate from localStorage cache to kill the flash for
+  // returning sessions; first-ever visit still waits for the API.
+  const cached = loadCachedState()
+  const [roleLoaded, setRoleLoaded] = useState(cached !== null)
+  const [userRole, setUserRole] = useState<string>(cached?.role || 'trainer')
+  const [isSoloTrainer, setIsSoloTrainer] = useState(cached?.isSoloTrainer ?? false)
+  const [orgName, setOrgName] = useState<string>(cached?.orgName || 'CMPD')
+  const [isImpersonating, setIsImpersonating] = useState(cached?.isImpersonating ?? false)
+  const [impersonatedOrgName, setImpersonatedOrgName] = useState<string>(cached?.impersonatedOrgName || '')
   const [isTrialing, setIsTrialing] = useState(false)
   const [trialDaysLeft, setTrialDaysLeft] = useState(0)
   const [hasPlanSelected, setHasPlanSelected] = useState(false)
@@ -84,7 +111,6 @@ export default function Sidebar() {
     setMounted(true)
 
     // Single source of truth: /api/me returns role, effective org, and impersonation state.
-    // No more sessionStorage — cookie-driven impersonation is resolved server-side.
     async function loadMe() {
       try {
         const response = await fetch('/api/me')
@@ -95,26 +121,41 @@ export default function Sidebar() {
             return
           }
           setUserRole('trainer')
+          setRoleLoaded(true)
           return
         }
 
         const data = await response.json()
-        setUserRole(data.role || 'trainer')
-        setOrgName(data.orgName || 'CMPD')
+        const nextRole = data.role || 'trainer'
+        const nextOrgName = data.orgName || 'CMPD'
+        const nextSolo = data.role === 'trainer' ? !data.companyId : false
+        const nextImpersonating = !!data.impersonating
+        const nextImpersonatedOrgName = data.impersonating?.orgName || ''
 
-        if (data.role === 'trainer') {
-          setIsSoloTrainer(!data.companyId)
-        }
+        setUserRole(nextRole)
+        setOrgName(nextOrgName)
+        setIsSoloTrainer(nextSolo)
+        setIsImpersonating(nextImpersonating)
+        setImpersonatedOrgName(nextImpersonatedOrgName)
+        setRoleLoaded(true)
 
-        if (data.impersonating) {
-          setIsImpersonating(true)
-          setImpersonatedOrgName(data.impersonating.orgName || '')
-        } else {
-          setIsImpersonating(false)
-          setImpersonatedOrgName('')
+        try {
+          localStorage.setItem(
+            ROLE_CACHE_KEY,
+            JSON.stringify({
+              role: nextRole,
+              orgName: nextOrgName,
+              isSoloTrainer: nextSolo,
+              isImpersonating: nextImpersonating,
+              impersonatedOrgName: nextImpersonatedOrgName,
+            } satisfies CachedSidebarState)
+          )
+        } catch {
+          // localStorage may be unavailable (private mode, quota); silently skip
         }
       } catch (error) {
         console.error('Error loading /api/me:', error)
+        setRoleLoaded(true)
       }
     }
     loadMe()
@@ -188,47 +229,64 @@ export default function Sidebar() {
         </button>
       )}
       
-      {/* Logo */}
+      {/* Logo — hidden until /api/me resolves to avoid flashing wrong brand/role */}
       <div className="p-6 border-b border-zinc-800">
-        <Link href={userRole === 'super_admin' && !isImpersonating ? "/platform" : "/dashboard"} className="flex items-center gap-3">
-          {userRole === 'super_admin' && !isImpersonating ? (
-            <BrandMark size="md" />
-          ) : (
-            <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-yellow-400 to-yellow-500 flex items-center justify-center">
-              <span className="text-black font-bold">
-                {isImpersonating ? impersonatedOrgName.charAt(0).toUpperCase() : orgName.charAt(0).toUpperCase()}
-              </span>
+        {roleLoaded ? (
+          <Link href={userRole === 'super_admin' && !isImpersonating ? "/platform" : "/dashboard"} className="flex items-center gap-3">
+            {userRole === 'super_admin' && !isImpersonating ? (
+              <BrandMark size="md" />
+            ) : (
+              <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-yellow-400 to-yellow-500 flex items-center justify-center">
+                <span className="text-black font-bold">
+                  {isImpersonating ? impersonatedOrgName.charAt(0).toUpperCase() : orgName.charAt(0).toUpperCase()}
+                </span>
+              </div>
+            )}
+            <div>
+              <h1 className="font-bold text-white truncate max-w-[140px]">
+                {isImpersonating ? impersonatedOrgName : (userRole === 'super_admin' ? 'CMPD' : orgName)}
+              </h1>
+              <p className="text-xs text-zinc-500">{getPortalLabel()}</p>
             </div>
-          )}
-          <div>
-            <h1 className="font-bold text-white truncate max-w-[140px]">
-              {isImpersonating ? impersonatedOrgName : (userRole === 'super_admin' ? 'CMPD' : orgName)}
-            </h1>
-            <p className="text-xs text-zinc-500">{getPortalLabel()}</p>
+          </Link>
+        ) : (
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-xl bg-zinc-800 animate-pulse" />
+            <div className="space-y-2">
+              <div className="w-24 h-3 bg-zinc-800 rounded animate-pulse" />
+              <div className="w-16 h-2 bg-zinc-800 rounded animate-pulse" />
+            </div>
           </div>
-        </Link>
+        )}
       </div>
 
       {/* Navigation */}
       <nav className="flex-1 p-4 space-y-1">
-        {navItems.map((item) => {
-          const isActive = pathname.startsWith(item.href)
-          return (
-            <Link
-              key={item.name}
-              href={item.href}
-              className={`flex items-center gap-3 px-4 py-3 rounded-xl transition-all ${
-                isActive
-                  ? 'bg-yellow-400/10 text-yellow-400 border border-yellow-400/20'
-                  : 'text-zinc-400 hover:bg-zinc-800 hover:text-white'
-              }`}
-            >
-              <item.icon className="w-5 h-5" />
-              <span className="font-medium">{item.name}</span>
-              {isActive && <ChevronRight className="w-4 h-4 ml-auto" />}
-            </Link>
-          )
-        })}
+        {roleLoaded
+          ? navItems.map((item) => {
+              const isActive = pathname.startsWith(item.href)
+              return (
+                <Link
+                  key={item.name}
+                  href={item.href}
+                  className={`flex items-center gap-3 px-4 py-3 rounded-xl transition-all ${
+                    isActive
+                      ? 'bg-yellow-400/10 text-yellow-400 border border-yellow-400/20'
+                      : 'text-zinc-400 hover:bg-zinc-800 hover:text-white'
+                  }`}
+                >
+                  <item.icon className="w-5 h-5" />
+                  <span className="font-medium">{item.name}</span>
+                  {isActive && <ChevronRight className="w-4 h-4 ml-auto" />}
+                </Link>
+              )
+            })
+          : Array.from({ length: 5 }).map((_, i) => (
+              <div key={i} className="flex items-center gap-3 px-4 py-3 rounded-xl">
+                <div className="w-5 h-5 bg-zinc-800 rounded animate-pulse" />
+                <div className="w-20 h-3 bg-zinc-800 rounded animate-pulse" />
+              </div>
+            ))}
       </nav>
 
       {/* Upgrade Banner for Solo Trainers on Trial */}
@@ -288,20 +346,27 @@ export default function Sidebar() {
     <>
       {/* Mobile Header with Hamburger */}
       <header className="lg:hidden fixed top-0 left-0 right-0 h-16 bg-zinc-900 border-b border-zinc-800 flex items-center justify-between px-4 z-50">
-        <Link href={userRole === 'super_admin' && !isImpersonating ? "/platform" : "/dashboard"} className="flex items-center gap-3">
-          {userRole === 'super_admin' && !isImpersonating ? (
-            <BrandMark size="sm" />
-          ) : (
-            <div className="w-9 h-9 rounded-lg bg-gradient-to-br from-yellow-400 to-yellow-500 flex items-center justify-center">
-              <span className="text-black font-bold text-sm">
-                {isImpersonating ? impersonatedOrgName.charAt(0).toUpperCase() : orgName.charAt(0).toUpperCase()}
-              </span>
-            </div>
-          )}
-          <span className="font-bold text-white">
-            {isImpersonating ? impersonatedOrgName : (userRole === 'super_admin' ? 'CMPD' : orgName)}
-          </span>
-        </Link>
+        {roleLoaded ? (
+          <Link href={userRole === 'super_admin' && !isImpersonating ? "/platform" : "/dashboard"} className="flex items-center gap-3">
+            {userRole === 'super_admin' && !isImpersonating ? (
+              <BrandMark size="sm" />
+            ) : (
+              <div className="w-9 h-9 rounded-lg bg-gradient-to-br from-yellow-400 to-yellow-500 flex items-center justify-center">
+                <span className="text-black font-bold text-sm">
+                  {isImpersonating ? impersonatedOrgName.charAt(0).toUpperCase() : orgName.charAt(0).toUpperCase()}
+                </span>
+              </div>
+            )}
+            <span className="font-bold text-white">
+              {isImpersonating ? impersonatedOrgName : (userRole === 'super_admin' ? 'CMPD' : orgName)}
+            </span>
+          </Link>
+        ) : (
+          <div className="flex items-center gap-3">
+            <div className="w-9 h-9 rounded-lg bg-zinc-800 animate-pulse" />
+            <div className="w-20 h-3 bg-zinc-800 rounded animate-pulse" />
+          </div>
+        )}
         <button
           onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
           className="p-2 text-zinc-400 hover:text-white transition-colors"
