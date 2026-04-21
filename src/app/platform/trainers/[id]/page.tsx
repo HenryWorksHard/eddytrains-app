@@ -57,79 +57,54 @@ export default function TrainerDetailPage() {
   async function fetchTrainerData() {
     setLoading(true)
     try {
-      // Fetch trainer profile
-      const { data: trainerData, error: trainerError } = await supabase
-        .from('profiles')
-        .select('*')
-        .eq('id', trainerId)
-        .eq('role', 'trainer')
-        .single()
+      // Single admin-client call returns profile + email + org + company + clients
+      const response = await fetch(`/api/trainers/${trainerId}`)
+      if (!response.ok) {
+        console.error('Trainer not found:', await response.text())
+        setTrainer(null)
+        return
+      }
+      const data = await response.json()
 
-      if (trainerError || !trainerData) {
-        console.error('Trainer not found:', trainerError)
-        router.push('/platform/trainers')
+      setTrainer(data.trainer)
+      setOrgInfo(
+        data.organization
+          ? {
+              name: data.organization.name,
+              subscription_tier: data.organization.subscription_tier,
+              subscription_status: data.organization.subscription_status,
+              organization_type: data.organization.organization_type,
+            }
+          : null
+      )
+      setCompanyName(data.companyName ?? null)
+
+      const baseClients: Client[] = data.clients ?? []
+      if (baseClients.length === 0) {
+        setClients([])
         return
       }
 
-      // Get email from auth
-      const response = await fetch(`/api/trainers/${trainerId}`)
-      const authData = await response.json()
-      
-      setTrainer({
-        ...trainerData,
-        email: authData.email || 'Unknown'
-      })
+      // Fetch active programs for each client (client-side is fine — RLS-friendly for super admin)
+      const clientsWithPrograms = await Promise.all(
+        baseClients.map(async (client) => {
+          const { data: activeProgram } = await supabase
+            .from('client_programs')
+            .select('programs(name)')
+            .eq('client_id', client.id)
+            .eq('is_active', true)
+            .limit(1)
+            .single()
 
-      // Fetch organization info
-      if (trainerData.organization_id) {
-        const { data: org } = await supabase
-          .from('organizations')
-          .select('name, subscription_tier, subscription_status, organization_type')
-          .eq('id', trainerData.organization_id)
-          .single()
-        
-        if (org) setOrgInfo(org)
-      }
+          const programData = activeProgram?.programs as unknown as { name: string } | null
+          return {
+            ...client,
+            activeProgram: programData?.name || null,
+          }
+        })
+      )
 
-      // Fetch company name if applicable
-      if (trainerData.company_id) {
-        const { data: company } = await supabase
-          .from('organizations')
-          .select('name')
-          .eq('id', trainerData.company_id)
-          .single()
-        
-        if (company) setCompanyName(company.name)
-      }
-
-      // Fetch trainer's clients via API (bypasses RLS)
-      const clientsResponse = await fetch(`/api/admin/users?trainerFilter=${trainerId}`)
-      const clientsData = await clientsResponse.json()
-      
-      if (clientsData.users && clientsData.users.length > 0) {
-        // Get active programs for each client
-        const clientsWithPrograms = await Promise.all(
-          clientsData.users.map(async (client: Client) => {
-            const { data: activeProgram } = await supabase
-              .from('client_programs')
-              .select('programs(name)')
-              .eq('client_id', client.id)
-              .eq('is_active', true)
-              .limit(1)
-              .single()
-            
-            const programData = activeProgram?.programs as unknown as { name: string } | null
-            return {
-              ...client,
-              activeProgram: programData?.name || null
-            }
-          })
-        )
-        
-        setClients(clientsWithPrograms)
-      } else {
-        setClients([])
-      }
+      setClients(clientsWithPrograms)
     } catch (error) {
       console.error('Error fetching trainer data:', error)
     } finally {
