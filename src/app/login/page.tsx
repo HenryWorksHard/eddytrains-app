@@ -4,6 +4,7 @@ import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/app/lib/supabase/client'
 import { LogIn, Eye, EyeOff, AlertCircle } from 'lucide-react'
+import BrandMark from '@/components/BrandMark'
 
 export default function LoginPage() {
   const [email, setEmail] = useState('')
@@ -76,9 +77,7 @@ export default function LoginPage() {
       <div className="w-full max-w-md">
         {/* Logo/Brand */}
         <div className="text-center mb-8">
-          <div className="w-16 h-16 mx-auto rounded-2xl bg-gradient-to-br from-yellow-400 to-yellow-500 flex items-center justify-center mb-4">
-            <span className="text-black text-2xl font-bold">C</span>
-          </div>
+          <BrandMark size="lg" className="mx-auto mb-4" priority />
           <h1 className="text-2xl font-bold text-white">CMPD Fitness</h1>
           <p className="text-zinc-400 mt-2">Sign in to your account</p>
         </div>

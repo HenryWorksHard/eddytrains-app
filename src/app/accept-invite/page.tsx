@@ -4,6 +4,7 @@ import { useEffect, useState, Suspense } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { createClient } from '@/app/lib/supabase/client'
 import { Loader2, AlertCircle, Eye, EyeOff, CheckCircle } from 'lucide-react'
+import BrandMark from '@/components/BrandMark'
 
 function AcceptInviteForm() {
   const router = useRouter()
@@ -147,9 +148,7 @@ function AcceptInviteForm() {
     <div className="min-h-screen bg-black flex items-center justify-center p-6">
       <div className="w-full max-w-md">
         <div className="text-center mb-8">
-          <div className="w-16 h-16 mx-auto rounded-2xl bg-gradient-to-br from-yellow-400 to-yellow-500 flex items-center justify-center mb-4">
-            <span className="text-black text-2xl font-bold">C</span>
-          </div>
+          <BrandMark size="lg" className="mx-auto mb-4" priority />
           <h1 className="text-3xl font-bold text-white mb-2">Set your password</h1>
           {email && (
             <p className="text-zinc-400">

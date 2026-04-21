@@ -40,6 +40,7 @@ export async function sendInviteEmail({
 }: SendInviteArgs) {
   const resend = getResend()
   const link = `${getAppUrl()}/accept-invite?token=${token}`
+  const logoUrl = `${getAppUrl()}/logo.svg`
   const greeting = fullName ? `Hi ${fullName.split(' ')[0]},` : 'Hi,'
   const fromLine = trainerName
     ? `${trainerName} has set up your CMPD Fitness account.`
@@ -57,7 +58,9 @@ export async function sendInviteEmail({
               <table width="560" cellpadding="0" cellspacing="0" style="max-width:560px; background:#18181b; border-radius:16px; padding:40px;">
                 <tr>
                   <td style="padding-bottom:24px;">
-                    <div style="width:56px; height:56px; border-radius:14px; background:linear-gradient(135deg,#facc15,#eab308); display:inline-block; text-align:center; line-height:56px; color:#000; font-size:24px; font-weight:800;">C</div>
+                    <div style="width:56px; height:56px; border-radius:14px; background:#000; display:inline-block; overflow:hidden; text-align:center;">
+                      <img src="${logoUrl}" alt="CMPD" width="56" height="56" style="display:block; width:56px; height:56px; border-radius:14px;" />
+                    </div>
                   </td>
                 </tr>
                 <tr>
