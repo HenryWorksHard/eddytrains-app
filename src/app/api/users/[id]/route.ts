@@ -139,26 +139,71 @@ export async function PATCH(
 }
 
 export async function DELETE(
-  request: NextRequest,
+  _request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const { id } = await params
     const adminClient = getAdminClient()
-    
+
     const { profile, error: lookupError } = await resolveProfile(adminClient, id)
     if (lookupError || !profile) {
       return NextResponse.json({ error: 'User not found' }, { status: 404 })
     }
-    
+
     const userId = profile.id
 
-    // Delete from auth (cascades to profile if FK is set)
-    const { error: authError } = await adminClient.auth.admin.deleteUser(userId)
-    if (authError) throw authError
+    // Clean up child data first to satisfy FK constraints.
+    // client_exercise_sets → client_programs → (child tables)
+    const { data: clientPrograms } = await adminClient
+      .from('client_programs')
+      .select('id')
+      .eq('user_id', userId)
+    const programIds = clientPrograms?.map(p => p.id) || []
+    if (programIds.length > 0) {
+      await adminClient.from('client_exercise_sets').delete().in('client_program_id', programIds)
+    }
 
-    // Also delete profile manually in case no cascade
-    await adminClient.from('profiles').delete().eq('id', userId)
+    await adminClient.from('client_programs').delete().eq('user_id', userId)
+    await adminClient.from('client_nutrition').delete().eq('client_id', userId)
+    await adminClient.from('client_1rms').delete().eq('user_id', userId)
+    await adminClient.from('client_1rm_history').delete().eq('user_id', userId)
+    await adminClient.from('client_streaks').delete().eq('user_id', userId)
+    await adminClient.from('personal_records').delete().eq('user_id', userId)
+
+    const { data: workoutLogs } = await adminClient
+      .from('workout_logs')
+      .select('id')
+      .eq('user_id', userId)
+    const workoutLogIds = workoutLogs?.map(wl => wl.id) || []
+    if (workoutLogIds.length > 0) {
+      await adminClient.from('set_logs').delete().in('workout_log_id', workoutLogIds)
+    }
+
+    await adminClient.from('workout_logs').delete().eq('user_id', userId)
+    await adminClient.from('workout_completions').delete().eq('user_id', userId)
+    await adminClient.from('progress_images').delete().eq('user_id', userId)
+    await adminClient.from('invite_tokens').delete().eq('user_id', userId)
+
+    // Profile before auth — FK from profiles.id → auth.users(id)
+    const { error: profileDeleteError } = await adminClient
+      .from('profiles')
+      .delete()
+      .eq('id', userId)
+    if (profileDeleteError) {
+      return NextResponse.json({
+        error: 'Failed to delete user profile',
+        details: profileDeleteError.message,
+      }, { status: 500 })
+    }
+
+    const { error: authError } = await adminClient.auth.admin.deleteUser(userId)
+    if (authError) {
+      return NextResponse.json({
+        error: 'Profile deleted but auth user could not be removed',
+        details: authError.message,
+      }, { status: 500 })
+    }
 
     return NextResponse.json({ success: true })
   } catch (error) {

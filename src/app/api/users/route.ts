@@ -208,39 +208,37 @@ export async function DELETE(request: NextRequest) {
     await adminClient.from('workout_logs').delete().eq('user_id', userId)
     await adminClient.from('workout_completions').delete().eq('user_id', userId)
     await adminClient.from('progress_images').delete().eq('user_id', userId)
-    
-    console.log('[DELETE user] Related data cleaned up, deleting auth user')
-    
-    // Try to delete from auth - but don't fail the whole operation if it doesn't work
-    // User might only exist in profiles (manual creation, already deleted from auth, etc)
-    let authDeleted = false
-    try {
-      const { error: authError } = await adminClient.auth.admin.deleteUser(userId)
-      if (authError) {
-        console.error('[DELETE user] Auth delete error (continuing anyway):', authError.message)
-      } else {
-        authDeleted = true
-      }
-    } catch (authErr) {
-      console.error('[DELETE user] Auth delete exception (continuing anyway):', authErr)
-    }
-    
-    // Delete profile - this is the critical part
+
+    // Explicitly clear invite_tokens so nothing is left pointing at the auth user
+    await adminClient.from('invite_tokens').delete().eq('user_id', userId)
+
+    // Delete profile FIRST. profiles.id references auth.users(id), so the auth
+    // delete below would fail with an FK violation if the profile still exists.
     const { error: profileDeleteError } = await adminClient
       .from('profiles')
       .delete()
       .eq('id', userId)
-    
+
     if (profileDeleteError) {
       console.error('[DELETE user] Profile delete error:', profileDeleteError)
-      return NextResponse.json({ 
-        error: 'Failed to delete user profile', 
-        details: profileDeleteError.message 
+      return NextResponse.json({
+        error: 'Failed to delete user profile',
+        details: profileDeleteError.message
       }, { status: 500 })
     }
-    
-    console.log('[DELETE user] Successfully deleted user:', { userId, authDeleted })
-    return NextResponse.json({ success: true, authDeleted })
+
+    // Now delete the auth user — this revokes their ability to sign in.
+    const { error: authError } = await adminClient.auth.admin.deleteUser(userId)
+    if (authError) {
+      console.error('[DELETE user] Auth delete error:', authError)
+      return NextResponse.json({
+        error: 'Profile deleted but auth user could not be removed',
+        details: authError.message,
+      }, { status: 500 })
+    }
+
+    console.log('[DELETE user] Successfully deleted user:', { userId })
+    return NextResponse.json({ success: true })
   } catch (error) {
     console.error('[DELETE user] Error:', error)
     return NextResponse.json({ 
