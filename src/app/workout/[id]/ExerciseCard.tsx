@@ -1,7 +1,7 @@
 'use client'
 
 import { memo, useState, useEffect, useCallback, useRef } from 'react'
-import { ChevronDown, ChevronUp, RefreshCw, X, Check, Trophy, Search } from 'lucide-react'
+import { ChevronDown, ChevronUp, RefreshCw, X, Check, Trophy, Search, ArrowLeftRight } from 'lucide-react'
 import TutorialModal from './TutorialModal'
 import { createClient } from '../../lib/supabase/client'
 import WheelPicker from '../../components/WheelPicker'
@@ -578,16 +578,18 @@ function ExerciseCardInner({
               )}
             </div>
             
-            {/* Swap Button */}
-            <button 
+            {/* Swap Button — more prominent so clients know they can swap */}
+            <button
               onClick={(e) => {
                 e.stopPropagation()
                 setShowSwapModal(true)
               }}
-              className="p-1.5 text-zinc-500 hover:text-yellow-400 transition-colors flex-shrink-0"
-              title="Swap Exercise"
+              className="flex items-center gap-1 px-2 py-1 rounded-md bg-zinc-800 hover:bg-zinc-700 text-zinc-300 hover:text-yellow-400 text-[10px] font-medium transition-colors flex-shrink-0"
+              title="Swap this exercise for another"
+              aria-label="Swap exercise"
             >
-              <RefreshCw className="w-3.5 h-3.5" />
+              <ArrowLeftRight className="w-3 h-3" />
+              <span className="hidden sm:inline">Swap</span>
             </button>
             
             {/* Tutorial Icon Button */}

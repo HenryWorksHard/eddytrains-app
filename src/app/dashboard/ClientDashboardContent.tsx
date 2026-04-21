@@ -37,6 +37,7 @@ interface DashboardClientProps {
   maxWeek?: number
   streak?: number
   longestStreak?: number
+  lastProgressPhotoDate?: string | null
 }
 
 type PascalData = { score: number; max: number; stage: number; tier: 1 | 2 | 3 | 4 }
@@ -45,6 +46,65 @@ const pascalFetcher = (url: string): Promise<PascalData> =>
     if (!r.ok) throw new Error('pascal fetch failed')
     return r.json()
   })
+
+function ProgressPhotoPrompt({
+  todayHasWorkouts,
+  lastProgressPhotoDate,
+}: {
+  todayHasWorkouts: boolean
+  lastProgressPhotoDate: string | null
+}) {
+  const DAYS = lastProgressPhotoDate
+    ? Math.floor(
+        (Date.now() - new Date(lastProgressPhotoDate).getTime()) /
+          (1000 * 60 * 60 * 24)
+      )
+    : null
+
+  const overdue = DAYS !== null && DAYS >= 28
+  const firstTime = lastProgressPhotoDate === null
+  const restDayNudge = !todayHasWorkouts && DAYS !== null && DAYS >= 7
+
+  if (!overdue && !firstTime && !restDayNudge) return null
+
+  const copy = firstTime
+    ? {
+        title: 'Take your first progress photo',
+        body: 'Photos beat the mirror. Snap one today to set your baseline.',
+      }
+    : overdue
+    ? {
+        title: "Time for this month's progress photo",
+        body: `It's been ${DAYS} days since your last one. Takes 30 seconds.`,
+      }
+    : {
+        title: 'Rest day? Snap a progress photo',
+        body: 'A photo every week or two is the best way to see changes.',
+      }
+
+  return (
+    <section className="mt-4">
+      <Link
+        href="/progress-pictures"
+        className="flex items-center gap-3 p-4 bg-gradient-to-r from-yellow-400/10 to-yellow-500/5 border border-yellow-400/30 rounded-xl hover:border-yellow-400/50 transition-colors"
+      >
+        <div className="w-10 h-10 rounded-lg bg-yellow-400/20 flex items-center justify-center flex-shrink-0">
+          <svg className="w-5 h-5 text-yellow-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" />
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 13a3 3 0 11-6 0 3 3 0 016 0z" />
+          </svg>
+        </div>
+        <div className="flex-1 min-w-0">
+          <p className="text-sm font-semibold text-white">{copy.title}</p>
+          <p className="text-xs text-zinc-400 mt-0.5">{copy.body}</p>
+        </div>
+        <svg className="w-4 h-4 text-yellow-400 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+        </svg>
+      </Link>
+    </section>
+  )
+}
 
 function greetingFor(tier: 1 | 2 | 3 | 4): string {
   switch (tier) {
@@ -59,7 +119,7 @@ function greetingFor(tier: 1 | 2 | 3 | 4): string {
   }
 }
 
-export default function DashboardClient({ firstName, workoutsByDay, programCount, completedWorkouts, scheduleByDay, scheduleByWeekAndDay, calendarCompletions, programStartDate, maxWeek = 1, streak = 0 }: DashboardClientProps) {
+export default function DashboardClient({ firstName, workoutsByDay, programCount, completedWorkouts, scheduleByDay, scheduleByWeekAndDay, calendarCompletions, programStartDate, maxWeek = 1, streak = 0, lastProgressPhotoDate = null }: DashboardClientProps) {
   const completedSet = new Set(completedWorkouts)
   const [mounted, setMounted] = useState(false)
   const [greeting, setGreeting] = useState('Hello')
@@ -364,10 +424,17 @@ export default function DashboardClient({ firstName, workoutsByDay, programCount
           </section>
         )}
 
+        {/* Progress photo prompt — shows when no photo exists yet, or when
+           it's been >28 days, or as a rest-day reminder. */}
+        <ProgressPhotoPrompt
+          todayHasWorkouts={todayWorkouts.length > 0}
+          lastProgressPhotoDate={lastProgressPhotoDate}
+        />
+
         {/* Monthly Calendar */}
         <section className="mt-4">
           <h2 className="text-xs font-medium text-zinc-500 uppercase tracking-wider mb-2">This Month</h2>
-          <WorkoutCalendar 
+          <WorkoutCalendar
             scheduleByDay={scheduleByDay}
             scheduleByWeekAndDay={scheduleByWeekAndDay}
             completedWorkouts={calendarCompletions}

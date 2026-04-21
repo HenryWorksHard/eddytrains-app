@@ -25,11 +25,13 @@ interface WorkoutRating {
 function WorkoutRatingModal({
   onSubmit,
   onSkip,
-  isSubmitting
+  isSubmitting,
+  isFirstRating,
 }: {
   onSubmit: (rating: WorkoutRating) => void
   onSkip: () => void
   isSubmitting: boolean
+  isFirstRating: boolean
 }) {
   const [rating, setRating] = useState(0)
   const [hoveredRating, setHoveredRating] = useState(0)
@@ -59,6 +61,11 @@ function WorkoutRatingModal({
           </div>
           <h2 className="text-xl font-bold text-white">Nice work!</h2>
           <p className="text-zinc-500 text-sm">How was it?</p>
+          {isFirstRating && (
+            <p className="text-zinc-400 text-xs mt-2 italic">
+              Your coach uses this to adjust your next session.
+            </p>
+          )}
         </div>
         
         {/* Content - Compact */}
@@ -154,6 +161,7 @@ export default function CompleteWorkoutButton({
   isCompleted: initialCompleted = false 
 }: CompleteWorkoutButtonProps) {
   const [isCompleted, setIsCompleted] = useState(initialCompleted)
+  const [isFirstRating, setIsFirstRating] = useState(false)
   const [isLoading, setIsLoading] = useState(false)
   const [isVisible, setIsVisible] = useState(false)
   const [showRatingModal, setShowRatingModal] = useState(false)
@@ -179,6 +187,17 @@ export default function CompleteWorkoutButton({
 
   const handleComplete = () => {
     if (isCompleted || isLoading) return
+    // One-time explainer under the "How was it?" copy so clients
+    // understand what the rating is used for the first time they see it.
+    try {
+      const key = 'cmpd:rated-workout'
+      if (!localStorage.getItem(key)) {
+        setIsFirstRating(true)
+        localStorage.setItem(key, '1')
+      }
+    } catch {
+      // localStorage unavailable — skip the explainer
+    }
     setShowRatingModal(true)
   }
 
@@ -359,6 +378,7 @@ export default function CompleteWorkoutButton({
           onSubmit={handleRatingSubmit}
           onSkip={handleSkipRating}
           isSubmitting={isSubmittingRating}
+          isFirstRating={isFirstRating}
         />
       )}
     </>

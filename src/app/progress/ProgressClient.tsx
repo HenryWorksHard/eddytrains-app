@@ -340,8 +340,29 @@ export default function ProgressClient({
       <section>
         <div className="flex items-center justify-between mb-3">
           <h2 className="text-sm font-medium text-zinc-500 uppercase tracking-wider">Personal Records</h2>
-          <Link href="/profile" className="text-yellow-400 text-xs">Edit</Link>
+          <Link href="/1rm-tracking" className="text-yellow-400 text-xs font-medium">Track & update →</Link>
         </div>
+
+        {/* Prominent tile that actually links to the 1RM tracking page */}
+        <Link
+          href="/1rm-tracking"
+          className="flex items-center justify-between p-3 mb-3 bg-gradient-to-r from-yellow-400/10 to-yellow-500/5 border border-yellow-400/30 rounded-xl hover:border-yellow-400/50 transition-colors"
+        >
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-lg bg-yellow-400/20 flex items-center justify-center">
+              <svg className="w-5 h-5 text-yellow-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
+              </svg>
+            </div>
+            <div>
+              <p className="text-sm font-semibold text-white">1RM Tracker</p>
+              <p className="text-xs text-zinc-400">Log your one-rep maxes over time</p>
+            </div>
+          </div>
+          <svg className="w-4 h-4 text-yellow-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+          </svg>
+        </Link>
 
         {/* Tested 1RMs (coach/manually entered) */}
         {oneRMs.length > 0 && (

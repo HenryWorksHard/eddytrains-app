@@ -42,6 +42,7 @@ export async function GET(request: NextRequest) {
     monthCompletionsResult,
     programStartResult,
     streakRowResult,
+    latestPhotoResult,
   ] = await Promise.all([
     supabase
       .from('profiles')
@@ -104,6 +105,16 @@ export async function GET(request: NextRequest) {
       .from('client_streaks')
       .select('longest_streak')
       .eq('client_id', user.id)
+      .maybeSingle(),
+
+    // Most recent progress photo — used to prompt for a new one on rest
+    // days or after ~28 days of no uploads.
+    supabase
+      .from('progress_images')
+      .select('created_at')
+      .eq('client_id', user.id)
+      .order('created_at', { ascending: false })
+      .limit(1)
       .maybeSingle(),
   ])
 
@@ -295,5 +306,7 @@ export async function GET(request: NextRequest) {
     streak: currentStreak,
     longestStreak,
     scheduledDays: Array.from(scheduledDays),
+    // Progress photo prompt state
+    lastProgressPhotoDate: (latestPhotoResult.data?.created_at as string | null) || null,
   })
 }

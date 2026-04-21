@@ -77,6 +77,7 @@ export default function ClientDashboard() {
         maxWeek={data.maxWeek}
         streak={data.streak ?? 0}
         longestStreak={data.longestStreak ?? 0}
+        lastProgressPhotoDate={data.lastProgressPhotoDate ?? null}
       />
       <BottomNav />
     </div>
