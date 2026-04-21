@@ -1,7 +1,7 @@
 'use client'
 
 import { memo, useState, useEffect, useCallback, useRef } from 'react'
-import { ChevronDown, ChevronUp, RefreshCw, X, Check, Trophy, Search, ArrowLeftRight } from 'lucide-react'
+import { ChevronDown, ChevronUp, RefreshCw, X, Check, Trophy, Search, ArrowLeftRight, History, Loader2 } from 'lucide-react'
 import TutorialModal from './TutorialModal'
 import { createClient } from '../../lib/supabase/client'
 import WheelPicker from '../../components/WheelPicker'
@@ -292,6 +292,13 @@ function ExerciseCardInner({
   })
   const [showSwapModal, setShowSwapModal] = useState(false)
   const [currentExerciseName, setCurrentExerciseName] = useState(exerciseName)
+  // Exercise history drawer state
+  const [historyOpen, setHistoryOpen] = useState(false)
+  const [historySessions, setHistorySessions] = useState<
+    { workoutLogId: string; date: string | null; sets: { setNumber: number; weight: number; reps: number }[] }[]
+  >([])
+  const [historyLoading, setHistoryLoading] = useState(false)
+  const [historyLoaded, setHistoryLoaded] = useState(false)
   const [clientId, setClientId] = useState<string | null>(null)
   const [muscleGroup, setMuscleGroup] = useState<string>('other')
   const [wheelPicker, setWheelPicker] = useState<{ 
@@ -578,6 +585,42 @@ function ExerciseCardInner({
               )}
             </div>
             
+            {/* History Button — opens drawer with last 5 sessions */}
+            <button
+              onClick={async (e) => {
+                e.stopPropagation()
+                const next = !historyOpen
+                setHistoryOpen(next)
+                if (next && !historyLoaded) {
+                  setHistoryLoading(true)
+                  try {
+                    const res = await fetch(
+                      `/api/exercise-history?exercise=${encodeURIComponent(currentExerciseName)}&limit=5`
+                    )
+                    if (res.ok) {
+                      const json = await res.json()
+                      setHistorySessions(json.sessions || [])
+                    }
+                  } catch {
+                    // silent; drawer just shows empty
+                  }
+                  setHistoryLoaded(true)
+                  setHistoryLoading(false)
+                }
+              }}
+              className={`flex items-center gap-1 px-2 py-1 rounded-md text-[10px] font-medium transition-colors flex-shrink-0 ${
+                historyOpen
+                  ? 'bg-yellow-400/20 text-yellow-400'
+                  : 'bg-zinc-800 hover:bg-zinc-700 text-zinc-300 hover:text-yellow-400'
+              }`}
+              title="Your past sessions of this exercise"
+              aria-label="Show exercise history"
+              aria-expanded={historyOpen}
+            >
+              <History className="w-3 h-3" />
+              <span className="hidden sm:inline">History</span>
+            </button>
+
             {/* Swap Button — more prominent so clients know they can swap */}
             <button
               onClick={(e) => {
@@ -679,6 +722,77 @@ function ExerciseCardInner({
           )}
         </div>
         
+        {/* Exercise history drawer */}
+        {historyOpen && (
+          <div className="border-t border-zinc-800 bg-zinc-950/70 px-3 py-3">
+            <div className="flex items-center justify-between mb-2">
+              <span className="text-[10px] font-semibold text-yellow-400 uppercase tracking-wider">
+                Last sessions
+              </span>
+              <button
+                onClick={(e) => {
+                  e.stopPropagation()
+                  setHistoryOpen(false)
+                }}
+                className="p-1 text-zinc-500 hover:text-white"
+                aria-label="Close history"
+              >
+                <X className="w-3.5 h-3.5" />
+              </button>
+            </div>
+            {historyLoading ? (
+              <div className="flex items-center justify-center py-4">
+                <Loader2 className="w-4 h-4 animate-spin text-zinc-500" />
+              </div>
+            ) : historySessions.length === 0 ? (
+              <p className="text-xs text-zinc-500 py-2">
+                No previous sessions logged for this exercise yet.
+              </p>
+            ) : (
+              <div className="space-y-2">
+                {historySessions.map((s) => {
+                  const dateStr = s.date
+                    ? new Date(s.date).toLocaleDateString(undefined, {
+                        weekday: 'short',
+                        day: 'numeric',
+                        month: 'short',
+                      })
+                    : 'Earlier'
+                  const bestSet = s.sets.reduce(
+                    (best, cur) =>
+                      cur.weight * cur.reps > best.weight * best.reps ? cur : best,
+                    s.sets[0]
+                  )
+                  return (
+                    <div
+                      key={s.workoutLogId}
+                      className="flex items-center justify-between gap-3 bg-zinc-900 rounded-lg px-2.5 py-1.5"
+                    >
+                      <span className="text-[11px] text-zinc-500 flex-shrink-0 w-20">
+                        {dateStr}
+                      </span>
+                      <div className="flex-1 flex flex-wrap gap-1 justify-end">
+                        {s.sets.map((set) => (
+                          <span
+                            key={set.setNumber}
+                            className={`px-1.5 py-0.5 rounded text-[10px] tabular-nums ${
+                              set === bestSet
+                                ? 'bg-yellow-400/15 text-yellow-400 font-semibold'
+                                : 'bg-zinc-800 text-zinc-300'
+                            }`}
+                          >
+                            {set.weight}×{set.reps}
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                  )
+                })}
+              </div>
+            )}
+          </div>
+        )}
+
         {/* Expanded Sets */}
         {expanded && (
           <div className="border-t border-zinc-800 bg-zinc-950/50">

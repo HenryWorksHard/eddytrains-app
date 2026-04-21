@@ -49,7 +49,7 @@ export default function ProgressClient({
   weeklyTonnage: initialTonnage
 }: ProgressClientProps) {
   const [streak, setStreak] = useState({ current: 0, longest: 0 })
-  const [selectedImage, setSelectedImage] = useState<ProgressImage | null>(null)
+  // selectedImage modal removed — photos now live entirely on /progress-pictures.
   const [tonnagePeriod, setTonnagePeriod] = useState<TonnagePeriod>('week')
   const [tonnage, setTonnage] = useState(initialTonnage)
   const [loadingTonnage, setLoadingTonnage] = useState(false)
@@ -438,74 +438,60 @@ export default function ProgressClient({
         )}
       </section>
 
-      {/* 5. Progress Photos */}
+      {/* 5. Progress Photos — prominent tile linking to the dedicated page */}
       <section>
-        <div className="flex items-center justify-between mb-3">
-          <h2 className="text-sm font-medium text-zinc-500 uppercase tracking-wider">Progress Photos</h2>
-          <Link href="/progress-pictures" className="text-yellow-400 text-xs flex items-center gap-1">
-            View All <ChevronRight className="w-3 h-3" />
-          </Link>
-        </div>
-        
+        <h2 className="text-sm font-medium text-zinc-500 uppercase tracking-wider mb-3">
+          Progress Photos
+        </h2>
         {progressImages.length > 0 ? (
-          <div className="grid grid-cols-4 gap-2">
-            {progressImages.slice(0, 8).map((img) => (
-              <button
-                key={img.id}
-                onClick={() => setSelectedImage(img)}
-                className="aspect-square relative rounded-lg overflow-hidden bg-zinc-800 hover:ring-2 hover:ring-yellow-400 transition-all"
-              >
-                <Image
-                  src={img.image_url}
-                  alt="Progress"
-                  fill
-                  className="object-cover"
-                  sizes="80px"
-                />
-              </button>
-            ))}
-          </div>
+          <Link
+            href="/progress-pictures"
+            className="block bg-zinc-900 border border-zinc-800 hover:border-yellow-400/40 rounded-2xl overflow-hidden transition-colors"
+          >
+            <div className="grid grid-cols-3 gap-px bg-zinc-800">
+              {progressImages.slice(0, 3).map((img) => (
+                <div key={img.id} className="relative aspect-square bg-zinc-950">
+                  <Image
+                    src={img.image_url}
+                    alt="Progress"
+                    fill
+                    className="object-cover"
+                    sizes="(max-width: 640px) 33vw, 200px"
+                  />
+                </div>
+              ))}
+            </div>
+            <div className="flex items-center justify-between px-4 py-3">
+              <div>
+                <p className="text-sm font-semibold text-white">
+                  {progressImages.length} photo{progressImages.length === 1 ? '' : 's'}
+                </p>
+                <p className="text-xs text-zinc-500 mt-0.5">
+                  Tap to see them all & add a new one
+                </p>
+              </div>
+              <ChevronRight className="w-5 h-5 text-yellow-400" />
+            </div>
+          </Link>
         ) : (
-          <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-6 text-center">
-            <Camera className="w-8 h-8 text-zinc-600 mx-auto mb-2" />
-            <p className="text-zinc-500 text-sm">No progress photos yet</p>
-            <Link href="/profile" className="text-yellow-400 text-sm mt-2 inline-block">
-              Add photos →
-            </Link>
-          </div>
+          <Link
+            href="/progress-pictures"
+            className="flex items-center gap-3 p-4 bg-gradient-to-r from-yellow-400/10 to-yellow-500/5 border border-yellow-400/30 rounded-xl hover:border-yellow-400/50 transition-colors"
+          >
+            <div className="w-10 h-10 rounded-lg bg-yellow-400/20 flex items-center justify-center flex-shrink-0">
+              <Camera className="w-5 h-5 text-yellow-400" />
+            </div>
+            <div className="flex-1">
+              <p className="text-sm font-semibold text-white">Take your first progress photo</p>
+              <p className="text-xs text-zinc-400 mt-0.5">
+                The best way to see what a mirror can't.
+              </p>
+            </div>
+            <ChevronRight className="w-4 h-4 text-yellow-400" />
+          </Link>
         )}
       </section>
 
-      {/* Image Modal */}
-      {selectedImage && (
-        <div 
-          className="fixed inset-0 bg-black/90 z-50 flex items-center justify-center p-4"
-          onClick={() => setSelectedImage(null)}
-        >
-          <div className="relative max-w-lg w-full" onClick={e => e.stopPropagation()}>
-            <button
-              onClick={() => setSelectedImage(null)}
-              className="absolute -top-12 right-0 p-2 text-white/70 hover:text-white"
-            >
-              <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-              </svg>
-            </button>
-            <div className="relative aspect-[3/4] rounded-2xl overflow-hidden bg-zinc-900">
-              <Image
-                src={selectedImage.image_url}
-                alt="Progress"
-                fill
-                className="object-contain"
-                sizes="500px"
-              />
-            </div>
-            <p className="text-white font-medium text-center mt-4">
-              {formatDate(selectedImage.created_at)}
-            </p>
-          </div>
-        </div>
-      )}
     </main>
   )
 }
