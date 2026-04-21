@@ -21,8 +21,22 @@ CREATE TABLE IF NOT EXISTS pascal_scores (
 );
 
 ALTER TABLE pascal_scores ENABLE ROW LEVEL SECURITY;
--- Service role only (the /api/pascal route uses the server Supabase
--- client with the user's JWT; no client-side writes.)
+
+-- Users can read, insert, and update only their own row.
+-- No delete policy — rows cascade-clean from auth.users.
+
+CREATE POLICY "Users can read own pascal score"
+  ON pascal_scores FOR SELECT
+  USING (user_id = auth.uid());
+
+CREATE POLICY "Users can insert own pascal score"
+  ON pascal_scores FOR INSERT
+  WITH CHECK (user_id = auth.uid());
+
+CREATE POLICY "Users can update own pascal score"
+  ON pascal_scores FOR UPDATE
+  USING (user_id = auth.uid())
+  WITH CHECK (user_id = auth.uid());
 
 COMMENT ON TABLE pascal_scores IS
   'Fitness-consistency score for the Pascal mascot. Replayed from workout_completions in /api/pascal; last_processed_date is the watermark.';
