@@ -71,54 +71,72 @@ interface UserWithActivity {
 }
 
 async function getStats(orgId: string | null) {
-  if (!orgId) return { totalUsers: 0, totalPrograms: 0, totalSchedules: 0, activeToday: 0, weeklyCompletions: 0 }
-  
+  if (!orgId) return { totalUsers: 0, totalPrograms: 0, activeToday: 0, weeklyCompletions: 0 }
+
   const supabase = await createClient()
-  
-  const [usersResult, programsResult, schedulesResult] = await Promise.all([
-    supabase.from('profiles').select('id', { count: 'exact' }).eq('role', 'client').eq('organization_id', orgId),
-    supabase.from('programs').select('id', { count: 'exact' }).eq('organization_id', orgId),
-    supabase.from('schedules').select('id', { count: 'exact' }).eq('organization_id', orgId),
+
+  // Active clients + programs. The old code also queried a `schedules`
+  // table that doesn't exist — removed.
+  const [usersResult, programsResult, orgClientsResult] = await Promise.all([
+    supabase
+      .from('profiles')
+      .select('id', { count: 'exact', head: true })
+      .eq('role', 'client')
+      .eq('organization_id', orgId)
+      .eq('is_active', true),
+    supabase
+      .from('programs')
+      .select('id', { count: 'exact', head: true })
+      .eq('organization_id', orgId),
+    supabase
+      .from('profiles')
+      .select('id')
+      .eq('organization_id', orgId)
+      .eq('role', 'client')
+      .eq('is_active', true),
   ])
 
-  const { data: orgClients } = await supabase
-    .from('profiles')
-    .select('id')
-    .eq('organization_id', orgId)
-    .eq('role', 'client')
-  
-  const clientIds = orgClients?.map(c => c.id) || []
-  
-  const today = new Date().toISOString().split('T')[0]
+  const clientIds = orgClientsResult.data?.map((c) => c.id) || []
+
+  // "Active Today" = distinct clients who actually worked out today
+  // (using completed_at, not scheduled_date, so catch-up workouts
+  // on scheduled days in the past still count the user as active today).
+  const todayStart = new Date()
+  todayStart.setUTCHours(0, 0, 0, 0)
+  const todayEnd = new Date(todayStart)
+  todayEnd.setUTCDate(todayEnd.getUTCDate() + 1)
+
   let uniqueActiveToday = 0
   if (clientIds.length > 0) {
     const { data: activeToday } = await supabase
       .from('workout_completions')
       .select('client_id')
-      .eq('scheduled_date', today)
+      .gte('completed_at', todayStart.toISOString())
+      .lt('completed_at', todayEnd.toISOString())
       .in('client_id', clientIds)
-    
-    uniqueActiveToday = new Set(activeToday?.map(a => a.client_id) || []).size
+
+    uniqueActiveToday = new Set(activeToday?.map((a) => a.client_id) || []).size
   }
 
-  const weekAgo = new Date()
-  weekAgo.setDate(weekAgo.getDate() - 7)
-  
+  // "Weekly Completions" = completions physically logged in the last 7 days.
+  // Matches how a trainer thinks about "how much work got done this week".
+  const weekAgo = new Date(todayStart)
+  weekAgo.setUTCDate(weekAgo.getUTCDate() - 7)
+
   let completionCount = 0
   if (clientIds.length > 0) {
     const { count } = await supabase
       .from('workout_completions')
       .select('*', { count: 'exact', head: true })
-      .gte('scheduled_date', weekAgo.toISOString().split('T')[0])
+      .gte('completed_at', weekAgo.toISOString())
       .in('client_id', clientIds)
-    
+
     completionCount = count || 0
   }
 
   return {
     totalUsers: usersResult.count || 0,
     totalPrograms: programsResult.count || 0,
-    totalSchedules: schedulesResult.count || 0,
     activeToday: uniqueActiveToday,
     weeklyCompletions: completionCount,
   }
@@ -141,47 +159,53 @@ async function getRecentUsers(orgId: string | null) {
 
 async function getUsersNeedingAttention(orgId: string | null) {
   if (!orgId) return []
-  
+
   const supabase = await createClient()
-  
+
   const { data: users } = await supabase
     .from('profiles')
     .select('id, email, full_name, is_active')
     .eq('role', 'client')
     .eq('organization_id', orgId)
     .eq('is_active', true)
-  
+
   if (!users || users.length === 0) return []
 
-  const userIds = users.map(u => u.id)
-  
+  const userIds = users.map((u) => u.id)
+
   const twoWeeksAgo = new Date()
-  twoWeeksAgo.setDate(twoWeeksAgo.getDate() - 14)
-  
+  twoWeeksAgo.setUTCHours(0, 0, 0, 0)
+  twoWeeksAgo.setUTCDate(twoWeeksAgo.getUTCDate() - 14)
+
+  // Use completed_at (when the client actually logged the work) rather
+  // than scheduled_date (which represents the calendar day the workout
+  // was assigned to). A client who caught up a missed session yesterday
+  // is NOT inactive, even if the workout's scheduled_date is 2 weeks ago.
   const { data: recentCompletions } = await supabase
     .from('workout_completions')
-    .select('client_id, scheduled_date')
+    .select('client_id, completed_at')
     .in('client_id', userIds)
-    .gte('scheduled_date', twoWeeksAgo.toISOString().split('T')[0])
-    .order('scheduled_date', { ascending: false })
+    .gte('completed_at', twoWeeksAgo.toISOString())
+    .order('completed_at', { ascending: false })
 
   const lastWorkoutMap = new Map<string, string>()
-  recentCompletions?.forEach(c => {
+  recentCompletions?.forEach((c) => {
+    if (!c.completed_at) return
     if (!lastWorkoutMap.has(c.client_id)) {
-      lastWorkoutMap.set(c.client_id, c.scheduled_date)
+      lastWorkoutMap.set(c.client_id, c.completed_at)
     }
   })
 
   const today = new Date()
   const usersNeedingAttention: UserWithActivity[] = []
-  
-  users.forEach(user => {
+
+  users.forEach((user) => {
     const lastWorkout = lastWorkoutMap.get(user.id)
     if (!lastWorkout) {
       usersNeedingAttention.push({
         ...user,
         missedDays: 14,
-        lastWorkout: undefined
+        lastWorkout: undefined,
       })
     } else {
       const lastDate = new Date(lastWorkout)
@@ -190,7 +214,7 @@ async function getUsersNeedingAttention(orgId: string | null) {
         usersNeedingAttention.push({
           ...user,
           missedDays: daysSince,
-          lastWorkout
+          lastWorkout: lastWorkout.split('T')[0],
         })
       }
     }
@@ -201,25 +225,29 @@ async function getUsersNeedingAttention(orgId: string | null) {
 
 async function getTopPerformers(orgId: string | null) {
   if (!orgId) return []
-  
+
   const supabase = await createClient()
-  
+
   const { data: orgClients } = await supabase
     .from('profiles')
     .select('id')
     .eq('organization_id', orgId)
     .eq('role', 'client')
-  
-  const clientIds = orgClients?.map(c => c.id) || []
+    .eq('is_active', true)
+
+  const clientIds = orgClients?.map((c) => c.id) || []
   if (clientIds.length === 0) return []
-  
+
   const weekAgo = new Date()
-  weekAgo.setDate(weekAgo.getDate() - 7)
-  
+  weekAgo.setUTCHours(0, 0, 0, 0)
+  weekAgo.setUTCDate(weekAgo.getUTCDate() - 7)
+
+  // Rank by work actually done in the last 7 days (completed_at), so
+  // catch-up sessions from earlier weeks count toward THIS week's effort.
   const { data: completions } = await supabase
     .from('workout_completions')
     .select('client_id')
-    .gte('scheduled_date', weekAgo.toISOString().split('T')[0])
+    .gte('completed_at', weekAgo.toISOString())
     .in('client_id', clientIds)
 
   const counts = new Map<string, number>()

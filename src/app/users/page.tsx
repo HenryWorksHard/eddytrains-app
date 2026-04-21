@@ -5,6 +5,7 @@ import Link from 'next/link'
 import { UserPlus, Search, Filter, Mail, Edit2, Trash2, Clock, Copy, Check, RefreshCw, Dumbbell, Apple, X, Loader2 } from 'lucide-react'
 import { createClient } from '@/app/lib/supabase/client'
 import { apiFetch } from '@/app/lib/api'
+import AppLoading from '@/components/AppLoading'
 
 interface User {
   id: string
@@ -260,6 +261,13 @@ export default function UsersPage() {
   useEffect(() => {
     fetchUsers()
   }, [])
+
+  // Initial load: show the GIF in the content area. Refresh clicks on an
+  // already-populated list keep the existing rows on screen with just the
+  // small refresh icon animating, to avoid a full-screen flash mid-session.
+  if (loading && users.length === 0) {
+    return <AppLoading />
+  }
 
   return (
     <div className="space-y-4 lg:space-y-6">

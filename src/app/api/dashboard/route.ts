@@ -199,15 +199,21 @@ export async function GET(request: NextRequest) {
   })
   const completedWorkoutsArray = Array.from(completedWorkoutIds)
 
-  // Calendar completions keyed by scheduled_date
+  // Calendar completions keyed by scheduled_date.
+  // Strict matching: a day is only green if the SPECIFIC scheduled workout
+  // (or a workout with the same workout_id, for legacy completions with a
+  // null client_program_id) was completed on that date. Matches the trainer
+  // portal's UserSchedule lookup so both views tell the same story about
+  // what the client actually did.
   const calendarCompletions: Record<string, boolean> = {}
   const completedDateSet = new Set<string>()
   monthCompletions?.forEach((c) => {
     const d = c.scheduled_date
     if (!d) return
     calendarCompletions[`${d}:${c.workout_id}:${c.client_program_id}`] = true
-    calendarCompletions[`${d}:${c.workout_id}`] = true
-    calendarCompletions[`${d}:any`] = true
+    if (!c.client_program_id) {
+      calendarCompletions[`${d}:${c.workout_id}`] = true
+    }
     completedDateSet.add(d)
   })
 

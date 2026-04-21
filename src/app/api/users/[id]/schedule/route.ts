@@ -47,26 +47,21 @@ export async function GET(
       .eq('client_id', userId)
       .eq('is_active', true)
 
-    // Get active client program IDs
-    const activeClientProgramIds = clientPrograms?.map(cp => cp.id) || []
-
     // Get workout completions for the lookback period.
-    // Use local-date formatting so the boundary doesn't shift by a day
-    // depending on when the server evaluates it.
+    // IMPORTANT: do NOT filter by active-program — a completion under
+    // a previous (now inactive) program is still a real workout the
+    // client did, and it should still show as green. Filtering to only
+    // active programs previously caused the trainer calendar to mark
+    // those days RED while the client's own calendar correctly showed
+    // them GREEN.
     const lookbackDate = new Date()
     lookbackDate.setDate(lookbackDate.getDate() - COMPLETION_LOOKBACK_DAYS)
 
-    let completionsQuery = adminClient
+    const { data: completions } = await adminClient
       .from('workout_completions')
       .select('workout_id, scheduled_date, client_program_id')
       .eq('client_id', userId)
       .gte('scheduled_date', formatDateToString(lookbackDate))
-    
-    if (activeClientProgramIds.length > 0) {
-      completionsQuery = completionsQuery.in('client_program_id', activeClientProgramIds)
-    }
-    
-    const { data: completions } = await completionsQuery
 
     // Build schedule data organized by week AND day
     // Structure: scheduleByWeekAndDay[weekNumber][dayOfWeek] = WorkoutSchedule[] (ARRAY)
