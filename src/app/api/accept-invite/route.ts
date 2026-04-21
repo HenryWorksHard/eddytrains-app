@@ -91,7 +91,11 @@ export async function POST(request: NextRequest) {
       })
       .eq('id', row.user_id)
 
-    return NextResponse.json({ success: true, email: row.email })
+    // Invalidate the middleware's profile cache so the new password_changed
+    // value takes effect immediately rather than on the next 60s refresh.
+    const response = NextResponse.json({ success: true, email: row.email })
+    response.cookies.delete('cmpd-profile-cache')
+    return response
   } catch (error) {
     console.error('[accept-invite] Error:', error)
     return NextResponse.json({ error: 'Failed to accept invite' }, { status: 500 })

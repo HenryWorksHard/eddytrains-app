@@ -57,9 +57,12 @@ function UpdatePasswordForm() {
           .eq('id', user.id)
       }
 
+      // Invalidate the middleware's profile cache so the new flag is
+      // honored on the very next navigation.
+      await fetch('/api/auth/cache-refresh', { method: 'POST' }).catch(() => {})
+
       setMessage('Password updated successfully!')
-      
-      // Redirect to dashboard after a moment
+
       setTimeout(() => {
         router.push('/dashboard')
       }, 1500)
