@@ -3,12 +3,12 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createClient as createServerClient } from '@/app/lib/supabase/server'
 import { deleteOrganizationCompletely } from '@/app/lib/delete-organization'
 
-// DELETE /api/trainers/[id] - Remove a trainer organization (and all its data)
+// DELETE /api/companies/[id] - Remove a company organization (and all its trainers, clients, data)
 export async function DELETE(
   _request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  const { id: organizationId } = await params
+  const { id: companyId } = await params
 
   const admin = createClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -16,7 +16,6 @@ export async function DELETE(
   )
 
   try {
-    // Require super_admin
     const supabase = await createServerClient()
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) {
@@ -33,23 +32,40 @@ export async function DELETE(
       return NextResponse.json({ error: 'Forbidden - super_admin only' }, { status: 403 })
     }
 
-    const result = await deleteOrganizationCompletely(admin, organizationId)
+    // Confirm it's actually a company (safety against using this to wipe solo trainer orgs)
+    const { data: org } = await admin
+      .from('organizations')
+      .select('id, organization_type, name')
+      .eq('id', companyId)
+      .single()
+
+    if (!org) {
+      return NextResponse.json({ error: 'Company not found' }, { status: 404 })
+    }
+    if (org.organization_type !== 'company') {
+      return NextResponse.json(
+        { error: 'That organization is not a company. Use /api/trainers/[id] for solo trainers.' },
+        { status: 400 }
+      )
+    }
+
+    const result = await deleteOrganizationCompletely(admin, companyId)
     if (!result.ok) {
       return NextResponse.json(
         { error: result.error, stage: result.stage },
-        { status: result.error === 'Organization not found' ? 404 : 500 }
+        { status: 500 }
       )
     }
 
     return NextResponse.json({
       success: true,
-      message: 'Trainer organization deleted',
+      message: `Company "${org.name}" deleted`,
       warnings: result.warnings.length ? result.warnings : undefined,
     })
   } catch (error) {
-    console.error('Error deleting trainer/organization:', error)
+    console.error('Error deleting company:', error)
     return NextResponse.json(
-      { error: error instanceof Error ? error.message : 'Failed to delete trainer' },
+      { error: error instanceof Error ? error.message : 'Failed to delete company' },
       { status: 500 }
     )
   }

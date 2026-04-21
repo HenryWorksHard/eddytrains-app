@@ -292,16 +292,16 @@ export default function PlatformPage() {
     setDeletingOrgId(company.id);
 
     try {
-      // Delete company (cascade will handle trainers)
-      const { error } = await supabase
-        .from('organizations')
-        .delete()
-        .eq('id', company.id);
+      const response = await fetch(`/api/companies/${company.id}`, { method: 'DELETE' });
+      const data = await response.json();
 
-      if (error) throw error;
+      if (!response.ok) {
+        alert(data.error || 'Failed to delete company');
+        return;
+      }
 
       setCompanies(comps => comps.filter(c => c.id !== company.id));
-      alert('Company deleted successfully');
+      alert(data.message || 'Company deleted');
     } catch (error) {
       console.error('Error deleting company:', error);
       alert('Failed to delete company');
