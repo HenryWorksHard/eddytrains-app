@@ -58,61 +58,123 @@ type GoalSummary = {
 const goalsFetcher = (url: string): Promise<{ goals: GoalSummary[] }> =>
   fetch(url).then((r) => r.json())
 
-function ProgressPhotoPrompt({
-  todayHasWorkouts,
-  lastProgressPhotoDate,
+// Small square-ish tile shared by the dashboard compact row.
+function TileShell({
+  href,
+  title,
+  subtitle,
+  accent,
+  children,
+  ariaLabel,
 }: {
-  todayHasWorkouts: boolean
-  lastProgressPhotoDate: string | null
+  href: string
+  title: string
+  subtitle: string
+  accent: 'yellow' | 'zinc'
+  children?: React.ReactNode
+  ariaLabel?: string
 }) {
-  const DAYS = lastProgressPhotoDate
-    ? Math.floor(
-        (Date.now() - new Date(lastProgressPhotoDate).getTime()) /
-          (1000 * 60 * 60 * 24)
-      )
+  const borderCls = accent === 'yellow' ? 'border-yellow-400/30 hover:border-yellow-400/50' : 'border-zinc-800 hover:border-yellow-400/40'
+  const bgCls = accent === 'yellow' ? 'bg-gradient-to-br from-yellow-400/10 to-yellow-500/5' : 'bg-zinc-900'
+  return (
+    <Link
+      href={href}
+      aria-label={ariaLabel || title}
+      className={`flex flex-col justify-between p-3 rounded-xl border ${borderCls} ${bgCls} transition-colors min-h-[86px]`}
+    >
+      <div>
+        <p className="text-sm font-semibold text-white leading-tight">{title}</p>
+        <p className="text-[11px] text-zinc-400 mt-0.5 leading-snug">{subtitle}</p>
+      </div>
+      {children}
+    </Link>
+  )
+}
+
+function CompactTilesRow({
+  topGoal,
+  goalsLoaded,
+  lastProgressPhotoDate,
+  todayHasWorkouts,
+}: {
+  topGoal: GoalSummary | null
+  goalsLoaded: boolean
+  lastProgressPhotoDate: string | null
+  todayHasWorkouts: boolean
+}) {
+  // Photo tile logic (same rules as before)
+  const daysSincePhoto = lastProgressPhotoDate
+    ? Math.floor((Date.now() - new Date(lastProgressPhotoDate).getTime()) / (1000 * 60 * 60 * 24))
+    : null
+  const photoOverdue = daysSincePhoto !== null && daysSincePhoto >= 28
+  const photoFirstTime = lastProgressPhotoDate === null
+  const photoRestDayNudge = !todayHasWorkouts && daysSincePhoto !== null && daysSincePhoto >= 7
+  const showPhoto = photoOverdue || photoFirstTime || photoRestDayNudge
+
+  // Goal tile logic
+  const showGoalTile = goalsLoaded
+  const goalHasTarget = topGoal?.target_value != null && topGoal.target_value > 0
+  const goalPct = goalHasTarget
+    ? Math.min(100, Math.round((topGoal!.current_value / topGoal!.target_value!) * 100))
     : null
 
-  const overdue = DAYS !== null && DAYS >= 28
-  const firstTime = lastProgressPhotoDate === null
-  const restDayNudge = !todayHasWorkouts && DAYS !== null && DAYS >= 7
+  if (!showGoalTile && !showPhoto) return null
 
-  if (!overdue && !firstTime && !restDayNudge) return null
-
-  const copy = firstTime
-    ? {
-        title: 'Take your first progress photo',
-        body: 'Photos beat the mirror. Snap one today to set your baseline.',
-      }
-    : overdue
-    ? {
-        title: "Time for this month's progress photo",
-        body: `It's been ${DAYS} days since your last one. Takes 30 seconds.`,
-      }
-    : {
-        title: 'Rest day? Snap a progress photo',
-        body: 'A photo every week or two is the best way to see changes.',
-      }
+  const photoCopy = photoFirstTime
+    ? { title: 'First progress photo', subtitle: 'Set your baseline' }
+    : photoOverdue
+    ? { title: 'Progress photo time', subtitle: `${daysSincePhoto} days since last` }
+    : { title: 'Snap a progress photo', subtitle: 'Rest day, perfect moment' }
 
   return (
-    <section className="mt-4">
-      <Link
-        href="/progress-pictures"
-        className="flex items-center gap-3 p-4 bg-gradient-to-r from-yellow-400/10 to-yellow-500/5 border border-yellow-400/30 rounded-xl hover:border-yellow-400/50 transition-colors"
-      >
-        <div className="w-10 h-10 rounded-lg bg-yellow-400/20 flex items-center justify-center flex-shrink-0">
-          <svg className="w-5 h-5 text-yellow-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" />
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 13a3 3 0 11-6 0 3 3 0 016 0z" />
-          </svg>
-        </div>
-        <div className="flex-1 min-w-0">
-          <p className="text-sm font-semibold text-white">{copy.title}</p>
-          <p className="text-xs text-zinc-400 mt-0.5">{copy.body}</p>
-        </div>
-        <svg className="w-4 h-4 text-yellow-400 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-        </svg>
-      </Link>
+    <section className="mt-4 grid grid-cols-2 gap-2">
+      {showGoalTile && (
+        topGoal ? (
+          <TileShell
+            href="/goals"
+            title={topGoal.title}
+            subtitle={
+              goalHasTarget
+                ? `${topGoal.current_value} / ${topGoal.target_value}`
+                : 'Goal'
+            }
+            accent="zinc"
+          >
+            {goalHasTarget && (
+              <div className="h-1.5 bg-zinc-800 rounded-full overflow-hidden mt-2">
+                <div
+                  className="h-full bg-yellow-400 rounded-full transition-all"
+                  style={{ width: `${goalPct ?? 0}%` }}
+                />
+              </div>
+            )}
+          </TileShell>
+        ) : (
+          <TileShell
+            href="/goals"
+            title="Set a goal"
+            subtitle="Give sessions a target"
+            accent="zinc"
+          />
+        )
+      )}
+
+      {showPhoto && (
+        <TileShell
+          href="/progress-pictures"
+          title={photoCopy.title}
+          subtitle={photoCopy.subtitle}
+          accent="yellow"
+        />
+      )}
+
+      {/* If only one tile applies, make it span both columns */}
+      {showGoalTile !== showPhoto && <span className="hidden" />}
+      <style jsx>{`
+        section {
+          grid-template-columns: ${showGoalTile && showPhoto ? '1fr 1fr' : '1fr'};
+        }
+      `}</style>
     </section>
   )
 }
@@ -388,16 +450,9 @@ export default function DashboardClient({ firstName, workoutsByDay, programCount
             <div className="space-y-2">
               {todayWorkouts.map((workout) => {
                 const completed = isWorkoutCompleted(workout)
-                return (
-                  <div 
-                    key={`${workout.workoutId}-${workout.clientProgramId}`}
-                    className={`rounded-xl overflow-hidden transition-all ${
-                      completed 
-                        ? 'bg-green-500/10 border border-green-500/30' 
-                        : 'bg-zinc-900 border border-zinc-800'
-                    }`}
-                  >
-                    {/* Workout Info */}
+                const workoutHref = `/workout/${workout.workoutId}?clientProgramId=${workout.clientProgramId}`
+                const CardContent = (
+                  <>
                     <div className="p-3">
                       <div className="flex items-center gap-3">
                         <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${
@@ -418,27 +473,57 @@ export default function DashboardClient({ firstName, workoutsByDay, programCount
                           <p className="text-zinc-500 text-xs">{workout.programName}</p>
                         </div>
                         {completed ? (
-                          <span className="text-green-400 text-xs font-medium">Done</span>
+                          <span className="text-green-400 text-xs font-medium flex items-center gap-1">
+                            Done
+                            <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                            </svg>
+                          </span>
                         ) : (
                           <span className="text-zinc-500 text-xs">{workout.exerciseCount} exercises</span>
                         )}
                       </div>
                     </div>
-                    
-                    {/* Start Button - only show if not completed */}
                     {!completed && (
-                      <Link
-                        href={`/workout/${workout.workoutId}?clientProgramId=${workout.clientProgramId}`}
-                        className="block w-full bg-yellow-400 hover:bg-yellow-500 active:scale-[0.98] text-black font-semibold py-2.5 text-sm text-center transition-all touch-feedback tap-target"
-                      >
+                      <div className="block w-full bg-yellow-400 text-black font-semibold py-2.5 text-sm text-center transition-all">
                         Start Workout →
-                      </Link>
+                      </div>
                     )}
-                  </div>
+                  </>
+                )
+                // Completed cards link to the workout so clients can review
+                // (same destination as tapping a green day in the calendar).
+                return (
+                  <Link
+                    href={workoutHref}
+                    key={`${workout.workoutId}-${workout.clientProgramId}`}
+                    className={`block rounded-xl overflow-hidden transition-all active:scale-[0.99] ${
+                      completed
+                        ? 'bg-green-500/10 border border-green-500/30 hover:border-green-500/50'
+                        : 'bg-zinc-900 border border-zinc-800 hover:bg-yellow-500'
+                    }`}
+                  >
+                    {CardContent}
+                  </Link>
                 )
               })}
-              
-              {/* Tomorrow preview renders in its own dedicated section below. */}
+
+              {/* Tomorrow preview as a single-line footer under today's list */}
+              {tomorrowWorkouts.length > 0 && (
+                <Link
+                  href={`/workout/${tomorrowWorkouts[0].workoutId}?clientProgramId=${tomorrowWorkouts[0].clientProgramId}&preview=true`}
+                  className="flex items-center justify-between gap-3 px-3 py-2 rounded-lg bg-zinc-900/50 border border-zinc-800/50 text-xs hover:border-zinc-700 transition-colors"
+                >
+                  <span className="text-zinc-500">Tomorrow</span>
+                  <span className="text-zinc-300 truncate">
+                    {tomorrowWorkouts[0].workoutName}
+                    {tomorrowWorkouts.length > 1 && ` +${tomorrowWorkouts.length - 1}`}
+                  </span>
+                  <svg className="w-3 h-3 text-zinc-600 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                  </svg>
+                </Link>
+              )}
             </div>
           ) : (
             <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-6 text-center">
@@ -453,102 +538,14 @@ export default function DashboardClient({ firstName, workoutsByDay, programCount
           )}
         </section>
 
-        {/* Tomorrow Preview - always show if there's a workout */}
-        {tomorrowWorkouts.length > 0 && (
-          <section className="mt-4">
-            <h2 className="text-xs font-medium text-zinc-500 uppercase tracking-wider mb-2">Tomorrow</h2>
-            <div className="bg-zinc-900/50 border border-zinc-800 rounded-xl p-3">
-              {tomorrowWorkouts.map((workout) => (
-                <div
-                  key={`tomorrow-${workout.workoutId}`}
-                  className="flex items-center justify-between"
-                >
-                  <div className="flex items-center gap-3">
-                    <div className="w-8 h-8 bg-zinc-800 rounded-lg flex items-center justify-center">
-                      <span className="text-xs font-medium text-zinc-400">
-                        {dayAbbrev[(todayDayOfWeek + 1) % 7]}
-                      </span>
-                    </div>
-                    <div>
-                      <p className="text-white text-sm font-medium">{workout.workoutName}</p>
-                      <p className="text-zinc-500 text-xs">{workout.exerciseCount} exercises</p>
-                    </div>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </section>
-        )}
-
-        {/* Goal card — tap to go manage all goals. When none are set,
-           shows a lightweight prompt to create one. */}
-        <section className="mt-4">
-          <div className="flex items-center justify-between mb-2">
-            <h2 className="text-xs font-medium text-zinc-500 uppercase tracking-wider">Goal</h2>
-            <Link href="/goals" className="text-yellow-400 text-xs font-medium">
-              {goalsData ? 'Manage →' : '\u00a0'}
-            </Link>
-          </div>
-          {topGoal ? (
-            <Link
-              href="/goals"
-              className="block bg-zinc-900 border border-zinc-800 rounded-xl p-3 hover:border-yellow-400/40 transition-colors"
-            >
-              <p className="text-white font-semibold text-sm truncate">{topGoal.title}</p>
-              {topGoal.target_value !== null && topGoal.target_value > 0 ? (
-                <>
-                  <div className="flex items-baseline justify-between mt-1.5 mb-1">
-                    <span className="text-xs text-zinc-400 tabular-nums">
-                      {topGoal.current_value} / {topGoal.target_value}
-                    </span>
-                    <span className="text-xs text-zinc-500 tabular-nums">
-                      {Math.min(
-                        100,
-                        Math.round((topGoal.current_value / topGoal.target_value) * 100)
-                      )}%
-                    </span>
-                  </div>
-                  <div className="h-1.5 bg-zinc-800 rounded-full overflow-hidden">
-                    <div
-                      className="h-full bg-yellow-400 rounded-full transition-all"
-                      style={{
-                        width: `${Math.min(
-                          100,
-                          Math.round((topGoal.current_value / topGoal.target_value) * 100)
-                        )}%`,
-                      }}
-                    />
-                  </div>
-                </>
-              ) : (
-                <p className="text-xs text-zinc-500 mt-1">Track progress on the goals page.</p>
-              )}
-            </Link>
-          ) : goalsData ? (
-            <Link
-              href="/goals"
-              className="flex items-center gap-3 p-3 bg-zinc-900 border border-dashed border-zinc-700 rounded-xl hover:border-yellow-400/40 transition-colors"
-            >
-              <div className="w-9 h-9 rounded-lg bg-yellow-400/10 flex items-center justify-center flex-shrink-0">
-                <svg className="w-5 h-5 text-yellow-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v8m-4-4h8m5 0a9 9 0 11-18 0 9 9 0 0118 0z" />
-                </svg>
-              </div>
-              <div className="flex-1 min-w-0">
-                <p className="text-sm font-semibold text-white">Set your first goal</p>
-                <p className="text-xs text-zinc-500 mt-0.5">Give every session a target.</p>
-              </div>
-            </Link>
-          ) : (
-            <div className="h-12 bg-zinc-900 border border-zinc-800 rounded-xl animate-pulse" />
-          )}
-        </section>
-
-        {/* Progress photo prompt — shows when no photo exists yet, or when
-           it's been >28 days, or as a rest-day reminder. */}
-        <ProgressPhotoPrompt
-          todayHasWorkouts={todayWorkouts.length > 0}
+        {/* Compact tiles row — Goal + Photo prompt side by side to
+           reduce vertical clutter. Each collapses to full width if the
+           other doesn't apply. */}
+        <CompactTilesRow
+          topGoal={topGoal}
+          goalsLoaded={!!goalsData}
           lastProgressPhotoDate={lastProgressPhotoDate}
+          todayHasWorkouts={todayWorkouts.length > 0}
         />
 
         {/* Monthly Calendar */}
