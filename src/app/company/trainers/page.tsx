@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react'
 import { createClient } from '@/app/lib/supabase/client'
 import { UserCheck, Plus, Users, MoreVertical, Trash2, X } from 'lucide-react'
+import AppLoading from '@/components/AppLoading'
 
 interface Trainer {
   id: string
@@ -151,11 +152,7 @@ export default function CompanyTrainersPage() {
   }
 
   if (loading) {
-    return (
-      <div className="flex items-center justify-center h-64">
-        <div className="w-8 h-8 border-2 border-yellow-400 border-t-transparent rounded-full animate-spin" />
-      </div>
-    )
+    return <AppLoading />
   }
 
   return (

@@ -8,6 +8,7 @@ import { Crown, Sparkles, Clock, X, Loader2, CreditCard, FileText, Calendar, Ale
 import { loadStripe } from '@stripe/stripe-js';
 import { EmbeddedCheckoutProvider, EmbeddedCheckout, Elements, PaymentElement, useStripe, useElements } from '@stripe/react-stripe-js';
 import { useIsNativeApp } from '@/hooks/useIsNativeApp';
+import AppLoading from '@/components/AppLoading';
 
 // Initialize Stripe
 const stripePromise = loadStripe(process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY!);
@@ -349,11 +350,7 @@ function BillingContent() {
   };
 
   if (loading) {
-    return (
-      <div className="max-w-5xl">
-        <div className="animate-pulse">Loading...</div>
-      </div>
-    );
+    return <AppLoading />;
   }
 
   return (

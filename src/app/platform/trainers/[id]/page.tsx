@@ -4,10 +4,11 @@ import { useState, useEffect } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { createClient } from '@/app/lib/supabase/client'
-import { 
-  ArrowLeft, Users, Mail, Calendar, Building2, CreditCard, 
-  Dumbbell, User, MoreVertical, Loader2 
+import {
+  ArrowLeft, Users, Mail, Calendar, Building2, CreditCard,
+  Dumbbell, User, MoreVertical, Loader2
 } from 'lucide-react'
+import AppLoading from '@/components/AppLoading'
 
 interface Trainer {
   id: string
@@ -113,11 +114,7 @@ export default function TrainerDetailPage() {
   }
 
   if (loading) {
-    return (
-      <div className="flex items-center justify-center h-64">
-        <Loader2 className="w-8 h-8 animate-spin text-yellow-400" />
-      </div>
-    )
+    return <AppLoading />
   }
 
   if (!trainer) {

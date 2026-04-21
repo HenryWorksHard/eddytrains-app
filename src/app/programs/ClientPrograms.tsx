@@ -6,6 +6,7 @@ import useSWR from 'swr'
 import BottomNav from '../components/BottomNav'
 import PageHeader from '../components/PageHeader'
 import ClientProgramsContent from './ClientProgramsContent'
+import AppLoading from '@/components/AppLoading'
 
 const fetcher = (url: string) => fetch(url).then(res => {
   if (!res.ok) throw new Error('Failed to fetch')
@@ -30,38 +31,7 @@ export default function ClientPrograms() {
   }, [error, router])
 
   if (isLoading || !data) {
-    return (
-      <div className="min-h-screen bg-black pb-24">
-        <PageHeader title="Programs" />
-        <main className="px-6 py-6 animate-pulse">
-          <div className="bg-zinc-900 border border-zinc-800 rounded-2xl p-5 mb-6">
-            <div className="flex items-start gap-4">
-              <div className="w-16 h-16 bg-zinc-800 rounded-xl"></div>
-              <div className="flex-1">
-                <div className="h-6 bg-zinc-800 rounded w-48 mb-2"></div>
-                <div className="h-4 bg-zinc-800/60 rounded w-full mb-2"></div>
-                <div className="h-8 bg-zinc-800/40 rounded w-32"></div>
-              </div>
-            </div>
-          </div>
-          <div className="h-5 bg-zinc-800 rounded w-32 mb-4"></div>
-          <div className="space-y-3">
-            {[...Array(5)].map((_, i) => (
-              <div key={i} className="bg-zinc-900 border border-zinc-800 rounded-xl p-4">
-                <div className="flex items-center gap-4">
-                  <div className="w-10 h-10 bg-zinc-800 rounded-lg"></div>
-                  <div className="flex-1">
-                    <div className="h-5 bg-zinc-800 rounded w-32 mb-1"></div>
-                    <div className="h-4 bg-zinc-800/60 rounded w-24"></div>
-                  </div>
-                </div>
-              </div>
-            ))}
-          </div>
-        </main>
-        <BottomNav />
-      </div>
-    )
+    return <AppLoading />
   }
 
   if (data.clientPrograms.length === 0) {

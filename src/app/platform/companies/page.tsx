@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react'
 import { createClient } from '@/app/lib/supabase/client'
 import { Building2, Plus, Users, DollarSign, MoreVertical, Edit, Trash2 } from 'lucide-react'
+import AppLoading from '@/components/AppLoading'
 
 interface Company {
   id: string
@@ -84,11 +85,7 @@ export default function CompaniesPage() {
   }
 
   if (loading) {
-    return (
-      <div className="flex items-center justify-center h-64">
-        <div className="w-8 h-8 border-2 border-yellow-400 border-t-transparent rounded-full animate-spin" />
-      </div>
-    )
+    return <AppLoading />
   }
 
   return (

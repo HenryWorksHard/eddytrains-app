@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/app/lib/supabase/client'
 import { UserCheck, Plus, Users, Building2, CreditCard, MoreVertical, Mail, ChevronRight } from 'lucide-react'
+import AppLoading from '@/components/AppLoading'
 
 interface Trainer {
   id: string
@@ -126,11 +127,7 @@ export default function TrainersPage() {
   }
 
   if (loading) {
-    return (
-      <div className="flex items-center justify-center h-64">
-        <div className="w-8 h-8 border-2 border-yellow-400 border-t-transparent rounded-full animate-spin" />
-      </div>
-    )
+    return <AppLoading />
   }
 
   return (

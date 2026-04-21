@@ -32,6 +32,7 @@ import {
 import { createClient } from '@/app/lib/supabase/client'
 import UserSchedule from './UserSchedule'
 import UserProgressGallery from './UserProgressGallery'
+import AppLoading from '@/components/AppLoading'
 import ClientTabs, { TabType } from './components/ClientTabs'
 import ProgressTab from './components/ProgressTab'
 import ProfileTab from './components/ProfileTab'
@@ -1055,11 +1056,7 @@ export default function UserProfilePage() {
   }
 
   if (loading) {
-    return (
-      <div className="flex items-center justify-center min-h-[50vh]">
-        <Loader2 className="w-8 h-8 animate-spin text-yellow-400" />
-      </div>
-    )
+    return <AppLoading />
   }
 
   if (!user) {

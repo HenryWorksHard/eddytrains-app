@@ -3,11 +3,12 @@
 import { useState, useEffect, Suspense } from 'react'
 import { useSearchParams } from 'next/navigation'
 import { createClient } from '@/app/lib/supabase/client'
-import { 
-  Calendar, User, ChevronDown, Plus, GripVertical, Trash2, 
+import {
+  Calendar, User, ChevronDown, Plus, GripVertical, Trash2,
   Clock, ChevronRight, AlertCircle, Check, Loader2, ArrowLeft,
   X, Settings2, ChevronUp, Dumbbell
 } from 'lucide-react'
+import AppLoading from '@/components/AppLoading'
 
 interface Client {
   id: string
@@ -495,11 +496,7 @@ function SchedulesPageContent() {
   }
 
   if (loading) {
-    return (
-      <div className="flex items-center justify-center min-h-[50vh]">
-        <Loader2 className="w-8 h-8 animate-spin text-yellow-400" />
-      </div>
-    )
+    return <AppLoading />
   }
 
   return (

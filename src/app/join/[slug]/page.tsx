@@ -5,6 +5,7 @@ import { useRouter, useParams } from 'next/navigation';
 import { createClient } from '@/app/lib/supabase/client';
 import { getOrganizationBySlug, OrganizationBranding } from '@/app/lib/branding';
 import { Mail, Lock, User, Eye, EyeOff, AlertCircle, Loader2 } from 'lucide-react';
+import AppLoading from '@/components/AppLoading';
 
 export default function JoinPage() {
   const router = useRouter();
@@ -92,11 +93,7 @@ export default function JoinPage() {
   };
 
   if (loading) {
-    return (
-      <div className="min-h-screen bg-zinc-950 flex items-center justify-center">
-        <Loader2 className="w-8 h-8 text-yellow-400 animate-spin" />
-      </div>
-    );
+    return <AppLoading />;
   }
 
   if (!organization) {

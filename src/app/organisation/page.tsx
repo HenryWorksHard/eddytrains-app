@@ -5,6 +5,7 @@ import { createClient } from '@/app/lib/supabase/client'
 import { useRouter } from 'next/navigation'
 import Sidebar from '@/components/Sidebar'
 import { Building2, Upload, Save, X, Loader2, Lock } from 'lucide-react'
+import AppLoading from '@/components/AppLoading'
 import Image from 'next/image'
 
 export default function OrganisationPage() {
@@ -176,14 +177,7 @@ export default function OrganisationPage() {
   }
 
   if (loading) {
-    return (
-      <div className="flex min-h-screen bg-zinc-950">
-        <Sidebar />
-        <main className="flex-1 p-4 lg:p-8 pt-20 lg:pt-8 lg:ml-64 flex items-center justify-center">
-          <Loader2 className="w-8 h-8 animate-spin text-yellow-400" />
-        </main>
-      </div>
-    )
+    return <AppLoading />
   }
 
   const canEdit = !isCompanyTrainer // Company trainers cannot edit

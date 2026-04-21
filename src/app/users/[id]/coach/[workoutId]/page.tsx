@@ -20,6 +20,7 @@ import {
   X
 } from 'lucide-react'
 import Link from 'next/link'
+import AppLoading from '@/components/AppLoading'
 
 interface ExerciseSet {
   id: string
@@ -514,11 +515,7 @@ export default function CoachSessionPage() {
   }
 
   if (loading) {
-    return (
-      <div className="flex items-center justify-center h-96">
-        <Loader2 className="w-8 h-8 animate-spin text-yellow-400" />
-      </div>
-    )
+    return <AppLoading />
   }
 
   if (sessionComplete) {

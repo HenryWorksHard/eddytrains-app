@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { createClient } from '@/app/lib/supabase/client';
 import { Users, Building2, DollarSign, TrendingUp, Eye, Search, Plus, X, Trash2, Activity, UserPlus, CreditCard, UserMinus, ChevronDown, ChevronRight, UserCheck } from 'lucide-react';
+import AppLoading from '@/components/AppLoading';
 
 interface Organization {
   id: string;
@@ -470,12 +471,7 @@ export default function PlatformPage() {
   };
 
   if (loading) {
-    return (
-      <div className="animate-pulse">
-        <div className="h-8 w-64 bg-zinc-800 rounded mb-4"></div>
-        <div className="h-4 w-48 bg-zinc-800 rounded"></div>
-      </div>
-    );
+    return <AppLoading />;
   }
 
   if (!isSuperAdmin) return null;
