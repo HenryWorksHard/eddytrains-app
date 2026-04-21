@@ -109,13 +109,13 @@ function ProgressPhotoPrompt({
 function greetingFor(tier: 1 | 2 | 3 | 4): string {
   switch (tier) {
     case 1:
-      return "I'm Pascal. I'm a bit rough — let's fix that together."
+      return "Ugh. Help me out?"
     case 2:
-      return "I'm Pascal. The more you work out, the better I look."
+      return "Let's go train."
     case 3:
-      return "I'm Pascal. Keep showing up and I'll keep getting sharper."
+      return 'Feeling sharp!'
     case 4:
-      return "I'm Pascal. Look at us — don't stop now."
+      return "Look at us!"
   }
 }
 
@@ -127,6 +127,7 @@ export default function DashboardClient({ firstName, workoutsByDay, programCount
   const [todayDateStr, setTodayDateStr] = useState('')
   const [menuOpen, setMenuOpen] = useState(false)
   const [showPascalGreeting, setShowPascalGreeting] = useState(false)
+  const [pascalTyped, setPascalTyped] = useState('')
 
   // Pascal mascot score — cached for 5 minutes alongside the other
   // client-side SWR calls. Fetched with the user's IANA tz so the
@@ -179,12 +180,32 @@ export default function DashboardClient({ firstName, workoutsByDay, programCount
     }
   }, [])
 
-  // Auto-dismiss the greeting after ~7s.
+  // Typewriter reveal: one char every ~35ms until the full line is shown.
+  // Then auto-dismiss a few seconds after the last character.
   useEffect(() => {
-    if (!showPascalGreeting) return
-    const t = setTimeout(() => setShowPascalGreeting(false), 7000)
-    return () => clearTimeout(t)
-  }, [showPascalGreeting])
+    if (!showPascalGreeting || !pascalData) {
+      setPascalTyped('')
+      return
+    }
+    const full = greetingFor(pascalData.tier)
+    setPascalTyped('')
+    let i = 0
+    const tick = setInterval(() => {
+      i++
+      setPascalTyped(full.slice(0, i))
+      if (i >= full.length) clearInterval(tick)
+    }, 35)
+
+    const dismiss = setTimeout(
+      () => setShowPascalGreeting(false),
+      full.length * 35 + 4000
+    )
+
+    return () => {
+      clearInterval(tick)
+      clearTimeout(dismiss)
+    }
+  }, [showPascalGreeting, pascalData])
 
   const todayWorkouts = workoutsByDay[todayDayOfWeek] || []
   const tomorrowDayOfWeek = (todayDayOfWeek + 1) % 7
@@ -249,15 +270,23 @@ export default function DashboardClient({ firstName, workoutsByDay, programCount
               ) : (
                 <div className="w-[96px] h-[96px] rounded-2xl bg-zinc-800/40 animate-pulse" />
               )}
-              {/* Speech bubble — once per session */}
+              {/* Speech bubble — originates from Pascal's mouth, types in.
+                 Pascal's mouth sits roughly 30% down the 120px frame. */}
               {pascalData && showPascalGreeting && (
                 <button
                   type="button"
                   onClick={() => setShowPascalGreeting(false)}
-                  className="pascal-bubble absolute left-[108px] top-2 max-w-[200px] text-left bg-white text-black text-xs leading-snug rounded-2xl rounded-bl-sm px-3 py-2 shadow-lg"
+                  className="pascal-bubble absolute left-[100px] top-[32px] w-[180px] text-left bg-white text-black text-xs leading-snug rounded-2xl rounded-bl-sm px-3 py-2 shadow-lg min-h-[40px]"
                   aria-label="Dismiss Pascal's greeting"
                 >
-                  {greetingFor(pascalData.tier)}
+                  <span className="block">
+                    {pascalTyped}
+                    {pascalTyped.length < greetingFor(pascalData.tier).length && (
+                      <span className="pascal-caret" aria-hidden>
+                        ▎
+                      </span>
+                    )}
+                  </span>
                   <span className="pascal-bubble-tail" aria-hidden />
                 </button>
               )}
@@ -289,20 +318,29 @@ export default function DashboardClient({ firstName, workoutsByDay, programCount
               animation: pascal-bubble-in 320ms cubic-bezier(0.2, 0.8, 0.2, 1) both;
               transform-origin: bottom left;
             }
+            /* Tail points left + slightly down, anchoring at Pascal's mouth. */
             .pascal-bubble-tail {
               position: absolute;
-              left: -8px;
-              bottom: 10px;
+              left: -6px;
+              top: 14px;
               width: 0;
               height: 0;
-              border-top: 8px solid transparent;
-              border-bottom: 8px solid transparent;
-              border-right: 8px solid #ffffff;
+              border-top: 7px solid transparent;
+              border-bottom: 7px solid transparent;
+              border-right: 7px solid #ffffff;
+            }
+            @keyframes pascal-caret-blink {
+              0%, 50% { opacity: 1; }
+              51%, 100% { opacity: 0; }
+            }
+            .pascal-caret {
+              display: inline-block;
+              margin-left: 1px;
+              animation: pascal-caret-blink 900ms steps(1, end) infinite;
+              color: #52525b;
             }
             @media (prefers-reduced-motion: reduce) {
-              .pascal-bubble {
-                animation: none;
-              }
+              .pascal-bubble, .pascal-caret { animation: none; }
             }
           `}</style>
 
