@@ -1,11 +1,13 @@
 import { createClient } from '../../lib/supabase/server'
-import { formatDateToString } from '../../lib/dateUtils'
+import { formatDateToString, parseLocalDate } from '../../lib/dateUtils'
 import { NextRequest, NextResponse } from 'next/server'
 
-// How many months of history to load for the calendar.
-// 365 days of completions is a tiny payload and gives users a full year
-// of history to scroll back through.
-const CALENDAR_HISTORY_MONTHS = 12
+// Calendar history window: previous month + current month + next month.
+// 3 months is enough for typical streak walks (~60-90 days back) and
+// for the user to flip a couple months in the calendar without a refetch.
+// Falls back to client_streaks.longest_streak for anything longer.
+const CALENDAR_MONTHS_BACK = 1  // previous month
+const CALENDAR_MONTHS_FORWARD = 1  // next month
 
 export async function GET(request: NextRequest) {
   const supabase = await createClient()
@@ -16,24 +18,21 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
 
-  // Prefer the client-supplied local date (?today=YYYY-MM-DD) so that
-  // "today" and the calendar window are anchored to the user's timezone,
-  // not the server's (Vercel = UTC). Fall back to server-local if missing
-  // or malformed.
+  // Client-supplied "today" so windowing is in the user's timezone.
   const { searchParams } = new URL(request.url)
   const todayParam = searchParams.get('today')
   const todayStr = /^\d{4}-\d{2}-\d{2}$/.test(todayParam || '')
     ? todayParam!
     : formatDateToString(new Date())
 
-  // Build the calendar window anchored on todayStr. Parse as local so we
-  // don't re-introduce a UTC shift.
   const [ty, tm] = todayStr.split('-').map(Number)
   const windowStart = formatDateToString(
-    new Date(ty, tm - 1 - (CALENDAR_HISTORY_MONTHS - 1), 1)
+    new Date(ty, tm - 1 - CALENDAR_MONTHS_BACK, 1)
   )
-  // Day 0 of next month = last day of the current month
-  const windowEnd = formatDateToString(new Date(ty, tm, 0))
+  // Last day of (current month + CALENDAR_MONTHS_FORWARD)
+  const windowEnd = formatDateToString(
+    new Date(ty, tm + CALENDAR_MONTHS_FORWARD, 0)
+  )
 
   // Run ALL queries in parallel
   const [
@@ -41,14 +40,15 @@ export async function GET(request: NextRequest) {
     userProgramsResult,
     todayCompletionsResult,
     monthCompletionsResult,
-    programStartResult
+    programStartResult,
+    streakRowResult,
   ] = await Promise.all([
     supabase
       .from('profiles')
       .select('full_name')
       .eq('id', user.id)
       .single(),
-    
+
     supabase
       .from('client_programs')
       .select(`
@@ -73,34 +73,38 @@ export async function GET(request: NextRequest) {
       `)
       .eq('client_id', user.id)
       .eq('is_active', true),
-    
+
     // "Today's" completions — used to strike through today's scheduled
-    // workouts on the home screen. Match by scheduled_date (the local day
-    // the workout was assigned to), NOT completed_at (UTC timestamp of
-    // when the user tapped complete, which can be a different day).
+    // workouts on the home screen.
     supabase
       .from('workout_completions')
       .select('workout_id, client_program_id, scheduled_date')
       .eq('client_id', user.id)
       .eq('scheduled_date', todayStr),
 
-    // Calendar completions — 12 months of history for the monthly
-    // calendar view, keyed by scheduled_date so catch-up workouts land
-    // on the day they were scheduled for, not the day they were logged.
+    // Calendar + streak-walk completions.
     supabase
       .from('workout_completions')
       .select('workout_id, client_program_id, scheduled_date')
       .eq('client_id', user.id)
       .gte('scheduled_date', windowStart)
       .lte('scheduled_date', windowEnd),
-    
+
     supabase
       .from('client_programs')
       .select('start_date')
       .eq('client_id', user.id)
       .eq('is_active', true)
       .order('start_date', { ascending: true })
-      .limit(1)
+      .limit(1),
+
+    // Longest streak comes from the persistent streak table. Current
+    // streak is computed below from monthCompletions + schedule.
+    supabase
+      .from('client_streaks')
+      .select('longest_streak')
+      .eq('client_id', user.id)
+      .maybeSingle(),
   ])
 
   const profile = profileResult.data
@@ -108,6 +112,7 @@ export async function GET(request: NextRequest) {
   const todayCompletions = todayCompletionsResult.data
   const monthCompletions = monthCompletionsResult.data
   const programStartDates = programStartResult.data
+  const streakRow = streakRowResult.data
 
   // Build schedule data by week and day
   interface WorkoutData {
@@ -122,46 +127,47 @@ export async function GET(request: NextRequest) {
   }
 
   const scheduleByWeekAndDay: Record<number, Record<number, WorkoutData[]>> = {}
+  const scheduledDays = new Set<number>()
   let maxWeek = 1
-  
-  // Initialize week 1
+
   scheduleByWeekAndDay[1] = {}
   for (let i = 0; i < 7; i++) {
     scheduleByWeekAndDay[1][i] = []
   }
-  
+
   if (userPrograms) {
     for (const up of userPrograms) {
       const programData = up.programs as unknown
-      const program = (Array.isArray(programData) ? programData[0] : programData) as { 
+      const program = (Array.isArray(programData) ? programData[0] : programData) as {
         id: string
         name: string
         category?: string
-        program_workouts?: { 
+        program_workouts?: {
           id: string
           name: string
           day_of_week: number | null
           parent_workout_id?: string | null
           week_number?: number | null
           workout_exercises?: { id: string }[]
-        }[] 
+        }[]
       } | null
-      
+
       if (program?.program_workouts) {
         for (const workout of program.program_workouts) {
           if (workout.parent_workout_id) continue
-          
+
           if (workout.day_of_week !== null) {
+            scheduledDays.add(workout.day_of_week)
             const weekNum = workout.week_number || 1
             maxWeek = Math.max(maxWeek, weekNum)
-            
+
             if (!scheduleByWeekAndDay[weekNum]) {
               scheduleByWeekAndDay[weekNum] = {}
               for (let i = 0; i < 7; i++) {
                 scheduleByWeekAndDay[weekNum][i] = []
               }
             }
-            
+
             scheduleByWeekAndDay[weekNum][workout.day_of_week].push({
               dayOfWeek: workout.day_of_week,
               workoutId: workout.id,
@@ -170,7 +176,7 @@ export async function GET(request: NextRequest) {
               programCategory: program.category || 'strength',
               clientProgramId: up.id,
               exerciseCount: workout.workout_exercises?.length || 0,
-              weekNumber: weekNum
+              weekNumber: weekNum,
             })
           }
         }
@@ -178,38 +184,90 @@ export async function GET(request: NextRequest) {
     }
   }
 
+  // Default to Mon-Fri if user has no program yet
+  if (scheduledDays.size === 0) {
+    ;[1, 2, 3, 4, 5].forEach((d) => scheduledDays.add(d))
+  }
+
   // Legacy workoutsByDay uses week 1
   const workoutsByDay: Record<number, WorkoutData[]> = scheduleByWeekAndDay[1] || {}
 
-  // Build completed workouts set
+  // Today's completions set for the home screen
   const completedWorkoutIds: Set<string> = new Set()
-  todayCompletions?.forEach(c => {
+  todayCompletions?.forEach((c) => {
     completedWorkoutIds.add(`${c.workout_id}:${c.client_program_id}`)
   })
   const completedWorkoutsArray = Array.from(completedWorkoutIds)
 
-  // Build calendar completions map keyed by scheduled_date.
-  // This is the local calendar day the workout was assigned to — it
-  // stays stable whether the client finished on time or caught up later.
+  // Calendar completions keyed by scheduled_date
   const calendarCompletions: Record<string, boolean> = {}
-  monthCompletions?.forEach(c => {
+  const completedDateSet = new Set<string>()
+  monthCompletions?.forEach((c) => {
     const d = c.scheduled_date
     if (!d) return
     calendarCompletions[`${d}:${c.workout_id}:${c.client_program_id}`] = true
     calendarCompletions[`${d}:${c.workout_id}`] = true
     calendarCompletions[`${d}:any`] = true
+    completedDateSet.add(d)
   })
 
-  // Schedule by day for calendar (with week info)
-  const scheduleByDay: Record<number, { dayOfWeek: number; workoutId: string; workoutName: string; programName: string; programCategory: string; clientProgramId: string }[]> = {}
+  // Compute current streak from schedule + completions we already have.
+  // Walk backwards from today, counting consecutive completed scheduled days.
+  // Stops when it runs out of data or hits a missed scheduled day.
+  const today = parseLocalDate(todayStr)
+  let currentStreak = 0
+  if (scheduledDays.has(today.getDay()) && completedDateSet.has(todayStr)) {
+    currentStreak = 1
+  }
+  const checkDate = parseLocalDate(todayStr)
+  checkDate.setDate(checkDate.getDate() - 1)
+  // Walk back no further than the window we fetched — beyond that we have no data.
+  const walkLimit = parseLocalDate(windowStart)
+  while (checkDate >= walkLimit) {
+    const dow = checkDate.getDay()
+    if (scheduledDays.has(dow)) {
+      const dateStr = formatDateToString(checkDate)
+      if (completedDateSet.has(dateStr)) {
+        currentStreak++
+      } else {
+        break
+      }
+    }
+    checkDate.setDate(checkDate.getDate() - 1)
+  }
+
+  const longestStreak = Math.max(currentStreak, streakRow?.longest_streak ?? 0)
+
+  // If current streak exceeds stored longest, persist the new record.
+  // Fire-and-forget so we don't block the response.
+  if (currentStreak > (streakRow?.longest_streak || 0)) {
+    supabase
+      .from('client_streaks')
+      .upsert(
+        {
+          client_id: user.id,
+          current_streak: currentStreak,
+          longest_streak: currentStreak,
+          last_workout_date: todayStr,
+        },
+        { onConflict: 'client_id' }
+      )
+      .then(() => {})
+  }
+
+  // Schedule by day for calendar
+  const scheduleByDay: Record<
+    number,
+    { dayOfWeek: number; workoutId: string; workoutName: string; programName: string; programCategory: string; clientProgramId: string }[]
+  > = {}
   for (let i = 0; i < 7; i++) {
-    scheduleByDay[i] = (workoutsByDay[i] || []).map(w => ({
+    scheduleByDay[i] = (workoutsByDay[i] || []).map((w) => ({
       dayOfWeek: i,
       workoutId: w.workoutId,
       workoutName: w.workoutName,
       programName: w.programName,
       programCategory: w.programCategory,
-      clientProgramId: w.clientProgramId
+      clientProgramId: w.clientProgramId,
     }))
   }
 
@@ -226,6 +284,10 @@ export async function GET(request: NextRequest) {
     scheduleByDay,
     calendarCompletions,
     programStartDate,
-    maxWeek
+    maxWeek,
+    // Streak data — eliminates the separate /api/workouts/streak round-trip.
+    streak: currentStreak,
+    longestStreak,
+    scheduledDays: Array.from(scheduledDays),
   })
 }

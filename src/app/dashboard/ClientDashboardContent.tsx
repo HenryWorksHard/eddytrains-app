@@ -4,7 +4,6 @@ import { useEffect, useState } from 'react'
 import Link from 'next/link'
 import { SlideOutMenu, HamburgerButton } from '../components/SlideOutMenu'
 import WorkoutCalendar from '../components/WorkoutCalendar'
-import { formatDateToString } from '../lib/dateUtils'
 
 interface Workout {
   workoutId: string
@@ -34,15 +33,16 @@ interface DashboardClientProps {
   calendarCompletions: Record<string, boolean>
   programStartDate?: string
   maxWeek?: number
+  streak?: number
+  longestStreak?: number
 }
 
-export default function DashboardClient({ firstName, workoutsByDay, programCount, completedWorkouts, scheduleByDay, scheduleByWeekAndDay, calendarCompletions, programStartDate, maxWeek = 1 }: DashboardClientProps) {
+export default function DashboardClient({ firstName, workoutsByDay, programCount, completedWorkouts, scheduleByDay, scheduleByWeekAndDay, calendarCompletions, programStartDate, maxWeek = 1, streak = 0 }: DashboardClientProps) {
   const completedSet = new Set(completedWorkouts)
   const [mounted, setMounted] = useState(false)
   const [greeting, setGreeting] = useState('Hello')
   const [todayDayOfWeek, setTodayDayOfWeek] = useState(new Date().getDay())
   const [todayDateStr, setTodayDateStr] = useState('')
-  const [streak, setStreak] = useState(0)
   const [menuOpen, setMenuOpen] = useState(false)
 
   const daysOfWeek = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday']
@@ -72,23 +72,7 @@ export default function DashboardClient({ firstName, workoutsByDay, programCount
     
     // Format date in user's locale
     setTodayDateStr(now.toLocaleDateString(undefined, { day: 'numeric', month: 'long' }))
-    
-    // Fetch streak
-    fetchStreak()
   }, [])
-
-  const fetchStreak = async () => {
-    try {
-      const today = formatDateToString(new Date())
-      const response = await fetch(`/api/workouts/streak?today=${today}`)
-      if (response.ok) {
-        const data = await response.json()
-        setStreak(data.streak || 0)
-      }
-    } catch (error) {
-      console.error('Failed to fetch streak:', error)
-    }
-  }
 
   const todayWorkouts = workoutsByDay[todayDayOfWeek] || []
   const tomorrowDayOfWeek = (todayDayOfWeek + 1) % 7
@@ -110,8 +94,6 @@ export default function DashboardClient({ firstName, workoutsByDay, programCount
     }
   }
   
-  const allTodayCompleted = todayWorkouts.length > 0 && todayWorkouts.every(w => isWorkoutCompleted(w))
-
   if (!mounted) {
     return <div className="px-6 py-6"><div className="h-32 bg-zinc-800 rounded-2xl animate-pulse" /></div>
   }
@@ -223,25 +205,7 @@ export default function DashboardClient({ firstName, workoutsByDay, programCount
                 )
               })}
               
-              {/* Tomorrow preview - show when all today's workouts are done */}
-              {allTodayCompleted && tomorrowWorkouts.length > 0 && (
-                <div className="tomorrow-preview border rounded-lg p-3 mt-3">
-                  <p className="text-zinc-500 text-xs mb-1.5">Tomorrow</p>
-                  {tomorrowWorkouts.map((workout) => (
-                    <Link
-                      key={`tomorrow-${workout.workoutId}`}
-                      href={`/workout/${workout.workoutId}?clientProgramId=${workout.clientProgramId}&preview=true`}
-                      className="flex items-center justify-between py-1.5 hover:bg-zinc-800/50 -mx-1.5 px-1.5 rounded-lg transition-colors touch-feedback"
-                    >
-                      <span className="text-theme-primary text-sm">{workout.workoutName}</span>
-                      <div className="flex items-center gap-2">
-                        <span className="text-zinc-500 text-xs">{workout.programName}</span>
-                        <span className="text-yellow-400 text-sm">→</span>
-                      </div>
-                    </Link>
-                  ))}
-                </div>
-              )}
+              {/* Tomorrow preview renders in its own dedicated section below. */}
             </div>
           ) : (
             <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-6 text-center">

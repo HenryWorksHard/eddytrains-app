@@ -19,7 +19,7 @@ export default function ClientPrograms() {
   const { data, error, isLoading } = useSWR('/api/programs', fetcher, {
     revalidateOnFocus: false,
     revalidateOnReconnect: false,
-    dedupingInterval: 30000,
+    dedupingInterval: 300000,
   })
 
   useEffect(() => {

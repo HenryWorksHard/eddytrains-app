@@ -20,7 +20,7 @@ export default function ProgressPage() {
   const { data, error, isLoading } = useSWR(`/api/progress?tz=${encodeURIComponent(tz)}`, fetcher, {
     revalidateOnFocus: false,
     revalidateOnReconnect: false,
-    dedupingInterval: 30000,
+    dedupingInterval: 300000,
   })
 
   useEffect(() => {

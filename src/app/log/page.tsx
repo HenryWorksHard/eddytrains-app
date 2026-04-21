@@ -17,7 +17,7 @@ export default function LogPage() {
   const { data, error, isLoading } = useSWR('/api/log', fetcher, {
     revalidateOnFocus: false,
     revalidateOnReconnect: false,
-    dedupingInterval: 30000,
+    dedupingInterval: 300000,
   })
 
   useEffect(() => {

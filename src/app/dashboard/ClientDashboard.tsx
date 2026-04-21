@@ -22,22 +22,29 @@ export default function ClientDashboard() {
   const dashboardUrl = `/api/dashboard?today=${today}`
 
   // Silently persist the client's IANA timezone so trainer-side APIs
-  // can use it when displaying this client's data.
+  // can use it when displaying this client's data. Only fires once per
+  // session per unique timezone — saves a round-trip on every dashboard visit.
   useEffect(() => {
     const tz = Intl.DateTimeFormat().resolvedOptions().timeZone
-    if (tz) {
-      fetch('/api/me/timezone', {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ timezone: tz })
-      }).catch(() => {}) // fire-and-forget
+    if (!tz) return
+    try {
+      const cached = localStorage.getItem('cmpd:tz')
+      if (cached === tz) return
+      localStorage.setItem('cmpd:tz', tz)
+    } catch {
+      // localStorage unavailable; still send it
     }
+    fetch('/api/me/timezone', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ timezone: tz }),
+    }).catch(() => {})
   }, [])
 
   const { data, error, isLoading } = useSWR(dashboardUrl, fetcher, {
     revalidateOnFocus: false,
     revalidateOnReconnect: false,
-    dedupingInterval: 30000,
+    dedupingInterval: 300000,
   })
 
   useEffect(() => {
@@ -58,7 +65,7 @@ export default function ClientDashboard() {
 
   return (
     <div className="min-h-screen bg-black pb-32">
-      <ClientDashboardContent 
+      <ClientDashboardContent
         firstName={data.firstName}
         workoutsByDay={data.workoutsByDay}
         programCount={data.programCount}
@@ -68,6 +75,8 @@ export default function ClientDashboard() {
         calendarCompletions={data.calendarCompletions}
         programStartDate={data.programStartDate}
         maxWeek={data.maxWeek}
+        streak={data.streak ?? 0}
+        longestStreak={data.longestStreak ?? 0}
       />
       <BottomNav />
     </div>
