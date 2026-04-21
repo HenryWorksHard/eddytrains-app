@@ -5,11 +5,13 @@ import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { createClient } from '@/app/lib/supabase/client'
 import { ArrowLeft, Mail, User, Check, AlertCircle, Dumbbell, Heart, Zap, Loader2, Apple, CreditCard, Copy } from 'lucide-react'
+import { useMe } from '@/hooks/useMe'
 
 export default function NewUserPage() {
   const router = useRouter()
   const supabase = createClient()
-  
+  const { me } = useMe()
+
   const [email, setEmail] = useState('')
   const [fullName, setFullName] = useState('')
   const [permissions, setPermissions] = useState({
@@ -29,18 +31,12 @@ export default function NewUserPage() {
   const [copied, setCopied] = useState(false)
   const [, setHasOrg] = useState(false)
 
+  // Shared /api/me cache via useMe(); used here just to verify the user
+  // actually has an org context before allowing submit. The server POST
+  // resolves the effective org itself via getEffectiveOrgId().
   useEffect(() => {
-    // Note: the server resolves the target org itself via getEffectiveOrgId() on POST.
-    // We still fetch the effective orgId here just so the UI can show impersonation context
-    // if ever needed and to double-check the user has an org before allowing submit.
-    async function getOrganization() {
-      const res = await fetch('/api/me')
-      if (!res.ok) return
-      const me = await res.json()
-      if (me?.organizationId) setHasOrg(true)
-    }
-    getOrganization()
-  }, [])
+    if (me?.organizationId) setHasOrg(true)
+  }, [me])
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()

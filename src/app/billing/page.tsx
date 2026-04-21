@@ -8,6 +8,7 @@ import { Crown, Sparkles, Clock, X, Loader2, CreditCard, FileText, Calendar, Ale
 import { loadStripe } from '@stripe/stripe-js';
 import { EmbeddedCheckoutProvider, EmbeddedCheckout, Elements, PaymentElement, useStripe, useElements } from '@stripe/react-stripe-js';
 import { useIsNativeApp } from '@/hooks/useIsNativeApp';
+import { useMe } from '@/hooks/useMe';
 import AppLoading from '@/components/AppLoading';
 
 // Initialize Stripe
@@ -156,28 +157,29 @@ function BillingContent() {
     }
   }, [searchParams, router]);
 
+  const { me, loading: meLoading } = useMe();
+
   useEffect(() => {
-    async function loadData() {
-      // Resolve the effective org via /api/me so that super_admin impersonation works.
-      // (A super admin viewing as Trainer A should see Trainer A's billing, not their own.)
-      const meRes = await fetch('/api/me');
-      if (meRes.status === 401) {
-        router.push('/login');
-        return;
-      }
-      const me = await meRes.json();
-      const effectiveOrgId: string | null = me?.organizationId || null;
+    if (meLoading) return;
+    if (!me) {
+      router.push('/login');
+      return;
+    }
 
-      if (!effectiveOrgId) {
-        setLoading(false);
-        return;
-      }
+    const effectiveOrgId = me.organizationId;
+    if (!effectiveOrgId) {
+      setLoading(false);
+      return;
+    }
 
+    let cancelled = false;
+    (async () => {
       const { data: org } = await supabase
         .from('organizations')
         .select('*')
         .eq('id', effectiveOrgId)
         .single();
+      if (cancelled) return;
 
       setOrganization(org);
 
@@ -186,6 +188,7 @@ function BillingContent() {
         .select('*', { count: 'exact', head: true })
         .eq('organization_id', effectiveOrgId)
         .eq('role', 'client');
+      if (cancelled) return;
 
       setClientCount(count || 0);
       setLoading(false);
@@ -193,10 +196,12 @@ function BillingContent() {
       if (org?.stripe_customer_id) {
         fetchBillingData(org.id);
       }
-    }
+    })();
 
-    loadData();
-  }, [supabase, router]);
+    return () => {
+      cancelled = true;
+    };
+  }, [me, meLoading, supabase, router]);
 
   const fetchBillingData = async (orgId: string) => {
     setBillingLoading(true);

@@ -30,13 +30,25 @@ import {
   Weight
 } from 'lucide-react'
 import { createClient } from '@/app/lib/supabase/client'
+import dynamic from 'next/dynamic'
 import UserSchedule from './UserSchedule'
 import UserProgressGallery from './UserProgressGallery'
 import AppLoading from '@/components/AppLoading'
 import ClientTabs, { TabType } from './components/ClientTabs'
-import ProgressTab from './components/ProgressTab'
 import ProfileTab from './components/ProfileTab'
 import BMRCalculator from '@/components/BMRCalculator'
+
+// ProgressTab pulls in recharts (~78KB) and an ExportProgressModal that
+// pulls in jspdf (~500KB). Don't ship that to the client bundle until
+// the trainer clicks into the Progress tab.
+const ProgressTab = dynamic(() => import('./components/ProgressTab'), {
+  ssr: false,
+  loading: () => (
+    <div className="flex items-center justify-center h-64">
+      <div className="w-8 h-8 border-2 border-yellow-400 border-t-transparent rounded-full animate-spin" />
+    </div>
+  ),
+})
 
 interface User {
   id: string

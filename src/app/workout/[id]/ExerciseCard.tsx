@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useCallback, useRef } from 'react'
+import { memo, useState, useEffect, useCallback, useRef } from 'react'
 import { ChevronDown, ChevronUp, RefreshCw, X, Check, Trophy, Search } from 'lucide-react'
 import TutorialModal from './TutorialModal'
 import { createClient } from '../../lib/supabase/client'
@@ -259,7 +259,7 @@ function SwapExerciseModal({
   )
 }
 
-export default function ExerciseCard({
+function ExerciseCardInner({
   exerciseId,
   exerciseName,
   index,
@@ -869,3 +869,9 @@ export default function ExerciseCard({
     </>
   )
 }
+
+// Memoize: ExerciseCard re-renders often during an active workout as the
+// parent state churns with debounced saves. Shallow prop equality is enough
+// here because callbacks from WorkoutClient are already stable refs.
+const ExerciseCard = memo(ExerciseCardInner)
+export default ExerciseCard

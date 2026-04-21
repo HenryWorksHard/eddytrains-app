@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import Link from 'next/link'
 import { createClient } from '../lib/supabase/client'
 
@@ -155,29 +155,43 @@ export default function WorkoutCalendar({ scheduleByDay, scheduleByWeekAndDay, c
     }
   }
 
-  // Get calendar days for current month
-  const getCalendarDays = () => {
+  // Build the calendar grid + per-day metadata ONCE per (month, schedule,
+  // completions, program) combination. Previously the status/workouts
+  // helpers were called fresh inside render for every one of ~30 cells,
+  // and again on every unrelated state change — slow on older phones.
+  const { calendarDays, dayMeta } = useMemo(() => {
     const year = currentMonth.getFullYear()
     const month = currentMonth.getMonth()
-    
+
     const firstDay = new Date(year, month, 1)
     const lastDay = new Date(year, month + 1, 0)
-    
+
     const days: (Date | null)[] = []
-    
     const firstDayMondayIndex = toMondayFirstIndex(firstDay.getDay())
     for (let i = 0; i < firstDayMondayIndex; i++) {
       days.push(null)
     }
-    
     for (let d = 1; d <= lastDay.getDate(); d++) {
       days.push(new Date(year, month, d))
     }
-    
-    return days
-  }
 
-  const calendarDays = getCalendarDays()
+    const meta = new Map<
+      string,
+      {
+        workouts: WorkoutSchedule[]
+        status: 'completed' | 'partial' | 'skipped' | 'upcoming' | 'rest'
+      }
+    >()
+    for (const date of days) {
+      if (!date) continue
+      const workouts = getWorkoutsForDate(date)
+      const status = getDateStatus(date)
+      meta.set(formatDateLocal(date), { workouts, status })
+    }
+
+    return { calendarDays: days, dayMeta: meta }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentMonth, scheduleByDay, scheduleByWeekAndDay, completedWorkouts, programStartDate, maxWeek, today])
 
   const getStatusColor = (status: string) => {
     switch (status) {
@@ -388,8 +402,9 @@ export default function WorkoutCalendar({ scheduleByDay, scheduleByWeekAndDay, c
             }
             
             const isToday = date.toDateString() === today.toDateString()
-            const status = getDateStatus(date)
-            const workouts = getWorkoutsForDate(date)
+            const meta = dayMeta.get(formatDateLocal(date))
+            const status = meta?.status ?? 'rest'
+            const workouts = meta?.workouts ?? []
             const hasWorkouts = workouts.length > 0
             
             // Get the first workout for navigation (if any)

@@ -6,6 +6,7 @@ import { useRouter } from 'next/navigation'
 import Sidebar from '@/components/Sidebar'
 import { Building2, Upload, Save, X, Loader2, Lock } from 'lucide-react'
 import AppLoading from '@/components/AppLoading'
+import { useMe } from '@/hooks/useMe'
 import Image from 'next/image'
 
 export default function OrganisationPage() {
@@ -33,23 +34,25 @@ export default function OrganisationPage() {
   const [previewLogo, setPreviewLogo] = useState<string | null>(null)
   const [logoFile, setLogoFile] = useState<File | null>(null)
 
+  const { me, loading: meLoading } = useMe()
+
   useEffect(() => {
-    loadOrganisation()
-  }, [])
-
-  async function loadOrganisation() {
-    // Resolve role + effective org via /api/me so impersonation is respected.
-    const meRes = await fetch('/api/me')
-    if (meRes.status === 401) {
+    if (meLoading) return
+    if (!me) {
       router.push('/login')
       return
     }
-    const me = await meRes.json()
-    if (!me?.userId) {
-      router.push('/login')
-      return
-    }
+    loadOrganisation(me)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [me, meLoading])
 
+  async function loadOrganisation(me: {
+    userId: string
+    role: string
+    companyId: string | null
+    organizationId: string | null
+    impersonating: { orgId: string; orgName: string } | null
+  }) {
     setUserRole(me.role)
 
     // A real (non-impersonating) trainer under a company manages the company branding
@@ -167,7 +170,7 @@ export default function OrganisationPage() {
       if (error) throw error
 
       alert('Organisation updated successfully')
-      loadOrganisation()
+      if (me) loadOrganisation(me)
     } catch (error) {
       console.error('Save error:', error)
       alert('Failed to save changes')
