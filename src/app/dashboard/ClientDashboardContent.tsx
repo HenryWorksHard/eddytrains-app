@@ -47,6 +47,17 @@ const pascalFetcher = (url: string): Promise<PascalData> =>
     return r.json()
   })
 
+type GoalSummary = {
+  id: string
+  title: string
+  kind: 'lift' | 'workouts' | 'body_weight' | 'custom'
+  target_value: number | null
+  current_value: number
+  achieved: boolean
+}
+const goalsFetcher = (url: string): Promise<{ goals: GoalSummary[] }> =>
+  fetch(url).then((r) => r.json())
+
 function ProgressPhotoPrompt({
   todayHasWorkouts,
   lastProgressPhotoDate,
@@ -139,6 +150,13 @@ export default function DashboardClient({ firstName, workoutsByDay, programCount
     dedupingInterval: 300000,
     shouldRetryOnError: false,
   })
+
+  const { data: goalsData } = useSWR('/api/goals', goalsFetcher, {
+    revalidateOnFocus: false,
+    dedupingInterval: 300000,
+    shouldRetryOnError: false,
+  })
+  const topGoal = (goalsData?.goals || []).find((g) => !g.achieved) || null
 
   const daysOfWeek = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday']
   const dayAbbrev = ['SU', 'MO', 'TU', 'WE', 'TH', 'FR', 'SA']
@@ -461,6 +479,70 @@ export default function DashboardClient({ firstName, workoutsByDay, programCount
             </div>
           </section>
         )}
+
+        {/* Goal card — tap to go manage all goals. When none are set,
+           shows a lightweight prompt to create one. */}
+        <section className="mt-4">
+          <div className="flex items-center justify-between mb-2">
+            <h2 className="text-xs font-medium text-zinc-500 uppercase tracking-wider">Goal</h2>
+            <Link href="/goals" className="text-yellow-400 text-xs font-medium">
+              {goalsData ? 'Manage →' : '\u00a0'}
+            </Link>
+          </div>
+          {topGoal ? (
+            <Link
+              href="/goals"
+              className="block bg-zinc-900 border border-zinc-800 rounded-xl p-3 hover:border-yellow-400/40 transition-colors"
+            >
+              <p className="text-white font-semibold text-sm truncate">{topGoal.title}</p>
+              {topGoal.target_value !== null && topGoal.target_value > 0 ? (
+                <>
+                  <div className="flex items-baseline justify-between mt-1.5 mb-1">
+                    <span className="text-xs text-zinc-400 tabular-nums">
+                      {topGoal.current_value} / {topGoal.target_value}
+                    </span>
+                    <span className="text-xs text-zinc-500 tabular-nums">
+                      {Math.min(
+                        100,
+                        Math.round((topGoal.current_value / topGoal.target_value) * 100)
+                      )}%
+                    </span>
+                  </div>
+                  <div className="h-1.5 bg-zinc-800 rounded-full overflow-hidden">
+                    <div
+                      className="h-full bg-yellow-400 rounded-full transition-all"
+                      style={{
+                        width: `${Math.min(
+                          100,
+                          Math.round((topGoal.current_value / topGoal.target_value) * 100)
+                        )}%`,
+                      }}
+                    />
+                  </div>
+                </>
+              ) : (
+                <p className="text-xs text-zinc-500 mt-1">Track progress on the goals page.</p>
+              )}
+            </Link>
+          ) : goalsData ? (
+            <Link
+              href="/goals"
+              className="flex items-center gap-3 p-3 bg-zinc-900 border border-dashed border-zinc-700 rounded-xl hover:border-yellow-400/40 transition-colors"
+            >
+              <div className="w-9 h-9 rounded-lg bg-yellow-400/10 flex items-center justify-center flex-shrink-0">
+                <svg className="w-5 h-5 text-yellow-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v8m-4-4h8m5 0a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-semibold text-white">Set your first goal</p>
+                <p className="text-xs text-zinc-500 mt-0.5">Give every session a target.</p>
+              </div>
+            </Link>
+          ) : (
+            <div className="h-12 bg-zinc-900 border border-zinc-800 rounded-xl animate-pulse" />
+          )}
+        </section>
 
         {/* Progress photo prompt — shows when no photo exists yet, or when
            it's been >28 days, or as a rest-day reminder. */}
