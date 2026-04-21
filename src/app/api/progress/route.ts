@@ -10,19 +10,24 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
 
-  // Client timezone for accurate "this week" calculation
   const { searchParams } = new URL(request.url)
   const timezone = searchParams.get('tz') || 'UTC'
 
   const nowInTz = new Date(new Date().toLocaleString('en-US', { timeZone: timezone }))
+
+  // Week-over-week window bounds for the trend indicator.
   const weekAgo = new Date(nowInTz)
   weekAgo.setDate(weekAgo.getDate() - 7)
   const weekAgoIso = weekAgo.toISOString()
 
-  // Single relational query: set_logs joined to workout_logs (for client
-  // filter + completed_at) and workout_exercises (for exercise_name).
-  // Replaces the previous 3-step waterfall (workout_logs → set_logs →
-  // workout_exercises).
+  const twoWeeksAgo = new Date(nowInTz)
+  twoWeeksAgo.setDate(twoWeeksAgo.getDate() - 14)
+  const twoWeeksAgoIso = twoWeeksAgo.toISOString()
+
+  // Month bounds (local to user's tz).
+  const monthStart = new Date(nowInTz.getFullYear(), nowInTz.getMonth(), 1)
+  const monthStartStr = `${monthStart.getFullYear()}-${String(monthStart.getMonth() + 1).padStart(2, '0')}-01`
+
   type JoinedSetLog = {
     weight_kg: number | null
     reps_completed: number | null
@@ -32,7 +37,14 @@ export async function GET(request: NextRequest) {
     workout_exercises: { exercise_name: string | null } | null
   }
 
-  const [oneRMsResult, progressImagesResult, setLogsResult] = await Promise.all([
+  const [
+    oneRMsResult,
+    progressImagesResult,
+    setLogsResult,
+    monthCompletionsResult,
+    streakRowResult,
+    programsResult,
+  ] = await Promise.all([
     supabase
       .from('client_1rms')
       .select('exercise_name, weight_kg, updated_at')
@@ -60,16 +72,46 @@ export async function GET(request: NextRequest) {
       .not('weight_kg', 'is', null)
       .not('reps_completed', 'is', null)
       .returns<JoinedSetLog[]>(),
+
+    // Workouts completed this calendar month — powers the "X of Y
+    // scheduled days" recap card.
+    supabase
+      .from('workout_completions')
+      .select('scheduled_date, completed_at')
+      .eq('client_id', user.id)
+      .gte('completed_at', monthStart.toISOString()),
+
+    supabase
+      .from('client_streaks')
+      .select('current_streak, longest_streak')
+      .eq('client_id', user.id)
+      .maybeSingle(),
+
+    // Active program schedule — used to count how many scheduled days
+    // this month the client has hit vs missed for the recap card.
+    supabase
+      .from('client_programs')
+      .select(`
+        programs (
+          program_workouts (
+            day_of_week,
+            parent_workout_id
+          )
+        )
+      `)
+      .eq('client_id', user.id)
+      .eq('is_active', true),
   ])
 
   const oneRMs = oneRMsResult.data || []
   const progressImages = progressImagesResult.data || []
   const setLogs = setLogsResult.data || []
+  const monthCompletions = monthCompletionsResult.data || []
+  const streakRow = streakRowResult.data
 
-  // Weekly tonnage: sum over set_logs whose parent workout_log.completed_at
-  // falls inside the last 7 days.
+  // Weekly tonnage (last 7 days) + previous week (7-14 days ago) for trend.
   let weeklyTonnage = 0
-  // Best estimated 1RM per exercise (Epley: weight × (1 + reps/30))
+  let previousWeekTonnage = 0
   const bestByExercise = new Map<
     string,
     { weight_kg: number; reps: number; estimated_1rm: number; date: string }
@@ -82,12 +124,14 @@ export async function GET(request: NextRequest) {
     const exerciseName = log.workout_exercises?.exercise_name
     if (!weight || !reps || weight <= 0) continue
 
-    // Weekly tonnage
-    if (completedAt && completedAt >= weekAgoIso) {
-      weeklyTonnage += weight * reps
+    if (completedAt) {
+      if (completedAt >= weekAgoIso) {
+        weeklyTonnage += weight * reps
+      } else if (completedAt >= twoWeeksAgoIso) {
+        previousWeekTonnage += weight * reps
+      }
     }
 
-    // Estimated 1RM
     if (!exerciseName) continue
     const est = reps === 1 ? weight : weight * (1 + reps / 30)
     const key = exerciseName.toLowerCase()
@@ -109,10 +153,46 @@ export async function GET(request: NextRequest) {
     }))
     .sort((a, b) => b.estimated_1rm - a.estimated_1rm)
 
+  // Month recap: how many workouts done vs how many scheduled days so far.
+  const monthCompletionsCount = monthCompletions.length
+
+  const scheduledDows = new Set<number>()
+  for (const cp of programsResult.data || []) {
+    const programData = cp.programs as unknown
+    const program = (Array.isArray(programData) ? programData[0] : programData) as {
+      program_workouts?: { day_of_week: number | null; parent_workout_id: string | null }[]
+    } | null
+    program?.program_workouts?.forEach((w) => {
+      if (w.parent_workout_id) return
+      if (w.day_of_week !== null) scheduledDows.add(w.day_of_week)
+    })
+  }
+
+  // Count scheduled days from month start through today (not future).
+  let scheduledSoFar = 0
+  const cursor = new Date(monthStart)
+  const todayLocal = new Date(nowInTz.getFullYear(), nowInTz.getMonth(), nowInTz.getDate())
+  while (cursor <= todayLocal) {
+    if (scheduledDows.has(cursor.getDay())) scheduledSoFar++
+    cursor.setDate(cursor.getDate() + 1)
+  }
+
+  const tonnageTrendPct =
+    previousWeekTonnage > 0
+      ? Math.round(((weeklyTonnage - previousWeekTonnage) / previousWeekTonnage) * 100)
+      : null
+
   return NextResponse.json({
     oneRMs,
     estimated1RMs,
     progressImages,
     weeklyTonnage,
+    previousWeekTonnage,
+    tonnageTrendPct, // null if prev week is 0
+    monthCompletions: monthCompletionsCount,
+    monthScheduled: scheduledSoFar,
+    monthStart: monthStartStr,
+    streak: streakRow?.current_streak ?? 0,
+    longestStreak: streakRow?.longest_streak ?? 0,
   })
 }

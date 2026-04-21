@@ -43,6 +43,11 @@ export default function ProgressPage() {
         estimated1RMs={data.estimated1RMs || []}
         progressImages={data.progressImages}
         weeklyTonnage={data.weeklyTonnage}
+        tonnageTrendPct={data.tonnageTrendPct ?? null}
+        monthCompletions={data.monthCompletions ?? 0}
+        monthScheduled={data.monthScheduled ?? 0}
+        streak={data.streak ?? 0}
+        longestStreak={data.longestStreak ?? 0}
       />
       <BottomNav />
     </div>
