@@ -27,24 +27,20 @@ export default function NewUserPage() {
   const [inviteLink, setInviteLink] = useState<string | null>(null)
   const [inviteError, setInviteError] = useState<string | null>(null)
   const [copied, setCopied] = useState(false)
-  const [organizationId, setOrganizationId] = useState<string | null>(null)
+  const [, setHasOrg] = useState(false)
 
   useEffect(() => {
+    // Note: the server resolves the target org itself via getEffectiveOrgId() on POST.
+    // We still fetch the effective orgId here just so the UI can show impersonation context
+    // if ever needed and to double-check the user has an org before allowing submit.
     async function getOrganization() {
-      const { data: { user } } = await supabase.auth.getUser()
-      if (user) {
-        const { data: profile } = await supabase
-          .from('profiles')
-          .select('organization_id')
-          .eq('id', user.id)
-          .single()
-        if (profile?.organization_id) {
-          setOrganizationId(profile.organization_id)
-        }
-      }
+      const res = await fetch('/api/me')
+      if (!res.ok) return
+      const me = await res.json()
+      if (me?.organizationId) setHasOrg(true)
     }
     getOrganization()
-  }, [supabase])
+  }, [])
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -60,7 +56,6 @@ export default function NewUserPage() {
           email,
           full_name: fullName,
           permissions,
-          organization_id: organizationId
         })
       })
       

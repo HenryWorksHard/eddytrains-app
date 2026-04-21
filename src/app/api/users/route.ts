@@ -3,6 +3,7 @@ import { createClient as createServerClient } from '@/app/lib/supabase/server'
 import { NextRequest, NextResponse } from 'next/server'
 import { randomBytes } from 'crypto'
 import { sendInviteEmail } from '@/app/lib/email'
+import { getEffectiveOrgId } from '@/app/lib/org-context'
 
 // Admin client with service role for user management
 function getAdminClient() {
@@ -57,22 +58,26 @@ export async function GET() {
       .select('id, role, organization_id, company_id')
       .eq('id', user.id)
       .single()
-    
-    console.log('[API /users] Current user:', { id: user.id, email: user.email, profile: currentUser, error: profileError?.message })
-    
-    const organizationId = currentUser?.organization_id
-    
+
+    // Respect impersonation: super admins viewing another org should see that org's clients.
+    // Non-super-admins always resolve to their own org.
+    const organizationId = await getEffectiveOrgId()
+
     if (!organizationId) {
-      return NextResponse.json({ 
-        users: [], 
-        debug: { 
+      return NextResponse.json({
+        users: [],
+        debug: {
           reason: 'no_org_id',
           userId: user.id,
           userEmail: user.email,
           profileError: profileError?.message
-        } 
+        }
       })
     }
+
+    // Only apply the "trainer visibility = assigned" filter when the caller is actually
+    // a trainer in their own org — not when a super_admin is impersonating a trainer org.
+    const applyTrainerAssignedFilter = !!currentUser && currentUser.role === 'trainer' && currentUser.organization_id === organizationId
     
     // Get organization's visibility settings
     const { data: org } = await adminClient
@@ -90,18 +95,11 @@ export async function GET() {
       .eq('role', 'client')
     
     // Apply visibility filter:
-    // - If user is a trainer AND org visibility is 'assigned', show only their clients
-    // - Otherwise show all clients in the organization
-    if (
-      currentUser.role === 'trainer' && 
-      org?.trainer_visibility === 'assigned'
-    ) {
-      // Trainer can only see clients assigned to them
-      console.log('[API /users] Filtering by trainer_id:', currentUser.id)
+    // - If caller is a trainer in their OWN org AND org visibility is 'assigned', show only their clients
+    // - Otherwise (admin, super_admin, or impersonating super_admin) show all org clients
+    if (applyTrainerAssignedFilter && org?.trainer_visibility === 'assigned' && currentUser) {
       query = query.eq('trainer_id', currentUser.id)
     } else {
-      // Team visibility OR user is admin/company_admin - show all org clients
-      console.log('[API /users] Filtering by organization_id:', organizationId)
       query = query.eq('organization_id', organizationId)
     }
     
@@ -144,28 +142,39 @@ export async function DELETE(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url)
     const userId = searchParams.get('id')
-    
+
     if (!userId) {
       return NextResponse.json({ error: 'User ID is required' }, { status: 400 })
     }
-    
+
     const adminClient = getAdminClient()
-    
-    // Verify this is a client (not admin/trainer)
-    const { data: profile, error: profileError } = await adminClient
+
+    // Resolve target and caller
+    const { data: profile } = await adminClient
       .from('profiles')
-      .select('role, full_name, email')
+      .select('role, full_name, email, organization_id')
       .eq('id', userId)
       .single()
-    
-    console.log('[DELETE user] Profile lookup:', { userId, profile, error: profileError?.message })
-    
+
     if (!profile) {
       return NextResponse.json({ error: 'User not found' }, { status: 404 })
     }
-    
     if (profile.role !== 'client') {
       return NextResponse.json({ error: 'Can only delete client accounts' }, { status: 403 })
+    }
+
+    // Enforce org boundary: caller must be in the same org as the target,
+    // unless caller is a super_admin.
+    const caller = await getCurrentUserProfile()
+    if (!caller) {
+      return NextResponse.json({ error: 'Not authenticated' }, { status: 401 })
+    }
+    const callerEffectiveOrgId = await getEffectiveOrgId()
+    if (
+      caller.role !== 'super_admin' &&
+      profile.organization_id !== callerEffectiveOrgId
+    ) {
+      return NextResponse.json({ error: 'Not authorized to delete this client' }, { status: 403 })
     }
     
     // Delete related data first (foreign key constraints)
@@ -276,17 +285,25 @@ async function generateSlug(adminClient: ReturnType<typeof getAdminClient>, name
 
 export async function POST(request: NextRequest) {
   try {
-    const { email, full_name, permissions, organization_id, trainer_id } = await request.json()
-    
+    const { email, full_name, permissions, trainer_id } = await request.json()
+
     if (!email) {
       return NextResponse.json({ error: 'Email is required' }, { status: 400 })
     }
-    
+
     const adminClient = getAdminClient()
-    
-    // Check client limit if organization_id provided
-    if (organization_id) {
-      // Get organization's client limit
+
+    // Resolve the target organization server-side. This respects impersonation
+    // (super_admin acting as another org) and ignores any organization_id sent
+    // from the client — that would otherwise let a trainer create a client in
+    // a different org just by passing the UUID.
+    const organization_id = await getEffectiveOrgId()
+    if (!organization_id) {
+      return NextResponse.json({ error: 'No organization in context' }, { status: 400 })
+    }
+
+    // Check client limit
+    {
       const { data: org } = await adminClient
         .from('organizations')
         .select('client_limit, subscription_status')

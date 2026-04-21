@@ -81,56 +81,42 @@ export default function Sidebar() {
 
   useEffect(() => {
     setMounted(true)
-    
-    // Check for impersonation
-    const impersonatingOrgId = sessionStorage.getItem('impersonating_org')
-    if (impersonatingOrgId) {
-      setIsImpersonating(true)
-      fetch(`/api/organizations/${impersonatingOrgId}`)
-        .then(res => res.json())
-        .then(data => {
-          if (data?.name) {
-            setImpersonatedOrgName(data.name)
-          }
-        })
-        .catch(() => {})
-    }
-    
-    async function checkRole() {
+
+    // Single source of truth: /api/me returns role, effective org, and impersonation state.
+    // No more sessionStorage — cookie-driven impersonation is resolved server-side.
+    async function loadMe() {
       try {
-        // Use /api/me endpoint which bypasses RLS
         const response = await fetch('/api/me')
         if (!response.ok) {
-          // Don't sign out - just use defaults and log the error
-          console.log('Failed to get user info from /api/me:', response.status)
-          // Try to get basic info from supabase directly as fallback
           const { data: { user } } = await supabase.auth.getUser()
           if (!user) {
             router.push('/login')
             return
           }
-          // Use defaults
           setUserRole('trainer')
           return
         }
-        
+
         const data = await response.json()
-        console.log('[Sidebar] User info:', data)
-        
         setUserRole(data.role || 'trainer')
         setOrgName(data.orgName || 'CMPD')
-        
-        // Check if trainer is solo (no company_id) or under a company
+
         if (data.role === 'trainer') {
           setIsSoloTrainer(!data.companyId)
         }
-        
-        // TODO: Add trial/subscription info to /api/me response if needed
+
+        if (data.impersonating) {
+          setIsImpersonating(true)
+          setImpersonatedOrgName(data.impersonating.orgName || '')
+        } else {
+          setIsImpersonating(false)
+          setImpersonatedOrgName('')
+        }
       } catch (error) {
-        console.error('Error checking role:', error)
+        console.error('Error loading /api/me:', error)
       }
     }
-    checkRole()
+    loadMe()
   }, [supabase, router])
 
   // Close mobile menu on route change
@@ -174,8 +160,15 @@ export default function Sidebar() {
   }
 
   const handleBackToPlatform = async () => {
-    await fetch('/api/impersonate', { method: 'DELETE' })
-    sessionStorage.removeItem('impersonating_org')
+    // Wait for the server to actually clear the cookie before navigating,
+    // otherwise a stale cookie can still scope requests to the impersonated org.
+    const res = await fetch('/api/impersonate', { method: 'DELETE' })
+    if (!res.ok) {
+      alert('Could not exit impersonation. Please try again.')
+      return
+    }
+    setIsImpersonating(false)
+    setImpersonatedOrgName('')
     router.push('/platform')
     router.refresh()
   }

@@ -37,64 +37,44 @@ export default function OrganisationPage() {
   }, [])
 
   async function loadOrganisation() {
-    const { data: { user } } = await supabase.auth.getUser()
-    if (!user) {
+    // Resolve role + effective org via /api/me so impersonation is respected.
+    const meRes = await fetch('/api/me')
+    if (meRes.status === 401) {
+      router.push('/login')
+      return
+    }
+    const me = await meRes.json()
+    if (!me?.userId) {
       router.push('/login')
       return
     }
 
-    // Get user profile
-    const { data: profile } = await supabase
-      .from('profiles')
-      .select('role, organization_id, company_id')
-      .eq('id', user.id)
-      .single()
+    setUserRole(me.role)
 
-    if (!profile) {
-      router.push('/login')
-      return
-    }
-
-    setUserRole(profile.role)
-
-    // Check if this trainer is under a company
-    if (profile.role === 'trainer' && profile.company_id) {
+    // A real (non-impersonating) trainer under a company manages the company branding
+    // read-only; super_admin impersonating is treated like the org owner.
+    const isImpersonating = !!me.impersonating
+    if (!isImpersonating && me.role === 'trainer' && me.companyId) {
       setIsCompanyTrainer(true)
-      // Load company's organisation instead
-      const { data: company } = await supabase
+    }
+
+    // organizationId from /api/me is already the effective org (impersonated if applicable)
+    const orgId: string | null = me.organizationId || me.companyId || null
+    if (orgId) {
+      const { data: org } = await supabase
         .from('organizations')
         .select('id, name, slug, logo_url, brand_color')
-        .eq('id', profile.company_id)
+        .eq('id', orgId)
         .single()
 
-      if (company) {
-        setOrganisation(company)
+      if (org) {
+        setOrganisation(org)
         setFormData({
-          name: company.name,
-          slug: company.slug,
-          brand_color: company.brand_color || '#FACC15'
+          name: org.name,
+          slug: org.slug,
+          brand_color: org.brand_color || '#FACC15'
         })
-        setPreviewLogo(company.logo_url)
-      }
-    } else {
-      // Load own organisation
-      const orgId = profile.organization_id || profile.company_id
-      if (orgId) {
-        const { data: org } = await supabase
-          .from('organizations')
-          .select('id, name, slug, logo_url, brand_color')
-          .eq('id', orgId)
-          .single()
-
-        if (org) {
-          setOrganisation(org)
-          setFormData({
-            name: org.name,
-            slug: org.slug,
-            brand_color: org.brand_color || '#FACC15'
-          })
-          setPreviewLogo(org.logo_url)
-        }
+        setPreviewLogo(org.logo_url)
       }
     }
 

@@ -53,8 +53,24 @@ export async function POST(request: NextRequest) {
 
 // End impersonation - clear cookie
 export async function DELETE() {
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) {
+    return NextResponse.json({ error: 'Not authenticated' }, { status: 401 })
+  }
+
+  const { data: profile } = await supabase
+    .from('profiles')
+    .select('role')
+    .eq('id', user.id)
+    .single()
+
+  if (profile?.role !== 'super_admin') {
+    return NextResponse.json({ error: 'Not authorized' }, { status: 403 })
+  }
+
   const response = NextResponse.json({ success: true })
   response.cookies.delete(IMPERSONATION_COOKIE)
-  
+
   return response
 }

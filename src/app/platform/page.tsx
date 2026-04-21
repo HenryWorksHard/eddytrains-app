@@ -240,7 +240,6 @@ export default function PlatformPage() {
     });
     
     if (res.ok) {
-      sessionStorage.setItem('impersonating_org', orgId);
       router.push('/dashboard');
       router.refresh();
     }
@@ -465,7 +464,6 @@ export default function PlatformPage() {
     });
     
     if (res.ok) {
-      sessionStorage.setItem('impersonating_org', companyId);
       router.push('/dashboard');
       router.refresh();
     }

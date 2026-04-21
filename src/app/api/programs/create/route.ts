@@ -1,6 +1,7 @@
 import { createClient } from '@supabase/supabase-js'
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient as createServerClient } from '@/app/lib/supabase/server'
+import { getEffectiveOrgId } from '@/app/lib/org-context'
 
 export async function POST(request: NextRequest) {
   const supabaseAdmin = createClient(
@@ -27,8 +28,11 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
     }
 
-    if (!profile.organization_id) {
-      return NextResponse.json({ error: 'User has no organization' }, { status: 400 })
+    // Respect impersonation — a super admin acting as another org should
+    // create programs inside that org, not their own.
+    const effectiveOrgId = await getEffectiveOrgId()
+    if (!effectiveOrgId) {
+      return NextResponse.json({ error: 'No organization in context' }, { status: 400 })
     }
 
     const body = await request.json()
@@ -44,7 +48,7 @@ export async function POST(request: NextRequest) {
         difficulty,
         duration_weeks: durationWeeks || 4,
         is_active: isActive,
-        organization_id: profile.organization_id,
+        organization_id: effectiveOrgId,
       })
       .select()
       .single()

@@ -1,9 +1,53 @@
 import { NextResponse } from 'next/server';
 import Stripe from 'stripe';
 import { getStripe } from '@/lib/stripe';
-
 import { getSupabaseAdmin } from '@/lib/supabase-admin';
+import { createClient as createServerClient } from '@/app/lib/supabase/server';
+import { cookies } from 'next/headers';
+import { IMPERSONATION_COOKIE } from '@/app/lib/org-context';
 
+/**
+ * Authorize that the current session may act on the given organization.
+ * Rules:
+ *   - super_admin: always allowed
+ *   - Otherwise: caller must belong to that organization
+ *   - Impersonation cookie is ONLY honored for super_admin
+ */
+async function authorize(organizationId: string) {
+  const supabase = await createServerClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) {
+    return { ok: false as const, status: 401, error: 'Not authenticated' };
+  }
+
+  const admin = getSupabaseAdmin();
+  const { data: profile } = await admin
+    .from('profiles')
+    .select('role, organization_id')
+    .eq('id', user.id)
+    .single();
+
+  if (!profile) {
+    return { ok: false as const, status: 403, error: 'Profile not found' };
+  }
+
+  if (profile.role === 'super_admin') {
+    return { ok: true as const, role: profile.role, userOrgId: profile.organization_id };
+  }
+
+  // Honor impersonation only for super_admins (already returned above)
+  const cookieStore = await cookies();
+  const impersonatingOrgId = cookieStore.get(IMPERSONATION_COOKIE)?.value;
+  const effectiveOrgId = impersonatingOrgId && profile.role === 'super_admin'
+    ? impersonatingOrgId
+    : profile.organization_id;
+
+  if (effectiveOrgId !== organizationId) {
+    return { ok: false as const, status: 403, error: 'Not authorized for this organization' };
+  }
+
+  return { ok: true as const, role: profile.role, userOrgId: profile.organization_id };
+}
 
 // GET - Fetch subscription details
 export async function GET(req: Request) {
@@ -13,6 +57,11 @@ export async function GET(req: Request) {
 
     if (!organizationId) {
       return NextResponse.json({ error: 'Missing organization ID' }, { status: 400 });
+    }
+
+    const authResult = await authorize(organizationId);
+    if (!authResult.ok) {
+      return NextResponse.json({ error: authResult.error }, { status: authResult.status });
     }
 
     // Get organization's Stripe IDs
@@ -28,14 +77,14 @@ export async function GET(req: Request) {
 
     let subscription = null;
     let paymentMethod = null;
-    let invoices: any[] = [];
+    let invoices: unknown[] = [];
 
     // Get subscription details if exists
     if (org.stripe_subscription_id) {
       const subResponse = await getStripe().subscriptions.retrieve(org.stripe_subscription_id, {
         expand: ['default_payment_method', 'latest_invoice'],
       });
-      // Use any to handle Stripe SDK type variations
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const sub = subResponse as any;
 
       subscription = {
@@ -51,7 +100,6 @@ export async function GET(req: Request) {
         interval: sub.items.data[0]?.price.recurring?.interval,
       };
 
-      // Get payment method
       if (sub.default_payment_method && typeof sub.default_payment_method === 'object') {
         const pm = sub.default_payment_method;
         if (pm.card) {
@@ -66,7 +114,6 @@ export async function GET(req: Request) {
       }
     }
 
-    // Get customer's default payment method if not on subscription
     if (!paymentMethod) {
       const customer = await getStripe().customers.retrieve(org.stripe_customer_id) as Stripe.Customer;
       if (customer.invoice_settings?.default_payment_method) {
@@ -85,7 +132,6 @@ export async function GET(req: Request) {
       }
     }
 
-    // Get recent invoices
     const invoiceList = await getStripe().invoices.list({
       customer: org.stripe_customer_id,
       limit: 10,
@@ -116,7 +162,7 @@ export async function GET(req: Request) {
   }
 }
 
-// POST - Update payment method
+// POST - Update payment method / cancel / reactivate
 export async function POST(req: Request) {
   try {
     const { organizationId, action, paymentMethodId } = await req.json();
@@ -125,7 +171,11 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: 'Missing organization ID' }, { status: 400 });
     }
 
-    // Get organization's Stripe IDs
+    const authResult = await authorize(organizationId);
+    if (!authResult.ok) {
+      return NextResponse.json({ error: authResult.error }, { status: authResult.status });
+    }
+
     const { data: org, error } = await getSupabaseAdmin()
       .from('organizations')
       .select('stripe_customer_id, stripe_subscription_id, subscription_status')
@@ -137,17 +187,14 @@ export async function POST(req: Request) {
     }
 
     if (action === 'update_payment_method' && paymentMethodId) {
-      // Attach payment method to customer
       await getStripe().paymentMethods.attach(paymentMethodId, {
         customer: org.stripe_customer_id,
       });
 
-      // Set as default on customer
       await getStripe().customers.update(org.stripe_customer_id, {
         invoice_settings: { default_payment_method: paymentMethodId },
       });
 
-      // Set as default on subscription if exists
       if (org.stripe_subscription_id) {
         await getStripe().subscriptions.update(org.stripe_subscription_id, {
           default_payment_method: paymentMethodId,
@@ -162,48 +209,43 @@ export async function POST(req: Request) {
         return NextResponse.json({ error: 'No active subscription' }, { status: 400 });
       }
 
-      // For trialing users: cancel immediately and clear subscription
-      // For active users: cancel at period end
       if (org.subscription_status === 'trialing') {
-        // Cancel subscription immediately (they haven't been charged)
         await getStripe().subscriptions.cancel(org.stripe_subscription_id);
-        
-        // Clear subscription from database, reset to default gym tier for trial
+
         await getSupabaseAdmin()
           .from('organizations')
-          .update({ 
+          .update({
             stripe_subscription_id: null,
-            subscription_tier: 'gym' // Reset to default trial tier (full access)
+            subscription_tier: 'gym'
           })
           .eq('id', organizationId);
 
-        return NextResponse.json({ 
-          success: true, 
+        return NextResponse.json({
+          success: true,
           cleared: true,
-          message: 'Plan selection cancelled. You can select a new plan anytime before your trial ends.' 
+          message: 'Plan selection cancelled. You can select a new plan anytime before your trial ends.'
         });
       } else {
-        // Active subscription: cancel at period end
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const updatedSub = await getStripe().subscriptions.update(org.stripe_subscription_id, {
           cancel_at_period_end: true,
         }) as any;
 
-        // Update DB status to 'canceling' and store period end date
-        const periodEnd = updatedSub.current_period_end 
+        const periodEnd = updatedSub.current_period_end
           ? new Date(updatedSub.current_period_end * 1000).toISOString()
           : null;
 
         await getSupabaseAdmin()
           .from('organizations')
-          .update({ 
+          .update({
             subscription_status: 'canceling',
-            trial_ends_at: periodEnd, // Reusing this field to store subscription end date
+            trial_ends_at: periodEnd,
             updated_at: new Date().toISOString(),
           })
           .eq('id', organizationId);
 
-        return NextResponse.json({ 
-          success: true, 
+        return NextResponse.json({
+          success: true,
           message: 'Subscription will cancel at period end',
           periodEnd,
         });
@@ -215,15 +257,13 @@ export async function POST(req: Request) {
         return NextResponse.json({ error: 'No subscription to reactivate' }, { status: 400 });
       }
 
-      // Remove cancellation
       await getStripe().subscriptions.update(org.stripe_subscription_id, {
         cancel_at_period_end: false,
       });
 
-      // Update DB status back to 'active'
       await getSupabaseAdmin()
         .from('organizations')
-        .update({ 
+        .update({
           subscription_status: 'active',
           updated_at: new Date().toISOString(),
         })
@@ -249,6 +289,11 @@ export async function DELETE(req: Request) {
       return NextResponse.json({ error: 'Missing organization ID' }, { status: 400 });
     }
 
+    const authResult = await authorize(organizationId);
+    if (!authResult.ok) {
+      return NextResponse.json({ error: authResult.error }, { status: authResult.status });
+    }
+
     const { data: org, error } = await getSupabaseAdmin()
       .from('organizations')
       .select('stripe_subscription_id')
@@ -259,10 +304,8 @@ export async function DELETE(req: Request) {
       return NextResponse.json({ error: 'No active subscription' }, { status: 404 });
     }
 
-    // Cancel immediately
     await getStripe().subscriptions.cancel(org.stripe_subscription_id);
 
-    // Update database
     await getSupabaseAdmin()
       .from('organizations')
       .update({

@@ -1,5 +1,7 @@
 import { createClient } from '@supabase/supabase-js'
+import { createClient as createServerClient } from '@/app/lib/supabase/server'
 import { NextRequest, NextResponse } from 'next/server'
+import { getEffectiveOrgId } from '@/app/lib/org-context'
 
 function getAdminClient() {
   return createClient(
@@ -152,6 +154,29 @@ export async function DELETE(
     }
 
     const userId = profile.id
+
+    // Enforce org boundary: caller must be in the same effective org as the target,
+    // unless caller is a super_admin.
+    const supabase = await createServerClient()
+    const { data: { user: caller } } = await supabase.auth.getUser()
+    if (!caller) {
+      return NextResponse.json({ error: 'Not authenticated' }, { status: 401 })
+    }
+    const { data: callerProfile } = await adminClient
+      .from('profiles')
+      .select('role')
+      .eq('id', caller.id)
+      .single()
+    if (!callerProfile) {
+      return NextResponse.json({ error: 'Not authorized' }, { status: 403 })
+    }
+    const callerEffectiveOrgId = await getEffectiveOrgId()
+    if (
+      callerProfile.role !== 'super_admin' &&
+      profile.organization_id !== callerEffectiveOrgId
+    ) {
+      return NextResponse.json({ error: 'Not authorized to delete this user' }, { status: 403 })
+    }
 
     // Clean up child data first to satisfy FK constraints.
     // client_exercise_sets → client_programs → (child tables)

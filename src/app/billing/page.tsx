@@ -157,19 +157,17 @@ function BillingContent() {
 
   useEffect(() => {
     async function loadData() {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) {
+      // Resolve the effective org via /api/me so that super_admin impersonation works.
+      // (A super admin viewing as Trainer A should see Trainer A's billing, not their own.)
+      const meRes = await fetch('/api/me');
+      if (meRes.status === 401) {
         router.push('/login');
         return;
       }
+      const me = await meRes.json();
+      const effectiveOrgId: string | null = me?.organizationId || null;
 
-      const { data: profile } = await supabase
-        .from('profiles')
-        .select('organization_id')
-        .eq('id', user.id)
-        .single();
-
-      if (!profile?.organization_id) {
+      if (!effectiveOrgId) {
         setLoading(false);
         return;
       }
@@ -177,7 +175,7 @@ function BillingContent() {
       const { data: org } = await supabase
         .from('organizations')
         .select('*')
-        .eq('id', profile.organization_id)
+        .eq('id', effectiveOrgId)
         .single();
 
       setOrganization(org);
@@ -185,13 +183,12 @@ function BillingContent() {
       const { count } = await supabase
         .from('profiles')
         .select('*', { count: 'exact', head: true })
-        .eq('organization_id', profile.organization_id)
+        .eq('organization_id', effectiveOrgId)
         .eq('role', 'client');
 
       setClientCount(count || 0);
       setLoading(false);
-      
-      // Fetch billing data if customer exists
+
       if (org?.stripe_customer_id) {
         fetchBillingData(org.id);
       }
