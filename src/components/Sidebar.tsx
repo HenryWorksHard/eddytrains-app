@@ -25,6 +25,7 @@ import {
 } from 'lucide-react'
 import { useState, useEffect } from 'react'
 import { ArrowLeft } from 'lucide-react'
+import BrandMark from './BrandMark'
 
 // Super Admin nav (Louis only - platform control)
 const superAdminNavItems = [
@@ -190,11 +191,15 @@ export default function Sidebar() {
       {/* Logo */}
       <div className="p-6 border-b border-zinc-800">
         <Link href={userRole === 'super_admin' && !isImpersonating ? "/platform" : "/dashboard"} className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-yellow-400 to-yellow-500 flex items-center justify-center">
-            <span className="text-black font-bold">
-              {isImpersonating ? impersonatedOrgName.charAt(0).toUpperCase() : orgName.charAt(0).toUpperCase()}
-            </span>
-          </div>
+          {userRole === 'super_admin' && !isImpersonating ? (
+            <BrandMark size="md" />
+          ) : (
+            <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-yellow-400 to-yellow-500 flex items-center justify-center">
+              <span className="text-black font-bold">
+                {isImpersonating ? impersonatedOrgName.charAt(0).toUpperCase() : orgName.charAt(0).toUpperCase()}
+              </span>
+            </div>
+          )}
           <div>
             <h1 className="font-bold text-white truncate max-w-[140px]">
               {isImpersonating ? impersonatedOrgName : (userRole === 'super_admin' ? 'CMPD' : orgName)}
@@ -284,11 +289,15 @@ export default function Sidebar() {
       {/* Mobile Header with Hamburger */}
       <header className="lg:hidden fixed top-0 left-0 right-0 h-16 bg-zinc-900 border-b border-zinc-800 flex items-center justify-between px-4 z-50">
         <Link href={userRole === 'super_admin' && !isImpersonating ? "/platform" : "/dashboard"} className="flex items-center gap-3">
-          <div className="w-9 h-9 rounded-lg bg-gradient-to-br from-yellow-400 to-yellow-500 flex items-center justify-center">
-            <span className="text-black font-bold text-sm">
-              {isImpersonating ? impersonatedOrgName.charAt(0).toUpperCase() : orgName.charAt(0).toUpperCase()}
-            </span>
-          </div>
+          {userRole === 'super_admin' && !isImpersonating ? (
+            <BrandMark size="sm" />
+          ) : (
+            <div className="w-9 h-9 rounded-lg bg-gradient-to-br from-yellow-400 to-yellow-500 flex items-center justify-center">
+              <span className="text-black font-bold text-sm">
+                {isImpersonating ? impersonatedOrgName.charAt(0).toUpperCase() : orgName.charAt(0).toUpperCase()}
+              </span>
+            </div>
+          )}
           <span className="font-bold text-white">
             {isImpersonating ? impersonatedOrgName : (userRole === 'super_admin' ? 'CMPD' : orgName)}
           </span>
