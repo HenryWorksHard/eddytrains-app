@@ -15,16 +15,17 @@ export async function GET(request: NextRequest) {
     const period = (searchParams.get('period') || 'week') as Period
     const timezone = searchParams.get('tz') || 'UTC'
 
-    const nowInTz = new Date(new Date().toLocaleString('en-US', { timeZone: timezone }))
-    const { startDate, endDate, bucketer } = computeWindow(period, nowInTz)
+    // Get "today" expressed in the user's tz as YYYY-MM-DD parts
+    const { y, m, d } = ymdInTz(new Date(), timezone)
+    // endDate / startDate are Date objects in UTC whose getFullYear/Month/Date
+    // match the user's local calendar day — used only for bucket enumeration.
+    const endDate = new Date(Date.UTC(y, m - 1, d))
+    const { startDate, bucketer } = computeWindow(period, endDate)
 
-    // Inclusive day-level window using plain ISO strings built from the
-    // local (user-tz) date boundaries. The original pre-rewrite route
-    // used exactly this pattern and worked reliably — the !inner-join
-    // variant I tried afterwards didn't filter correctly through
-    // Supabase's REST layer, which is why the chart went blank.
-    const startIso = startOfDayIso(startDate)
-    const endIso = endOfDayIso(endDate)
+    // DB query window: widen by 1 day on each side to cover tz offsets.
+    // We bucket in-memory using tz-aware keys, so extras are harmless.
+    const startIso = new Date(startDate.getTime() - 24 * 60 * 60 * 1000).toISOString()
+    const endIso = new Date(endDate.getTime() + 2 * 24 * 60 * 60 * 1000).toISOString()
 
     // Step 1: workout_logs for this client inside the window.
     const { data: logs, error: logsErr } = await supabase
@@ -39,15 +40,13 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ tonnage: 0, series: [] })
     }
 
+    const emptySeries = bucketer
+      ? bucketer.enumerate(startDate, endDate).map((b) => ({ label: b.label, value: 0 }))
+      : []
+
     if (!logs || logs.length === 0) {
       return NextResponse.json(
-        {
-          tonnage: 0,
-          series: bucketer
-            ? bucketer.enumerate(startDate, endDate).map((b) => ({ label: b.label, value: 0 }))
-            : [],
-          period,
-        },
+        { tonnage: 0, series: emptySeries, period },
         { headers: { 'Cache-Control': 'no-store, no-cache, must-revalidate' } }
       )
     }
@@ -70,37 +69,53 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ tonnage: 0, series: [] })
     }
 
+    // Pre-compute the tz-aware bucket key for each workout_log once.
+    const keyByLogId = new Map<string, string | null>()
+    if (bucketer) {
+      for (const [id, completedAt] of completedAtByLogId) {
+        const { y, m, d } = ymdInTz(new Date(completedAt), timezone)
+        const localDate = new Date(Date.UTC(y, m - 1, d))
+        keyByLogId.set(id, bucketer.keyOf(localDate))
+      }
+    }
+
     let total = 0
     const buckets = bucketer
       ? bucketer.enumerate(startDate, endDate).map((b) => ({ ...b, value: 0 }))
       : null
+
+    // Also tally whether the log falls inside the visible window
+    // (since we widened the query by a day on each side).
+    const windowStartKey = bucketer ? bucketer.keyOf(startDate) : null
+    const windowEndKey = bucketer ? bucketer.keyOf(endDate) : null
 
     for (const s of setLogs || []) {
       const w = Number(s.weight_kg ?? 0)
       const r = Number(s.reps_completed ?? 0)
       if (!w || !r) continue
       const v = w * r
-      total += v
 
       if (buckets) {
-        const completedAt = completedAtByLogId.get(s.workout_log_id as string)
-        if (!completedAt) continue
-        const key = bucketer!.keyOf(new Date(completedAt))
+        const key = keyByLogId.get(s.workout_log_id as string)
+        if (!key) continue
         const b = buckets.find((x) => x.key === key)
-        if (b) b.value += v
+        if (b) {
+          b.value += v
+          total += v
+        }
+      } else {
+        total += v
       }
     }
+
+    void windowStartKey; void windowEndKey // reserved for future debug
 
     const series = buckets
       ? buckets.map((b) => ({ label: b.label, value: Math.round(b.value) }))
       : []
 
     return NextResponse.json(
-      {
-        tonnage: Math.round(total),
-        series,
-        period,
-      },
+      { tonnage: Math.round(total), series, period },
       { headers: { 'Cache-Control': 'no-store, no-cache, must-revalidate' } }
     )
   } catch (error) {
@@ -116,58 +131,52 @@ type Bucketer = {
   enumerate: (start: Date, end: Date) => { key: string; label: string }[]
 }
 
-function computeWindow(period: Period, nowInTz: Date): {
+function computeWindow(period: Period, endDate: Date): {
   startDate: Date
-  endDate: Date
   bucketer: Bucketer | null
 } {
-  const endDate = new Date(nowInTz.getFullYear(), nowInTz.getMonth(), nowInTz.getDate())
-
   if (period === 'day') {
-    return { startDate: endDate, endDate, bucketer: null }
+    return { startDate: endDate, bucketer: null }
   }
   if (period === 'week') {
-    const startDate = new Date(endDate)
-    startDate.setDate(startDate.getDate() - 6)
-    return { startDate, endDate, bucketer: dailyBucketer }
+    const startDate = addUtcDays(endDate, -6)
+    return { startDate, bucketer: dailyBucketer }
   }
   if (period === 'month') {
-    const startDate = new Date(endDate.getFullYear(), endDate.getMonth(), 1)
-    return { startDate, endDate, bucketer: weeklyBucketer(startDate) }
+    const startDate = new Date(Date.UTC(endDate.getUTCFullYear(), endDate.getUTCMonth(), 1))
+    return { startDate, bucketer: weeklyBucketer(startDate) }
   }
   if (period === '3months') {
-    const startDate = new Date(endDate)
-    startDate.setDate(startDate.getDate() - 89)
-    return { startDate, endDate, bucketer: weeklyBucketer(startDate) }
+    const startDate = addUtcDays(endDate, -89)
+    return { startDate, bucketer: weeklyBucketer(startDate) }
   }
   if (period === 'year') {
-    const startDate = new Date(endDate.getFullYear(), 0, 1)
-    return { startDate, endDate, bucketer: monthlyBucketer }
+    const startDate = new Date(Date.UTC(endDate.getUTCFullYear(), 0, 1))
+    return { startDate, bucketer: monthlyBucketer }
   }
-  return { startDate: endDate, endDate, bucketer: null }
+  return { startDate: endDate, bucketer: null }
 }
 
 const dailyBucketer: Bucketer = {
-  keyOf: (d) => formatYmd(d),
+  keyOf: (d) => formatYmdUtc(d),
   enumerate: (start, end) => {
     const out: { key: string; label: string }[] = []
     const cursor = new Date(start)
     while (cursor <= end) {
       out.push({
-        key: formatYmd(cursor),
-        label: cursor.toLocaleDateString(undefined, { weekday: 'short' }).slice(0, 2),
+        key: formatYmdUtc(cursor),
+        label: cursor.toLocaleDateString(undefined, { weekday: 'short', timeZone: 'UTC' }).slice(0, 2),
       })
-      cursor.setDate(cursor.getDate() + 1)
+      cursor.setUTCDate(cursor.getUTCDate() + 1)
     }
     return out
   },
 }
 
 function weeklyBucketer(start: Date): Bucketer {
-  const startMs = new Date(start.getFullYear(), start.getMonth(), start.getDate()).getTime()
+  const startMs = start.getTime()
   const keyFor = (d: Date) => {
-    const t = new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime()
-    const weeks = Math.floor((t - startMs) / (7 * 24 * 60 * 60 * 1000))
+    const weeks = Math.floor((d.getTime() - startMs) / (7 * 24 * 60 * 60 * 1000))
     return `w${Math.max(0, weeks)}`
   }
   return {
@@ -179,9 +188,9 @@ function weeklyBucketer(start: Date): Bucketer {
       while (cursor <= e) {
         out.push({
           key: `w${idx}`,
-          label: cursor.toLocaleDateString(undefined, { day: 'numeric', month: 'short' }),
+          label: cursor.toLocaleDateString(undefined, { day: 'numeric', month: 'short', timeZone: 'UTC' }),
         })
-        cursor.setDate(cursor.getDate() + 7)
+        cursor.setUTCDate(cursor.getUTCDate() + 7)
         idx++
       }
       return out
@@ -190,27 +199,38 @@ function weeklyBucketer(start: Date): Bucketer {
 }
 
 const monthlyBucketer: Bucketer = {
-  keyOf: (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`,
+  keyOf: (d) => `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, '0')}`,
   enumerate: (start, end) => {
     const out: { key: string; label: string }[] = []
-    const cursor = new Date(start.getFullYear(), start.getMonth(), 1)
+    const cursor = new Date(Date.UTC(start.getUTCFullYear(), start.getUTCMonth(), 1))
     while (cursor <= end) {
       out.push({
-        key: `${cursor.getFullYear()}-${String(cursor.getMonth() + 1).padStart(2, '0')}`,
-        label: cursor.toLocaleDateString(undefined, { month: 'short' }),
+        key: `${cursor.getUTCFullYear()}-${String(cursor.getUTCMonth() + 1).padStart(2, '0')}`,
+        label: cursor.toLocaleDateString(undefined, { month: 'short', timeZone: 'UTC' }),
       })
-      cursor.setMonth(cursor.getMonth() + 1)
+      cursor.setUTCMonth(cursor.getUTCMonth() + 1)
     }
     return out
   },
 }
 
-function formatYmd(d: Date) {
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+function ymdInTz(d: Date, tz: string): { y: number; m: number; d: number } {
+  const parts = new Intl.DateTimeFormat('en-CA', {
+    timeZone: tz,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).formatToParts(d)
+  const get = (t: string) => Number(parts.find((p) => p.type === t)?.value)
+  return { y: get('year'), m: get('month'), d: get('day') }
 }
-function startOfDayIso(d: Date) {
-  return `${formatYmd(d)}T00:00:00.000Z`
+
+function formatYmdUtc(d: Date) {
+  return `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, '0')}-${String(d.getUTCDate()).padStart(2, '0')}`
 }
-function endOfDayIso(d: Date) {
-  return `${formatYmd(d)}T23:59:59.999Z`
+
+function addUtcDays(d: Date, n: number): Date {
+  const c = new Date(d)
+  c.setUTCDate(c.getUTCDate() + n)
+  return c
 }

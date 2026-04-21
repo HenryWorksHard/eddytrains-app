@@ -11,6 +11,9 @@ import Image from 'next/image'
 import { Sun, Moon } from 'lucide-react'
 import AppLoading from '@/components/AppLoading'
 
+// NB: Progress pictures live on the dedicated /progress-pictures page.
+// The profile page used to duplicate that section; removed to avoid drift.
+
 interface Profile {
   id: string
   full_name: string | null
@@ -26,12 +29,6 @@ interface Client1RM {
   id?: string
   exercise_name: string
   weight_kg: number
-}
-
-interface ProgressImage {
-  id: string
-  image_url: string
-  created_at: string
 }
 
 // Common compound lifts for 1RM tracking
@@ -53,9 +50,6 @@ export default function ProfilePage() {
   const [menuOpen, setMenuOpen] = useState(false)
   const [editing1RM, setEditing1RM] = useState(false)
   const [saving1RM, setSaving1RM] = useState(false)
-  const [progressImages, setProgressImages] = useState<ProgressImage[]>([])
-  const [uploadingImage, setUploadingImage] = useState(false)
-  const [selectedImage, setSelectedImage] = useState<ProgressImage | null>(null)
   const [uploadingPfp, setUploadingPfp] = useState(false)
   
   // Client info
@@ -64,7 +58,6 @@ export default function ProfilePage() {
   const [goals, setGoals] = useState('')
   const [presentingCondition, setPresentingCondition] = useState('')
   const [medicalHistory, setMedicalHistory] = useState('')
-  const fileInputRef = useRef<HTMLInputElement>(null)
   const pfpInputRef = useRef<HTMLInputElement>(null)
   const router = useRouter()
   const supabase = createClient()
@@ -103,89 +96,12 @@ export default function ProfilePage() {
       
       // Load 1RMs
       await load1RMs(user.id)
-      
-      // Load progress images
-      await loadProgressImages(user.id)
-      
+
       setLoading(false)
     }
 
     loadProfile()
   }, [supabase, router])
-
-  const loadProgressImages = async (userId: string) => {
-    try {
-      const { data, error } = await supabase
-        .from('progress_images')
-        .select('*')
-        .eq('client_id', userId)
-        .order('created_at', { ascending: false })
-        .limit(8)
-      
-      if (!error && data) {
-        setProgressImages(data)
-      }
-    } catch (err) {
-      console.error('Failed to load progress images:', err)
-    }
-  }
-
-  const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0]
-    if (!file || !profile) return
-
-    setUploadingImage(true)
-    try {
-      const compressedBlob = await compressImage(file, 1200, 0.8)
-      const fileName = `${profile.id}/${Date.now()}.jpg`
-
-      const { error: uploadError } = await supabase.storage
-        .from('progress-images')
-        .upload(fileName, compressedBlob, { contentType: 'image/jpeg' })
-
-      if (uploadError) throw uploadError
-
-      const { data: { publicUrl } } = supabase.storage
-        .from('progress-images')
-        .getPublicUrl(fileName)
-
-      const { data: newImage, error: insertError } = await supabase
-        .from('progress_images')
-        .insert({ client_id: profile.id, image_url: publicUrl })
-        .select()
-        .single()
-
-      if (insertError) throw insertError
-
-      setProgressImages(prev => [newImage, ...prev].slice(0, 8))
-    } catch (err) {
-      console.error('Upload failed:', err)
-      alert('Failed to upload. Please try again.')
-    } finally {
-      setUploadingImage(false)
-      if (fileInputRef.current) fileInputRef.current.value = ''
-    }
-  }
-
-  const formatDate = (dateStr: string) => {
-    return new Date(dateStr).toLocaleDateString(undefined, { day: 'numeric', month: 'short' })
-  }
-
-  const handleDeleteProgressImage = async (imageId: string, imageUrl: string) => {
-    if (!confirm('Delete this progress photo?')) return
-    
-    try {
-      const urlParts = imageUrl.split('/progress-images/')
-      if (urlParts[1]) {
-        await supabase.storage.from('progress-images').remove([urlParts[1]])
-      }
-      
-      await supabase.from('progress_images').delete().eq('id', imageId)
-      setProgressImages(prev => prev.filter(img => img.id !== imageId))
-    } catch (err) {
-      console.error('Delete failed:', err)
-    }
-  }
 
   const handlePfpUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
@@ -581,107 +497,6 @@ export default function ProfilePage() {
             ))}
           </div>
         </section>
-
-        {/* Progress Pictures Section */}
-        <section>
-          <div className="flex items-center justify-between mb-3">
-            <h2 className="text-sm font-medium text-zinc-500 uppercase tracking-wider">Progress Pictures</h2>
-            <a href="/progress-pictures" className="text-yellow-400 text-sm">View all</a>
-          </div>
-          
-          <input
-            ref={fileInputRef}
-            type="file"
-            accept="image/*"
-            onChange={handleImageUpload}
-            className="hidden"
-          />
-          
-          <div className="bg-zinc-900 border border-zinc-800 rounded-2xl p-4">
-            <button
-              onClick={() => fileInputRef.current?.click()}
-              disabled={uploadingImage}
-              className="w-full bg-zinc-800 hover:bg-zinc-700 disabled:bg-zinc-800/50 border border-zinc-700 rounded-xl py-3 px-4 flex items-center justify-center gap-2 transition-colors mb-3"
-            >
-              {uploadingImage ? (
-                <>
-                  <svg className="w-5 h-5 animate-spin text-yellow-400" fill="none" viewBox="0 0 24 24">
-                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
-                  </svg>
-                  <span className="text-zinc-400">Uploading...</span>
-                </>
-              ) : (
-                <>
-                  <svg className="w-5 h-5 text-yellow-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-                  </svg>
-                  <span className="text-white font-medium">Add Photo</span>
-                </>
-              )}
-            </button>
-            
-            {progressImages.length > 0 ? (
-              <div className="grid grid-cols-4 gap-2">
-                {progressImages.map((img) => (
-                  <div key={img.id} className="aspect-square relative rounded-lg overflow-hidden bg-zinc-800 group">
-                    <button
-                      onClick={() => setSelectedImage(img)}
-                      className="absolute inset-0 hover:ring-2 hover:ring-yellow-400 transition-all"
-                    >
-                      <Image
-                        src={img.image_url}
-                        alt="Progress"
-                        fill
-                        className="object-cover"
-                        sizes="80px"
-                      />
-                    </button>
-                    <button
-                      onClick={(e) => { e.stopPropagation(); handleDeleteProgressImage(img.id, img.image_url); }}
-                      className="absolute top-0.5 right-0.5 w-5 h-5 bg-red-500 rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity z-10"
-                    >
-                      <svg className="w-3 h-3 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 12H4" />
-                      </svg>
-                    </button>
-                  </div>
-                ))}
-              </div>
-            ) : (
-              <p className="text-zinc-500 text-sm text-center py-4">No progress photos yet</p>
-            )}
-          </div>
-        </section>
-
-        {/* Image Modal */}
-        {selectedImage && (
-          <div 
-            className="fixed inset-0 bg-black/90 z-50 flex items-center justify-center p-4"
-            onClick={() => setSelectedImage(null)}
-          >
-            <div className="relative max-w-lg w-full" onClick={e => e.stopPropagation()}>
-              <button
-                onClick={() => setSelectedImage(null)}
-                className="absolute -top-12 right-0 p-2 text-white/70 hover:text-white"
-              >
-                <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                </svg>
-              </button>
-              <div className="relative aspect-[3/4] rounded-2xl overflow-hidden bg-zinc-900">
-                <Image
-                  src={selectedImage.image_url}
-                  alt="Progress"
-                  fill
-                  className="object-contain"
-                  sizes="500px"
-                />
-              </div>
-              <p className="text-white font-medium text-center mt-4">{formatDate(selectedImage.created_at)}</p>
-            </div>
-          </div>
-        )}
 
         {/* Admin Section (only for admins) */}
         {profile?.role === 'admin' && (

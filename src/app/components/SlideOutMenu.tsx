@@ -2,7 +2,21 @@
 
 import { useEffect } from 'react'
 import { usePathname, useRouter } from 'next/navigation'
-import { Menu, X, Home, Dumbbell, Calendar, TrendingUp, User, HelpCircle, Instagram, ClipboardList } from 'lucide-react'
+import {
+  Menu,
+  X,
+  Home,
+  Dumbbell,
+  Calendar,
+  TrendingUp,
+  User,
+  HelpCircle,
+  Instagram,
+  ClipboardList,
+  Target,
+  LogOut,
+} from 'lucide-react'
+import { createClient } from '../lib/supabase/client'
 
 interface SlideOutMenuProps {
   isOpen: boolean
@@ -15,6 +29,7 @@ const menuItems = [
   { href: '/programs', label: 'Programs', icon: Dumbbell },
   { href: '/schedule', label: 'Schedule', icon: Calendar },
   { href: '/progress', label: 'Progress', icon: TrendingUp },
+  { href: '/goals', label: 'Goals', icon: Target },
 ]
 
 const bottomItems = [
@@ -26,6 +41,14 @@ const bottomItems = [
 export function SlideOutMenu({ isOpen, onClose }: SlideOutMenuProps) {
   const pathname = usePathname()
   const router = useRouter()
+  const supabase = createClient()
+
+  const handleSignOut = async () => {
+    await supabase.auth.signOut()
+    // Force a full navigation so middleware + SWR caches are cleared.
+    router.push('/login')
+    router.refresh()
+  }
 
   // Close menu when route changes
   useEffect(() => {
@@ -145,6 +168,17 @@ export function SlideOutMenu({ isOpen, onClose }: SlideOutMenuProps) {
             )
           })}
         </nav>
+
+        {/* Sign Out - pinned to bottom */}
+        <div className="absolute bottom-0 left-0 right-0 p-3 border-t border-zinc-800 bg-zinc-900">
+          <button
+            onClick={handleSignOut}
+            className="w-full flex items-center gap-3 px-4 py-3 rounded-xl text-red-400 hover:bg-red-500/10 transition-colors active:scale-95"
+          >
+            <LogOut className="w-5 h-5" />
+            <span className="font-medium">Sign out</span>
+          </button>
+        </div>
       </div>
     </>
   )
