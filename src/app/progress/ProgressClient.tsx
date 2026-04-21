@@ -584,29 +584,89 @@ function ExerciseChart({ points }: { points: ExercisePoint[] }) {
       </div>
     )
   }
+  if (points.length === 1) {
+    return (
+      <div className="h-36 flex flex-col items-center justify-center">
+        <p className="text-4xl font-bold text-white tabular-nums">
+          {points[0].weight}
+          <span className="text-zinc-500 text-xl font-normal"> kg</span>
+        </p>
+        <p className="text-xs text-zinc-500 mt-1">
+          {points[0].date} · {points[0].reps} reps
+        </p>
+        <p className="text-[10px] text-zinc-600 mt-1">
+          Log one more session to see a trend line
+        </p>
+      </div>
+    )
+  }
+
   const max = Math.max(...points.map((p) => p.weight))
   const min = Math.min(...points.map((p) => p.weight))
   const range = max - min || 1
 
+  // SVG line chart — viewBox 100×100, we compute point coordinates and
+  // build a polyline. Padding on both axes so points aren't clipped.
+  const PAD_X = 4
+  const PAD_Y = 8
+  const W = 100
+  const H = 100
+  const plotW = W - PAD_X * 2
+  const plotH = H - PAD_Y * 2
+
+  const coords = points.map((p, i) => {
+    const x = PAD_X + (points.length === 1 ? plotW / 2 : (i / (points.length - 1)) * plotW)
+    const y = PAD_Y + (1 - (p.weight - min) / range) * plotH
+    return { x, y, point: p }
+  })
+
+  const pathD = coords.map((c, i) => `${i === 0 ? 'M' : 'L'}${c.x.toFixed(2)} ${c.y.toFixed(2)}`).join(' ')
+  const areaD =
+    `M${coords[0].x.toFixed(2)} ${(H - PAD_Y).toFixed(2)} ` +
+    coords.map((c) => `L${c.x.toFixed(2)} ${c.y.toFixed(2)}`).join(' ') +
+    ` L${coords[coords.length - 1].x.toFixed(2)} ${(H - PAD_Y).toFixed(2)} Z`
+
   return (
-    <div className="h-36 flex items-end gap-1">
-      {points.map((p, i) => {
-        const h = ((p.weight - min) / range) * 80 + 20
-        return (
-          <div key={i} className="flex-1 flex flex-col items-center gap-1">
-            <div
-              className="w-full bg-yellow-400/70 hover:bg-yellow-400 rounded-t transition-colors"
-              style={{ height: `${h}%` }}
-              title={`${p.weight}kg × ${p.reps}`}
-            />
-            {points.length <= 10 && (
-              <span className="text-[8px] text-zinc-500 truncate w-full text-center">
-                {p.date.split(' ')[0]}
-              </span>
-            )}
-          </div>
-        )
-      })}
+    <div className="w-full">
+      <svg
+        viewBox={`0 0 ${W} ${H}`}
+        preserveAspectRatio="none"
+        className="w-full h-32"
+        role="img"
+        aria-label="Exercise progression"
+      >
+        {/* Subtle baseline */}
+        <line
+          x1={PAD_X}
+          x2={W - PAD_X}
+          y1={H - PAD_Y}
+          y2={H - PAD_Y}
+          stroke="#3f3f46"
+          strokeWidth="0.3"
+        />
+        {/* Area fill */}
+        <path d={areaD} fill="#facc15" fillOpacity="0.12" />
+        {/* Line */}
+        <path d={pathD} fill="none" stroke="#facc15" strokeWidth="1.2" strokeLinejoin="round" strokeLinecap="round" />
+        {/* Points */}
+        {coords.map((c, i) => (
+          <circle
+            key={i}
+            cx={c.x}
+            cy={c.y}
+            r="1.2"
+            fill="#facc15"
+            stroke="#0a0a0a"
+            strokeWidth="0.3"
+          >
+            <title>{`${c.point.weight}kg × ${c.point.reps} · ${c.point.date}`}</title>
+          </circle>
+        ))}
+      </svg>
+      <div className="flex items-center justify-between text-[10px] text-zinc-500 mt-1 px-1">
+        <span>{points[0].date}</span>
+        <span>{points[points.length - 1].date}</span>
+      </div>
     </div>
   )
 }

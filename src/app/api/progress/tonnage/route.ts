@@ -5,12 +5,6 @@ export const dynamic = 'force-dynamic'
 
 type Period = 'day' | 'week' | 'month' | '3months' | 'year'
 
-type JoinedSetLog = {
-  weight_kg: number | null
-  reps_completed: number | null
-  workout_logs: { client_id: string; completed_at: string | null } | null
-}
-
 export async function GET(request: NextRequest) {
   try {
     const supabase = await createClient()
@@ -22,52 +16,78 @@ export async function GET(request: NextRequest) {
     const timezone = searchParams.get('tz') || 'UTC'
 
     const nowInTz = new Date(new Date().toLocaleString('en-US', { timeZone: timezone }))
-
-    // Determine the analysis window + how to bucket values into bars.
-    // 'day' is intentionally kept scalar (no series).
     const { startDate, endDate, bucketer } = computeWindow(period, nowInTz)
 
-    const startIso = startDate.toISOString()
-    const endIso = new Date(endDate.getTime() + 24 * 60 * 60 * 1000 - 1).toISOString()
+    // Inclusive day-level window using plain ISO strings built from the
+    // local (user-tz) date boundaries. The original pre-rewrite route
+    // used exactly this pattern and worked reliably — the !inner-join
+    // variant I tried afterwards didn't filter correctly through
+    // Supabase's REST layer, which is why the chart went blank.
+    const startIso = startOfDayIso(startDate)
+    const endIso = endOfDayIso(endDate)
 
-    // Single relational query: all set_logs for this user whose parent
-    // workout_log.completed_at falls inside the window.
-    const { data: setLogs, error } = await supabase
-      .from('set_logs')
-      .select(`
-        weight_kg,
-        reps_completed,
-        workout_logs!inner(client_id, completed_at)
-      `)
-      .eq('workout_logs.client_id', user.id)
-      .gte('workout_logs.completed_at', startIso)
-      .lte('workout_logs.completed_at', endIso)
-      .not('weight_kg', 'is', null)
-      .not('reps_completed', 'is', null)
-      .returns<JoinedSetLog[]>()
+    // Step 1: workout_logs for this client inside the window.
+    const { data: logs, error: logsErr } = await supabase
+      .from('workout_logs')
+      .select('id, completed_at')
+      .eq('client_id', user.id)
+      .gte('completed_at', startIso)
+      .lte('completed_at', endIso)
 
-    if (error) {
-      console.error('[tonnage] query error:', error)
+    if (logsErr) {
+      console.error('[tonnage] workout_logs error:', logsErr)
       return NextResponse.json({ tonnage: 0, series: [] })
     }
 
-    // Aggregate into buckets.
-    const buckets = bucketer
-      ? makeEmptyBuckets(bucketer, startDate, endDate)
-      : null
-    let total = 0
+    if (!logs || logs.length === 0) {
+      return NextResponse.json(
+        {
+          tonnage: 0,
+          series: bucketer
+            ? bucketer.enumerate(startDate, endDate).map((b) => ({ label: b.label, value: 0 }))
+            : [],
+          period,
+        },
+        { headers: { 'Cache-Control': 'no-store, no-cache, must-revalidate' } }
+      )
+    }
 
-    for (const log of setLogs || []) {
-      const w = log.weight_kg ?? 0
-      const r = log.reps_completed ?? 0
+    const logIds = logs.map((l) => l.id as string)
+    const completedAtByLogId = new Map<string, string>(
+      logs.map((l) => [l.id as string, l.completed_at as string])
+    )
+
+    // Step 2: set_logs for those workout_logs.
+    const { data: setLogs, error: setsErr } = await supabase
+      .from('set_logs')
+      .select('weight_kg, reps_completed, workout_log_id')
+      .in('workout_log_id', logIds)
+      .not('weight_kg', 'is', null)
+      .not('reps_completed', 'is', null)
+
+    if (setsErr) {
+      console.error('[tonnage] set_logs error:', setsErr)
+      return NextResponse.json({ tonnage: 0, series: [] })
+    }
+
+    let total = 0
+    const buckets = bucketer
+      ? bucketer.enumerate(startDate, endDate).map((b) => ({ ...b, value: 0 }))
+      : null
+
+    for (const s of setLogs || []) {
+      const w = Number(s.weight_kg ?? 0)
+      const r = Number(s.reps_completed ?? 0)
       if (!w || !r) continue
       const v = w * r
       total += v
 
-      if (buckets && log.workout_logs?.completed_at) {
-        const key = bucketer!.keyOf(new Date(log.workout_logs.completed_at))
-        const idx = buckets.findIndex((b) => b.key === key)
-        if (idx !== -1) buckets[idx].value += v
+      if (buckets) {
+        const completedAt = completedAtByLogId.get(s.workout_log_id as string)
+        if (!completedAt) continue
+        const key = bucketer!.keyOf(new Date(completedAt))
+        const b = buckets.find((x) => x.key === key)
+        if (b) b.value += v
       }
     }
 
@@ -106,41 +126,25 @@ function computeWindow(period: Period, nowInTz: Date): {
   if (period === 'day') {
     return { startDate: endDate, endDate, bucketer: null }
   }
-
   if (period === 'week') {
     const startDate = new Date(endDate)
-    startDate.setDate(startDate.getDate() - 6) // last 7 days including today
+    startDate.setDate(startDate.getDate() - 6)
     return { startDate, endDate, bucketer: dailyBucketer }
   }
-
   if (period === 'month') {
-    // Calendar month to date — group by 7-day weeks.
     const startDate = new Date(endDate.getFullYear(), endDate.getMonth(), 1)
     return { startDate, endDate, bucketer: weeklyBucketer(startDate) }
   }
-
   if (period === '3months') {
-    // Last 90 days, grouped by week.
     const startDate = new Date(endDate)
     startDate.setDate(startDate.getDate() - 89)
     return { startDate, endDate, bucketer: weeklyBucketer(startDate) }
   }
-
   if (period === 'year') {
-    // Calendar year to date — group by month.
     const startDate = new Date(endDate.getFullYear(), 0, 1)
     return { startDate, endDate, bucketer: monthlyBucketer }
   }
-
   return { startDate: endDate, endDate, bucketer: null }
-}
-
-function makeEmptyBuckets(
-  b: Bucketer,
-  start: Date,
-  end: Date
-): { key: string; label: string; value: number }[] {
-  return b.enumerate(start, end).map((x) => ({ ...x, value: 0 }))
 }
 
 const dailyBucketer: Bucketer = {
@@ -160,14 +164,11 @@ const dailyBucketer: Bucketer = {
 }
 
 function weeklyBucketer(start: Date): Bucketer {
-  // Each bucket is a 7-day span starting at `start`. keyOf returns the
-  // week-index based on days since `start` / 7.
   const startMs = new Date(start.getFullYear(), start.getMonth(), start.getDate()).getTime()
-
   const keyFor = (d: Date) => {
     const t = new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime()
     const weeks = Math.floor((t - startMs) / (7 * 24 * 60 * 60 * 1000))
-    return `w${weeks}`
+    return `w${Math.max(0, weeks)}`
   }
   return {
     keyOf: keyFor,
@@ -176,10 +177,9 @@ function weeklyBucketer(start: Date): Bucketer {
       const cursor = new Date(s)
       let idx = 0
       while (cursor <= e) {
-        const labelDate = new Date(cursor)
         out.push({
           key: `w${idx}`,
-          label: labelDate.toLocaleDateString(undefined, { day: 'numeric', month: 'short' }),
+          label: cursor.toLocaleDateString(undefined, { day: 'numeric', month: 'short' }),
         })
         cursor.setDate(cursor.getDate() + 7)
         idx++
@@ -207,4 +207,10 @@ const monthlyBucketer: Bucketer = {
 
 function formatYmd(d: Date) {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+}
+function startOfDayIso(d: Date) {
+  return `${formatYmd(d)}T00:00:00.000Z`
+}
+function endOfDayIso(d: Date) {
+  return `${formatYmd(d)}T23:59:59.999Z`
 }
