@@ -2,8 +2,10 @@
 
 import { useEffect, useState } from 'react'
 import Link from 'next/link'
+import useSWR from 'swr'
 import { SlideOutMenu, HamburgerButton } from '../components/SlideOutMenu'
 import WorkoutCalendar from '../components/WorkoutCalendar'
+import Pascal from '@/components/Pascal'
 
 interface Workout {
   workoutId: string
@@ -37,6 +39,13 @@ interface DashboardClientProps {
   longestStreak?: number
 }
 
+type PascalData = { score: number; max: number; stage: number; tier: 1 | 2 | 3 | 4 }
+const pascalFetcher = (url: string): Promise<PascalData> =>
+  fetch(url).then((r) => {
+    if (!r.ok) throw new Error('pascal fetch failed')
+    return r.json()
+  })
+
 export default function DashboardClient({ firstName, workoutsByDay, programCount, completedWorkouts, scheduleByDay, scheduleByWeekAndDay, calendarCompletions, programStartDate, maxWeek = 1, streak = 0 }: DashboardClientProps) {
   const completedSet = new Set(completedWorkouts)
   const [mounted, setMounted] = useState(false)
@@ -44,6 +53,17 @@ export default function DashboardClient({ firstName, workoutsByDay, programCount
   const [todayDayOfWeek, setTodayDayOfWeek] = useState(new Date().getDay())
   const [todayDateStr, setTodayDateStr] = useState('')
   const [menuOpen, setMenuOpen] = useState(false)
+
+  // Pascal mascot score — cached for 5 minutes alongside the other
+  // client-side SWR calls. Fetched with the user's IANA tz so the
+  // daily rollover aligns with their local midnight.
+  const tz = typeof window !== 'undefined' ? Intl.DateTimeFormat().resolvedOptions().timeZone : 'UTC'
+  const { data: pascalData } = useSWR<PascalData>(`/api/pascal?tz=${encodeURIComponent(tz)}`, pascalFetcher, {
+    revalidateOnFocus: false,
+    revalidateOnReconnect: false,
+    dedupingInterval: 300000,
+    shouldRetryOnError: false,
+  })
 
   const daysOfWeek = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday']
   const dayAbbrev = ['SU', 'MO', 'TU', 'WE', 'TH', 'FR', 'SA']
@@ -128,7 +148,28 @@ export default function DashboardClient({ firstName, workoutsByDay, programCount
               </div>
             </div>
           )}
-          
+
+          {/* Pascal — fitness-consistency mascot */}
+          <div className="flex flex-col items-center mb-4">
+            <div className="w-[120px] h-[120px] flex items-center justify-center">
+              {pascalData ? (
+                <Pascal score={pascalData.score} />
+              ) : (
+                <div className="w-[96px] h-[96px] rounded-2xl bg-zinc-800/40 animate-pulse" />
+              )}
+            </div>
+            {pascalData && (
+              <div className="text-center mt-1">
+                <p className="text-white text-sm font-semibold tabular-nums">
+                  {pascalData.score} / {pascalData.max}
+                </p>
+                <p className="text-zinc-500 text-xs uppercase tracking-wider">
+                  Stage {pascalData.stage}
+                </p>
+              </div>
+            )}
+          </div>
+
           {/* Today Banner - compact */}
           <div className="bg-zinc-800/50 rounded-lg px-3 py-2 flex items-center gap-2">
             <div className="w-8 h-8 bg-yellow-400/20 rounded-lg flex items-center justify-center">
