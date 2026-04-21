@@ -144,12 +144,10 @@ export default function ProgressClient({
     const tz = Intl.DateTimeFormat().resolvedOptions().timeZone
 
     if (mode === 'volume') {
-      fetch(`/api/progress/tonnage?period=${period === '3months' ? 'month' : period}&tz=${encodeURIComponent(tz)}&series=1`)
+      fetch(`/api/progress/tonnage?period=${period}&tz=${encodeURIComponent(tz)}`)
         .then((r) => r.json())
         .then((d) => {
-          // If the endpoint returns a series, use it; otherwise synthesize
-          // a single-bar view from the scalar total it currently returns.
-          if (Array.isArray(d.series)) {
+          if (Array.isArray(d.series) && d.series.length > 0) {
             setVolumePoints(d.series)
           } else {
             setVolumePoints([{ label: labelFor(period), value: d.tonnage ?? 0 }])
