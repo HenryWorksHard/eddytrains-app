@@ -1,15 +1,16 @@
 import { createClient } from '../../../lib/supabase/server'
 import { NextRequest, NextResponse } from 'next/server'
+import { recomputeAndPersistPascal } from '../../../lib/pascal-server'
 
 export async function POST(request: NextRequest) {
   const supabase = await createClient()
-  
+
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
 
-  const { workoutId, clientProgramId, scheduledDate } = await request.json()
+  const { workoutId, clientProgramId, scheduledDate, tz } = await request.json()
 
   if (!workoutId || !scheduledDate) {
     return NextResponse.json({ error: 'Missing required fields' }, { status: 400 })
@@ -156,7 +157,17 @@ export async function POST(request: NextRequest) {
     // Don't fail the request if streak update fails
   }
 
-  return NextResponse.json({ success: true, completion: data })
+  // Bring Pascal up to date so the dashboard reflects the bump instantly
+  // when the user returns. Any decay/missed-day penalties between
+  // last_processed_date and today are applied alongside the new +10.
+  let pascal = null
+  try {
+    pascal = await recomputeAndPersistPascal(supabase, user.id, tz || 'UTC')
+  } catch (pascalError) {
+    console.error('Error updating Pascal score:', pascalError)
+  }
+
+  return NextResponse.json({ success: true, completion: data, pascal })
 }
 
 export async function GET(request: NextRequest) {

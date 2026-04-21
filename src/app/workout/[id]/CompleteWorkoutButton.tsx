@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { Star, X } from 'lucide-react'
+import { mutate } from 'swr'
 import { createClient } from '../../lib/supabase/client'
 
 interface CompleteWorkoutButtonProps {
@@ -194,20 +195,36 @@ export default function CompleteWorkoutButton({
         scheduledDate = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`
       }
       
-      // Complete the workout
+      // Complete the workout. The server returns the user's updated
+      // Pascal score alongside the completion; we push it into SWR's
+      // cache so the dashboard shows the bump instantly on navigation.
+      const tz = Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC'
       const response = await fetch('/api/workouts/complete', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           workoutId,
           clientProgramId,
-          scheduledDate
+          scheduledDate,
+          tz,
         })
       })
 
       if (!response.ok) {
         throw new Error('Failed to complete workout')
       }
+
+      // Update Pascal SWR cache + force dashboard to refetch its own data
+      // (so today's completion shows in the Today strike-through list).
+      try {
+        const result = await response.clone().json()
+        if (result?.pascal) {
+          mutate(`/api/pascal?tz=${encodeURIComponent(tz)}`, result.pascal, false)
+        }
+      } catch {
+        // Response may not be JSON in edge failure modes; ignore.
+      }
+      mutate((key) => typeof key === 'string' && key.startsWith('/api/dashboard'))
 
       // Save rating to workout_logs if provided
       if (rating && (rating.rating > 0 || rating.difficulty || rating.notes)) {
