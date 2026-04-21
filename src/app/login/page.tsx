@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation'
 import { createClient } from '@/app/lib/supabase/client'
 import { LogIn, Eye, EyeOff, AlertCircle } from 'lucide-react'
 import BrandMark from '@/components/BrandMark'
+import AppLoading from '@/components/AppLoading'
 
 export default function LoginPage() {
   const [email, setEmail] = useState('')
@@ -64,12 +65,7 @@ export default function LoginPage() {
 
   // Show loading screen while redirecting
   if (redirecting) {
-    return (
-      <div className="min-h-screen bg-zinc-950 flex flex-col items-center justify-center p-4">
-        <div className="w-12 h-12 border-3 border-zinc-700 border-t-yellow-400 rounded-full animate-spin mb-4"></div>
-        <p className="text-zinc-400">Signing you in...</p>
-      </div>
-    )
+    return <AppLoading message="Signing you in..." />
   }
 
   return (

@@ -3,10 +3,10 @@
 import { useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import useSWR from 'swr'
-import Image from 'next/image'
 import BottomNav from '../components/BottomNav'
 import ClientDashboardContent from './ClientDashboardContent'
 import { formatDateToString } from '../lib/dateUtils'
+import AppLoading from '@/components/AppLoading'
 
 const fetcher = (url: string) => fetch(url).then(res => {
   if (!res.ok) throw new Error('Failed to fetch')
@@ -52,18 +52,7 @@ export default function ClientDashboard() {
 
   if (isLoading || !data) {
     return (
-      <div className="min-h-screen bg-black flex flex-col items-center justify-center">
-        <Image
-          src="/loading.gif"
-          alt="Loading"
-          width={120}
-          height={120}
-          priority
-          unoptimized
-          className="mb-2"
-        />
-        <p className="text-zinc-500 text-sm">Loading your dashboard...</p>
-      </div>
+      <AppLoading message="Loading your dashboard..." />
     )
   }
 

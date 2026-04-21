@@ -9,6 +9,7 @@ import BottomNav from '../components/BottomNav'
 import { SlideOutMenu, HamburgerButton } from '../components/SlideOutMenu'
 import Image from 'next/image'
 import { Sun, Moon } from 'lucide-react'
+import AppLoading from '@/components/AppLoading'
 
 interface Profile {
   id: string
@@ -344,11 +345,7 @@ export default function ProfilePage() {
   }
 
   if (loading) {
-    return (
-      <div className="min-h-screen bg-black flex items-center justify-center">
-        <div className="text-zinc-400">Loading...</div>
-      </div>
-    )
+    return <AppLoading />
   }
 
   return (

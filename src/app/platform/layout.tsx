@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/app/lib/supabase/client'
 import Sidebar from '@/components/Sidebar'
+import AppLoading from '@/components/AppLoading'
 
 export default function PlatformLayout({
   children,
@@ -42,17 +43,7 @@ export default function PlatformLayout({
   }, [router, supabase])
 
   if (loading) {
-    return (
-      <div className="flex min-h-screen bg-zinc-950">
-        <Sidebar />
-        <main className="flex-1 p-4 lg:p-8 pt-20 lg:pt-8 lg:ml-64">
-          <div className="animate-pulse">
-            <div className="h-8 w-64 bg-zinc-800 rounded mb-4"></div>
-            <div className="h-4 w-48 bg-zinc-800 rounded"></div>
-          </div>
-        </main>
-      </div>
-    )
+    return <AppLoading />
   }
 
   if (!isSuperAdmin) return null

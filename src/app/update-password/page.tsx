@@ -158,13 +158,11 @@ function UpdatePasswordForm() {
   )
 }
 
+import AppLoading from '@/components/AppLoading'
+
 export default function UpdatePasswordPage() {
   return (
-    <Suspense fallback={
-      <div className="min-h-screen bg-black flex items-center justify-center">
-        <div className="text-zinc-500">Loading...</div>
-      </div>
-    }>
+    <Suspense fallback={<AppLoading />}>
       <UpdatePasswordForm />
     </Suspense>
   )
