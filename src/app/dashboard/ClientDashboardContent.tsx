@@ -342,24 +342,28 @@ export default function DashboardClient({ firstName, workoutsByDay, programCount
             </div>
           )}
 
-          {/* Pascal — fitness-consistency mascot */}
-          <div className="flex flex-col items-center mb-4">
+          {/* Pascal — fitness-consistency mascot. Extra top padding leaves
+             room for the speech bubble above his head without shifting
+             the greeting when the bubble appears. */}
+          <div className="flex flex-col items-center mb-4 pt-8">
             <div className="relative w-[120px] h-[120px] flex items-center justify-center">
               {pascalData ? (
                 <Pascal score={pascalData.score} />
               ) : (
                 <div className="w-[96px] h-[96px] rounded-2xl bg-zinc-800/40 animate-pulse" />
               )}
-              {/* Speech bubble — originates from Pascal's mouth, types in.
-                 Pascal's mouth sits roughly 30% down the 120px frame. */}
+              {/* Speech bubble — floats directly above Pascal's head with a
+                 downward-pointing tail. Centered horizontally and capped at
+                 80vw so it never triggers the sideways-swipe overflow that
+                 the old right-anchored bubble caused on narrow phones. */}
               {pascalData && showPascalGreeting && (
                 <button
                   type="button"
                   onClick={() => setShowPascalGreeting(false)}
-                  className="pascal-bubble absolute left-[100px] top-[32px] w-[180px] text-left bg-white text-black text-xs leading-snug rounded-2xl rounded-bl-sm px-3 py-2 shadow-lg min-h-[40px]"
+                  className="pascal-bubble absolute left-1/2 -translate-x-1/2 -top-8 max-w-[80vw] whitespace-nowrap text-center bg-white text-black text-xs font-medium leading-snug rounded-full px-3 py-1.5 shadow-lg"
                   aria-label="Dismiss Pascal's greeting"
                 >
-                  <span className="block">
+                  <span>
                     {pascalTyped}
                     {pascalTyped.length < greetingFor(pascalData.tier).length && (
                       <span className="pascal-caret" aria-hidden>
@@ -398,16 +402,17 @@ export default function DashboardClient({ firstName, workoutsByDay, programCount
               animation: pascal-bubble-in 320ms cubic-bezier(0.2, 0.8, 0.2, 1) both;
               transform-origin: bottom left;
             }
-            /* Tail points left + slightly down, anchoring at Pascal's mouth. */
+            /* Tail points down, under the centered bubble, toward Pascal's head. */
             .pascal-bubble-tail {
               position: absolute;
-              left: -6px;
-              top: 14px;
+              left: 50%;
+              transform: translateX(-50%);
+              bottom: -6px;
               width: 0;
               height: 0;
-              border-top: 7px solid transparent;
-              border-bottom: 7px solid transparent;
-              border-right: 7px solid #ffffff;
+              border-left: 6px solid transparent;
+              border-right: 6px solid transparent;
+              border-top: 7px solid #ffffff;
             }
             @keyframes pascal-caret-blink {
               0%, 50% { opacity: 1; }

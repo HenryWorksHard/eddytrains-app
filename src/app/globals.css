@@ -225,6 +225,8 @@ html, body {
   /* Prevent iOS overscroll bounce */
   overscroll-behavior: none;
   -webkit-overflow-scrolling: touch;
+  /* Stop any stray wide element from letting the page swipe sideways. */
+  overflow-x: hidden;
 }
 
 /* Ensure fixed elements stay fixed during overscroll */
