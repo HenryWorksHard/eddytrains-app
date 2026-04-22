@@ -135,15 +135,19 @@ export async function GET(
     completions?.forEach(c => {
       // Legacy format (just date -> workoutId)
       completionsByDate[c.scheduled_date] = c.workout_id
-      
+
       // Primary: exact match with date, workout, and program
       const keyWithProgram = `${c.scheduled_date}:${c.workout_id}:${c.client_program_id}`
       completionsByDateAndWorkout[keyWithProgram] = true
-      
-      // Fallback for old completions without client_program_id
-      if (!c.client_program_id) {
-        completionsByDateAndWorkout[`${c.scheduled_date}:${c.workout_id}`] = true
-      }
+
+      // Program-agnostic fallback: date:workoutId
+      completionsByDateAndWorkout[`${c.scheduled_date}:${c.workout_id}`] = true
+
+      // Date-only fallback: mirror WorkoutCalendar's three-tier lookup so the
+      // trainer never shows red for a day the client considers green (e.g.
+      // completion logged under a different workout_id than the currently
+      // scheduled one due to week-progression logic).
+      completionsByDateAndWorkout[c.scheduled_date] = true
     })
 
     // Also return legacy scheduleByDay for backward compatibility (uses week 1, first workout per day)

@@ -216,7 +216,7 @@ export default function WorkoutClient({ workoutId, exercises, oneRMs, personalBe
       .eq('scheduled_date', scheduledDate || new Date().toISOString().split('T')[0])
       .order('created_at', { ascending: false })
       .limit(1)
-      .single()
+      .maybeSingle()
 
     if (todayLog) {
       console.log('[loadTodaySession] Found existing session for today:', todayLog.id)

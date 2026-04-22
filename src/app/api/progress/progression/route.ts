@@ -4,11 +4,18 @@ import { NextRequest, NextResponse } from 'next/server'
 // Disable caching
 export const dynamic = 'force-dynamic'
 
+/**
+ * GET /api/progress/progression
+ *
+ * Mirrors the trainer-side route at /api/users/[id]/progression — filters
+ * and groups by `scheduled_date` (local date) rather than `completed_at`
+ * (UTC timestamp) so client and trainer graphs align around day boundaries.
+ */
 export async function GET(request: NextRequest) {
   try {
     const supabase = await createClient()
     const { data: { user } } = await supabase.auth.getUser()
-    
+
     if (!user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
@@ -17,14 +24,14 @@ export async function GET(request: NextRequest) {
     const exerciseName = searchParams.get('exercise')
     const period = searchParams.get('period') || 'month'
     const timezone = searchParams.get('tz') || 'Australia/Adelaide'
-    
+
     if (!exerciseName) {
       return NextResponse.json({ error: 'Exercise name required' }, { status: 400 })
     }
 
     // Calculate date range based on period using user's timezone
     const nowInTz = new Date(new Date().toLocaleString('en-US', { timeZone: timezone }))
-    
+
     // Helper to format date as YYYY-MM-DD
     const formatDate = (d: Date) => {
       const year = d.getFullYear()
@@ -32,46 +39,57 @@ export async function GET(request: NextRequest) {
       const day = String(d.getDate()).padStart(2, '0')
       return `${year}-${month}-${day}`
     }
-    
+
     let startDateStr: string
-    
+
     switch (period) {
-      case 'week':
+      case 'week': {
         const weekStart = new Date(nowInTz)
         weekStart.setDate(nowInTz.getDate() - 7)
         startDateStr = formatDate(weekStart)
         break
-      case 'month':
+      }
+      case 'month': {
         const monthStart = new Date(nowInTz)
         monthStart.setMonth(nowInTz.getMonth() - 1)
         startDateStr = formatDate(monthStart)
         break
-      case '3months':
+      }
+      case '3months': {
         const threeMonthStart = new Date(nowInTz)
         threeMonthStart.setMonth(nowInTz.getMonth() - 3)
         startDateStr = formatDate(threeMonthStart)
         break
-      case 'year':
+      }
+      case '6months': {
+        const sixMonthStart = new Date(nowInTz)
+        sixMonthStart.setMonth(nowInTz.getMonth() - 6)
+        startDateStr = formatDate(sixMonthStart)
+        break
+      }
+      case 'year': {
         const yearStart = new Date(nowInTz)
         yearStart.setFullYear(nowInTz.getFullYear() - 1)
         startDateStr = formatDate(yearStart)
         break
+      }
       case 'all':
         startDateStr = '2020-01-01'
         break
-      default:
+      default: {
         const defaultStart = new Date(nowInTz)
         defaultStart.setMonth(nowInTz.getMonth() - 1)
         startDateStr = formatDate(defaultStart)
+      }
     }
 
-    // Use completed_at (actual training date)
+    // Use scheduled_date (local date) instead of completed_at (UTC timestamp)
     const { data: workoutLogs } = await supabase
       .from('workout_logs')
       .select('id, completed_at, scheduled_date')
       .eq('client_id', user.id)
-      .gte('completed_at', `${startDateStr}T00:00:00`)
-      .order('completed_at', { ascending: true })
+      .gte('scheduled_date', startDateStr)
+      .order('scheduled_date', { ascending: true })
 
     if (!workoutLogs || workoutLogs.length === 0) {
       return NextResponse.json({ progression: [] })
@@ -79,7 +97,6 @@ export async function GET(request: NextRequest) {
 
     const workoutLogIds = workoutLogs.map(log => log.id)
 
-    // Get workout_exercises that match the exercise name
     const { data: matchingExercises } = await supabase
       .from('workout_exercises')
       .select('id')
@@ -91,7 +108,6 @@ export async function GET(request: NextRequest) {
 
     const exerciseIds = matchingExercises.map(e => e.id)
 
-    // Get set_logs for these exercises and workout_logs
     const { data: setLogs } = await supabase
       .from('set_logs')
       .select('workout_log_id, weight_kg, reps_completed')
@@ -104,7 +120,7 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ progression: [] })
     }
 
-    // Group by workout_log and get max weight per session
+    // Group by workout_log and get max weight per session (keyed by scheduled_date)
     const workoutLogMap = new Map(workoutLogs.map(log => [log.id, log]))
     const sessionWeights = new Map<string, { date: string; maxWeight: number; maxReps: number }>()
 
@@ -112,10 +128,10 @@ export async function GET(request: NextRequest) {
       const workoutLog = workoutLogMap.get(log.workout_log_id)
       if (!workoutLog) return
 
-      // Use completed_at (actual training date) for progression tracking
-      const dateStr = workoutLog.completed_at ? workoutLog.completed_at.split('T')[0] : workoutLog.scheduled_date
+      const dateStr = workoutLog.scheduled_date || (workoutLog.completed_at ? workoutLog.completed_at.split('T')[0] : null)
+      if (!dateStr) return
       const existing = sessionWeights.get(dateStr)
-      
+
       if (!existing || log.weight_kg > existing.maxWeight) {
         sessionWeights.set(dateStr, {
           date: dateStr,
@@ -125,7 +141,6 @@ export async function GET(request: NextRequest) {
       }
     })
 
-    // Convert to array and sort by date
     const progression = Array.from(sessionWeights.values())
       .sort((a, b) => a.date.localeCompare(b.date))
       .map(item => ({

@@ -149,18 +149,23 @@ export default function UserSchedule({ userId }: UserScheduleProps) {
     return Array.isArray(workouts) ? workouts : []
   }
 
-  // Check if a specific workout is completed for a date
+  // Check if a specific workout is completed for a date.
+  // Three-tier lookup (mirrors WorkoutCalendar on client side):
+  //   1. date:workoutId:clientProgramId — exact
+  //   2. date:workoutId                 — program-agnostic
+  //   3. date                           — date-only fallback (catches completions
+  //      logged against a different workout_id than this week's schedule expects)
   const isWorkoutCompleted = (date: Date, workout: WorkoutSchedule): boolean => {
     const dateStr = formatDateLocal(date)
-    
-    // Check precise match first (date:workoutId:clientProgramId)
+
     const keyWithProgram = `${dateStr}:${workout.workoutId}:${workout.clientProgramId}`
     if (completionsByDateAndWorkout[keyWithProgram]) return true
-    
-    // Fallback to date:workoutId (for legacy completions without clientProgramId)
+
     const keyWithoutProgram = `${dateStr}:${workout.workoutId}`
     if (completionsByDateAndWorkout[keyWithoutProgram]) return true
-    
+
+    if (completionsByDateAndWorkout[dateStr]) return true
+
     return false
   }
 

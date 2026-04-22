@@ -1,6 +1,7 @@
 import { createClient } from '../../../lib/supabase/server'
 import { NextRequest, NextResponse } from 'next/server'
 import { recomputeAndPersistPascal } from '../../../lib/pascal-server'
+import { formatDateToString } from '../../../lib/dateUtils'
 
 export async function POST(request: NextRequest) {
   const supabase = await createClient()
@@ -16,8 +17,9 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'Missing required fields' }, { status: 400 })
   }
 
-  // Find any workout_log for this workout from today's session
-  const { data: workoutLog } = await supabase
+  // Look up an existing workout_log for (client, workout, scheduled_date).
+  // The unique constraint guarantees at most one, but use maybeSingle for safety.
+  const { data: existingLog } = await supabase
     .from('workout_logs')
     .select('id')
     .eq('client_id', user.id)
@@ -25,9 +27,31 @@ export async function POST(request: NextRequest) {
     .eq('scheduled_date', scheduledDate)
     .order('created_at', { ascending: false })
     .limit(1)
-    .single()
+    .maybeSingle()
 
-  // Insert completion record with link to workout_log if found
+  // If no log exists yet (e.g. user tapped Complete on a workout they never
+  // opened in the logger), create an empty shell so the trainer portal can
+  // always resolve set data via workout_log_id.
+  let workoutLogId: string | null = existingLog?.id || null
+  if (!workoutLogId) {
+    const { data: newLog, error: newLogErr } = await supabase
+      .from('workout_logs')
+      .insert({
+        client_id: user.id,
+        workout_id: workoutId,
+        scheduled_date: scheduledDate,
+        completed_at: new Date().toISOString(),
+      })
+      .select('id')
+      .single()
+    if (newLogErr) {
+      console.error('Error creating workout_log shell:', newLogErr)
+    } else {
+      workoutLogId = newLog.id
+    }
+  }
+
+  // Upsert completion, always with workout_log_id populated when we have one.
   const { data, error } = await supabase
     .from('workout_completions')
     .upsert({
@@ -36,7 +60,7 @@ export async function POST(request: NextRequest) {
       client_program_id: clientProgramId || null,
       scheduled_date: scheduledDate,
       completed_at: new Date().toISOString(),
-      workout_log_id: workoutLog?.id || null
+      workout_log_id: workoutLogId
     }, {
       onConflict: 'client_id,workout_id,scheduled_date'
     })
@@ -88,12 +112,12 @@ export async function POST(request: NextRequest) {
     // Get all completions in the last 90 days
     const ninetyDaysAgo = new Date()
     ninetyDaysAgo.setDate(ninetyDaysAgo.getDate() - 90)
-    
+
     const { data: completions } = await supabase
       .from('workout_completions')
       .select('scheduled_date')
       .eq('client_id', user.id)
-      .gte('scheduled_date', ninetyDaysAgo.toISOString().split('T')[0])
+      .gte('scheduled_date', formatDateToString(ninetyDaysAgo))
       .order('scheduled_date', { ascending: false })
 
     const completedDates = new Set(completions?.map(c => c.scheduled_date) || [])
@@ -102,13 +126,13 @@ export async function POST(request: NextRequest) {
     let streak = 0
     const today = new Date()
     today.setHours(0, 0, 0, 0)
-    
+
     // Start checking from today
-    let checkDate = new Date(today)
-    
+    const checkDate = new Date(today)
+
     // Check if today is completed (it should be, we just completed it)
     if (scheduledDays.has(today.getDay())) {
-      const todayStr = today.toISOString().split('T')[0]
+      const todayStr = formatDateToString(today)
       if (completedDates.has(todayStr)) {
         streak = 1
       }
@@ -118,17 +142,17 @@ export async function POST(request: NextRequest) {
     checkDate.setDate(checkDate.getDate() - 1)
     for (let i = 0; i < 365; i++) {
       const dayOfWeek = checkDate.getDay()
-      
+
       if (scheduledDays.has(dayOfWeek)) {
-        const dateStr = checkDate.toISOString().split('T')[0]
-        
+        const dateStr = formatDateToString(checkDate)
+
         if (completedDates.has(dateStr)) {
           streak++
         } else {
           break
         }
       }
-      
+
       checkDate.setDate(checkDate.getDate() - 1)
     }
 

@@ -1,6 +1,7 @@
 import { createClient } from '@supabase/supabase-js'
 import { NextRequest, NextResponse } from 'next/server'
 import { getAuthContext, unauthorized, forbidden, isTrainerRole } from '@/app/lib/auth-guard'
+import { formatDateToString } from '@/app/lib/dateUtils'
 
 function getAdminClient() {
   return createClient(
@@ -47,6 +48,10 @@ export async function POST(request: NextRequest) {
       }
     }
     
+    // Resolve scheduled_date once for both workout_log + completion.
+    const resolvedScheduledDate: string =
+      scheduledDate || completedAt?.split('T')[0] || formatDateToString(new Date())
+
     // Create workout log (include scheduled_date for lookup)
     const { data: workoutLog, error: logError } = await adminClient
       .from('workout_logs')
@@ -55,7 +60,7 @@ export async function POST(request: NextRequest) {
         workout_id: workoutId,
         trainer_id: trainerId || null,
         completed_at: completedAt || new Date().toISOString(),
-        scheduled_date: scheduledDate || completedAt?.split('T')[0] || new Date().toISOString().split('T')[0],
+        scheduled_date: resolvedScheduledDate,
         notes: notes || null,
         rating: rating || null
       })
@@ -99,16 +104,20 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // Create workout completion record (include workout_log_id for lookup)
+    // Upsert workout completion record (include workout_log_id for lookup).
+    // Use upsert so re-running a coach session doesn't 23505 on the
+    // (client_id, workout_id, scheduled_date) unique constraint.
     const { error: completionError } = await adminClient
       .from('workout_completions')
-      .insert({
+      .upsert({
         client_id: clientId,
         workout_id: workoutId,
         workout_log_id: workoutLog.id,
         client_program_id: clientProgramId || null,
-        scheduled_date: scheduledDate || completedAt?.split('T')[0] || new Date().toISOString().split('T')[0],
+        scheduled_date: resolvedScheduledDate,
         completed_at: completedAt || new Date().toISOString()
+      }, {
+        onConflict: 'client_id,workout_id,scheduled_date'
       })
 
     if (completionError) {
