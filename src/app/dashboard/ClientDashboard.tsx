@@ -73,6 +73,7 @@ export default function ClientDashboard() {
         scheduleByDay={data.scheduleByDay}
         scheduleByWeekAndDay={data.scheduleByWeekAndDay}
         calendarCompletions={data.calendarCompletions}
+        completionsByDate={data.completionsByDate}
         programStartDate={data.programStartDate}
         maxWeek={data.maxWeek}
         streak={data.streak ?? 0}

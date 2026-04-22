@@ -17,6 +17,15 @@ interface WorkoutCalendarProps {
   scheduleByDay: Record<number, WorkoutSchedule[]>
   scheduleByWeekAndDay?: Record<number, Record<number, WorkoutSchedule[]>> // Week-specific schedules
   completedWorkouts: Record<string, boolean>
+  /** Date → actual completed workout info from workout_completions. Lets the
+   *  calendar navigate past completed days to the REAL logged workout rather
+   *  than the week-computed one, which may differ (e.g. historical logs
+   *  recorded against Week 1 workouts). */
+  completionsByDate?: Record<string, {
+    workout_id: string
+    client_program_id: string | null
+    workout_log_id: string | null
+  }>
   compact?: boolean // For home screen - smaller version
   programStartDate?: string // Earliest active program start date
   maxWeek?: number // Maximum week number in the program
@@ -28,7 +37,7 @@ interface WorkoutLogDetail {
   sets: { setNumber: number; weight: number; reps: number }[]
 }
 
-export default function WorkoutCalendar({ scheduleByDay, scheduleByWeekAndDay, completedWorkouts, compact = false, programStartDate, maxWeek = 1 }: WorkoutCalendarProps) {
+export default function WorkoutCalendar({ scheduleByDay, scheduleByWeekAndDay, completedWorkouts, completionsByDate, compact = false, programStartDate, maxWeek = 1 }: WorkoutCalendarProps) {
   const [mounted, setMounted] = useState(false)
   const [today, setToday] = useState(new Date())
   const [currentMonth, setCurrentMonth] = useState(new Date())
@@ -103,14 +112,21 @@ export default function WorkoutCalendar({ scheduleByDay, scheduleByWeekAndDay, c
   }
 
   // Check if a specific workout is completed for a date.
-  // Matches the trainer portal (/users/[id]/schedule): strict — green only
-  // if the specific scheduled workout was completed. No :any fallback.
+  // Three-tier match (most specific first):
+  //   1. date + workout_id + client_program_id  — exact
+  //   2. date + workout_id                       — program-agnostic
+  //   3. date alone                              — ANY completion that day
+  // Tier 3 is important: historical completions were sometimes logged with
+  // Week 1 workout_ids even when the calendar's week-cycling expects a Week
+  // 2/3/4 workout_id for that date. Without tier 3 those legit completions
+  // would render red.
   const isWorkoutCompleted = (date: Date, workout: WorkoutSchedule): boolean => {
     const dateStr = formatDateLocal(date)
     const keyWithProgram = `${dateStr}:${workout.workoutId}:${workout.clientProgramId}`
     const keyWithoutProgram = `${dateStr}:${workout.workoutId}`
     return completedWorkouts[keyWithProgram] === true ||
-           completedWorkouts[keyWithoutProgram] === true
+           completedWorkouts[keyWithoutProgram] === true ||
+           completedWorkouts[dateStr] === true
   }
 
   // Get status for a specific date
@@ -564,25 +580,48 @@ export default function WorkoutCalendar({ scheduleByDay, scheduleByWeekAndDay, c
                           
                           {/* Action Buttons */}
                           <div className="flex gap-2 mt-3">
-                            {/* View/Start Workout button - always go to workout page with scheduledDate */}
-                            <Link
-                              href={`/workout/${workout.workoutId}?clientProgramId=${workout.clientProgramId}&scheduledDate=${formatDateLocal(selectedDate)}`}
-                              onClick={() => {
-                                if (!workout.workoutId) {
-                                  console.error('Missing workoutId:', workout)
-                                  alert('Debug: workoutId is missing. Check console.')
-                                }
-                                setSelectedDate(null)
-                              }}
-                              className="flex-1 text-center py-2 bg-zinc-800 hover:bg-zinc-700 text-white text-xs font-medium rounded-lg transition-colors"
-                            >
-                              {workoutCompleted ? 'View Workout' : 'Start Workout'}
-                            </Link>
+                            {/* View/Start Workout button. For completed days
+                               we route to the ACTUAL logged workout_id from
+                               workout_completions (not the week-computed one)
+                               so the user sees their real saved weights. */}
+                            {(() => {
+                              const dateStr = formatDateLocal(selectedDate)
+                              const actualCompletion = completionsByDate?.[dateStr]
+                              const targetWorkoutId = workoutCompleted && actualCompletion?.workout_id
+                                ? actualCompletion.workout_id
+                                : workout.workoutId
+                              const targetProgramId = workoutCompleted && actualCompletion?.client_program_id
+                                ? actualCompletion.client_program_id
+                                : workout.clientProgramId
+                              return (
+                                <Link
+                                  href={`/workout/${targetWorkoutId}?clientProgramId=${targetProgramId}&scheduledDate=${dateStr}`}
+                                  onClick={() => {
+                                    if (!targetWorkoutId) {
+                                      console.error('Missing workoutId:', workout)
+                                      alert('Debug: workoutId is missing. Check console.')
+                                    }
+                                    setSelectedDate(null)
+                                  }}
+                                  className="flex-1 text-center py-2 bg-zinc-800 hover:bg-zinc-700 text-white text-xs font-medium rounded-lg transition-colors"
+                                >
+                                  {workoutCompleted ? 'View Workout' : 'Start Workout'}
+                                </Link>
+                              )
+                            })()}
                             
-                            {/* View Log button for completed */}
+                            {/* View Log button for completed.
+                                Uses the ACTUAL logged workout_id from
+                                completionsByDate (not the week-computed one)
+                                so the set_logs lookup finds real data. */}
                             {workoutCompleted && (
                               <button
-                                onClick={() => isShowingDetails ? closeDetails() : fetchWorkoutDetails(selectedDate, workout.workoutId)}
+                                onClick={() => {
+                                  const dateStr = formatDateLocal(selectedDate)
+                                  const actual = completionsByDate?.[dateStr]
+                                  const queryWorkoutId = actual?.workout_id || workout.workoutId
+                                  return isShowingDetails ? closeDetails() : fetchWorkoutDetails(selectedDate, queryWorkoutId)
+                                }}
                                 className="flex-1 py-2 bg-green-500/20 hover:bg-green-500/30 text-green-400 text-xs font-medium rounded-lg transition-colors"
                               >
                                 {loadingDetails && isShowingDetails ? 'Loading...' : isShowingDetails ? 'Hide Details' : 'View Log'}

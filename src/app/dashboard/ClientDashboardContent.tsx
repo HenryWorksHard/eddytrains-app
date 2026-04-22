@@ -33,6 +33,7 @@ interface DashboardClientProps {
   scheduleByDay: Record<number, WorkoutSchedule[]>
   scheduleByWeekAndDay?: Record<number, Record<number, WorkoutSchedule[]>>
   calendarCompletions: Record<string, boolean>
+  completionsByDate?: Record<string, { workout_id: string; client_program_id: string | null; workout_log_id: string | null }>
   programStartDate?: string
   maxWeek?: number
   streak?: number
@@ -192,7 +193,7 @@ function greetingFor(tier: 1 | 2 | 3 | 4): string {
   }
 }
 
-export default function DashboardClient({ firstName, workoutsByDay, programCount, completedWorkouts, scheduleByDay, scheduleByWeekAndDay, calendarCompletions, programStartDate, maxWeek = 1, streak = 0, lastProgressPhotoDate = null }: DashboardClientProps) {
+export default function DashboardClient({ firstName, workoutsByDay, programCount, completedWorkouts, scheduleByDay, scheduleByWeekAndDay, calendarCompletions, completionsByDate, programStartDate, maxWeek = 1, streak = 0, lastProgressPhotoDate = null }: DashboardClientProps) {
   const completedSet = new Set(completedWorkouts)
   const [mounted, setMounted] = useState(false)
   const [greeting, setGreeting] = useState('Hello')
@@ -559,6 +560,7 @@ export default function DashboardClient({ firstName, workoutsByDay, programCount
             scheduleByDay={scheduleByDay}
             scheduleByWeekAndDay={scheduleByWeekAndDay}
             completedWorkouts={calendarCompletions}
+            completionsByDate={completionsByDate}
             compact={true}
             programStartDate={programStartDate}
             maxWeek={maxWeek}

@@ -83,10 +83,11 @@ export async function GET(request: NextRequest) {
       .eq('client_id', user.id)
       .eq('scheduled_date', todayStr),
 
-    // Calendar + streak-walk completions.
+    // Calendar + streak-walk completions. workout_log_id so the client can
+    // jump straight to the real logged workout when clicking a past day.
     supabase
       .from('workout_completions')
-      .select('workout_id, client_program_id, scheduled_date')
+      .select('workout_id, client_program_id, scheduled_date, workout_log_id')
       .eq('client_id', user.id)
       .gte('scheduled_date', windowStart)
       .lte('scheduled_date', windowEnd),
@@ -200,8 +201,34 @@ export async function GET(request: NextRequest) {
     ;[1, 2, 3, 4, 5].forEach((d) => scheduledDays.add(d))
   }
 
-  // Legacy workoutsByDay uses week 1
-  const workoutsByDay: Record<number, WorkoutData[]> = scheduleByWeekAndDay[1] || {}
+  // ---------- Current-week selection for "Today's Workout" ----------
+  // PREVIOUSLY: workoutsByDay was hardcoded to scheduleByWeekAndDay[1], so
+  // clients on multi-week programs never progressed past Week 1. They'd do
+  // the same Week 1 workouts repeatedly while the calendar (which correctly
+  // cycles weeks) expected Week 2/3/4 workouts on those dates → mismatch →
+  // calendar showed red despite real completions.
+  //
+  // NOW: compute current week from programStartDate + today (mirrors the
+  // formula in WorkoutCalendar.getWeekNumberForDate). Falls back to Week 1
+  // if no start date.
+  const earliestStartDate = programStartDates?.[0]?.start_date
+  let currentWeek = 1
+  if (earliestStartDate) {
+    const programStart = parseLocalDate(earliestStartDate)
+    const todayLocal = parseLocalDate(todayStr)
+    if (todayLocal >= programStart) {
+      const diffMs = todayLocal.getTime() - programStart.getTime()
+      const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24))
+      const rawWeek = Math.floor(diffDays / 7) + 1
+      if (maxWeek > 0) {
+        currentWeek = ((rawWeek - 1) % maxWeek) + 1
+      } else {
+        currentWeek = rawWeek
+      }
+    }
+  }
+  const workoutsByDay: Record<number, WorkoutData[]> =
+    scheduleByWeekAndDay[currentWeek] || scheduleByWeekAndDay[1] || {}
 
   // Today's completions set for the home screen
   const completedWorkoutIds: Set<string> = new Set()
@@ -210,22 +237,42 @@ export async function GET(request: NextRequest) {
   })
   const completedWorkoutsArray = Array.from(completedWorkoutIds)
 
-  // Calendar completions keyed by scheduled_date.
-  // Strict matching: a day is only green if the SPECIFIC scheduled workout
-  // (or a workout with the same workout_id, for legacy completions with a
-  // null client_program_id) was completed on that date. Matches the trainer
-  // portal's UserSchedule lookup so both views tell the same story about
-  // what the client actually did.
+  // Calendar completions keyed by scheduled_date with multiple lookup shapes
+  // so the calendar can robustly mark a day green even when the user logged
+  // against a different workout_id than what this week's schedule now
+  // expects (happens when weekly progression logic changes or historical
+  // completions were recorded against Week 1 workouts).
+  //
+  // Keys populated for each completion:
+  //   `${date}:${workout_id}:${client_program_id}`  — exact match
+  //   `${date}:${workout_id}`                        — program-agnostic
+  //   `${date}`                                      — date-only fallback
+  //
+  // The client picks the most specific key available.
   const calendarCompletions: Record<string, boolean> = {}
   const completedDateSet = new Set<string>()
+  // Date → actual completion info so the calendar can link clicks on past
+  // completed days to the REAL logged workout, not the week-computed one.
+  const completionsByDate: Record<string, {
+    workout_id: string
+    client_program_id: string | null
+    workout_log_id: string | null
+  }> = {}
   monthCompletions?.forEach((c) => {
     const d = c.scheduled_date
     if (!d) return
     calendarCompletions[`${d}:${c.workout_id}:${c.client_program_id}`] = true
-    if (!c.client_program_id) {
-      calendarCompletions[`${d}:${c.workout_id}`] = true
-    }
+    calendarCompletions[`${d}:${c.workout_id}`] = true
+    calendarCompletions[d] = true
     completedDateSet.add(d)
+    // Keep first completion for a given date (most days have one workout)
+    if (!completionsByDate[d]) {
+      completionsByDate[d] = {
+        workout_id: c.workout_id as string,
+        client_program_id: (c.client_program_id as string | null) ?? null,
+        workout_log_id: (c.workout_log_id as string | null) ?? null,
+      }
+    }
   })
 
   // Compute current streak from schedule + completions we already have.
@@ -300,6 +347,8 @@ export async function GET(request: NextRequest) {
     completedWorkouts: completedWorkoutsArray,
     scheduleByDay,
     calendarCompletions,
+    completionsByDate, // date → actual completed workout for click-through
+    currentWeek, // which program week "today's workout" was served from
     programStartDate,
     maxWeek,
     // Streak data — eliminates the separate /api/workouts/streak round-trip.
