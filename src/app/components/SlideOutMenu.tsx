@@ -15,6 +15,7 @@ import {
   ClipboardList,
   Target,
   LogOut,
+  Shield,
 } from 'lucide-react'
 import { createClient } from '../lib/supabase/client'
 
@@ -34,8 +35,9 @@ const menuItems = [
 
 const bottomItems = [
   { href: '/profile', label: 'Profile', icon: User },
-  { href: 'mailto:support@compound.com', label: 'Contact Support', icon: HelpCircle, external: true },
+  { href: 'mailto:contact@cmpdcollective.com', label: 'Contact Support', icon: HelpCircle, external: true },
   { href: 'https://www.instagram.com/eddytrains/', label: 'Follow on Instagram', icon: Instagram, external: true },
+  { href: '/privacy', label: 'Privacy Policy', icon: Shield },
 ]
 
 export function SlideOutMenu({ isOpen, onClose }: SlideOutMenuProps) {

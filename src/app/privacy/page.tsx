@@ -22,8 +22,8 @@ export default function PrivacyPage() {
           <section>
             <h2 className="text-xl font-semibold text-white mb-3">Who we are</h2>
             <p>
-              CMPD Fitness is operated by Louis Van den Berg, based in Australia. The service
-              is a training platform that connects personal trainers with their clients.
+              CMPD Fitness is a training platform based in Australia that connects personal
+              trainers with their clients.
             </p>
           </section>
 
@@ -31,8 +31,8 @@ export default function PrivacyPage() {
             <h2 className="text-xl font-semibold text-white mb-3">Contact</h2>
             <p>
               Questions, requests, or data concerns:{' '}
-              <a href="mailto:support@cmpdcollective.com" className="text-yellow-400 hover:text-yellow-300">
-                support@cmpdcollective.com
+              <a href="mailto:contact@cmpdcollective.com" className="text-yellow-400 hover:text-yellow-300">
+                contact@cmpdcollective.com
               </a>
             </p>
           </section>
@@ -41,11 +41,11 @@ export default function PrivacyPage() {
             <h2 className="text-xl font-semibold text-white mb-3">What data we collect</h2>
             <ul className="list-disc pl-6 space-y-1">
               <li>Email address and full name</li>
-              <li>Workout logs — exercises, sets, reps, weights</li>
-              <li>Body metrics — estimated 1RMs and optional body weight</li>
+              <li>Workout logs including exercises, sets, reps, and weights</li>
+              <li>Body metrics such as estimated 1RMs and optional body weight</li>
               <li>Progress photos you upload</li>
               <li>Goal data and training schedule</li>
-              <li>Your timezone (used to render your schedule correctly)</li>
+              <li>Your timezone, used to render your schedule correctly</li>
               <li>Profile picture if you choose to upload one</li>
             </ul>
           </section>
@@ -53,9 +53,9 @@ export default function PrivacyPage() {
           <section>
             <h2 className="text-xl font-semibold text-white mb-3">How we use it</h2>
             <p>
-              We use your data to provide the training service: show you your program, track your
-              progress over time, and share your training data with your trainer if you signed up
-              through one. That&apos;s it — no advertising, no profiling.
+              We use your data to provide the training service: to show you your program, track
+              your progress over time, and share your training data with your trainer if you
+              signed up through one. We do not run advertising or profiling on your data.
             </p>
           </section>
 
@@ -70,9 +70,9 @@ export default function PrivacyPage() {
           <section>
             <h2 className="text-xl font-semibold text-white mb-3">Sharing</h2>
             <p className="mb-3">
-              We never sell your data. Your workout data is visible only to your trainer — not to
-              other clients. We use Stripe to bill trainers for their subscription to the platform;
-              clients do not transact through us.
+              We never sell your data. Your workout data is visible only to your trainer, not to
+              other clients. We use Stripe to bill trainers for their subscription to the platform.
+              Clients do not transact through us.
             </p>
           </section>
 
@@ -81,8 +81,8 @@ export default function PrivacyPage() {
             <p>
               We keep your data while your account is active. You can request deletion at any time
               by emailing{' '}
-              <a href="mailto:support@cmpdcollective.com" className="text-yellow-400 hover:text-yellow-300">
-                support@cmpdcollective.com
+              <a href="mailto:contact@cmpdcollective.com" className="text-yellow-400 hover:text-yellow-300">
+                contact@cmpdcollective.com
               </a>
               . We&apos;ll wipe your data within 30 days of the request.
             </p>
