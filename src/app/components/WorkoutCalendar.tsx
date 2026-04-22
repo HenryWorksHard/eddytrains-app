@@ -216,17 +216,23 @@ export default function WorkoutCalendar({ scheduleByDay, scheduleByWeekAndDay, c
     }
   }
 
-  // Fetch workout log details for a completed workout
-  const fetchWorkoutDetails = async (date: Date, workoutId: string) => {
+  // Fetch workout log details for a completed workout.
+  // displayWorkoutId = the calendar's week-computed workout_id (used for UI
+  //   state tracking so the same card's View Log / Hide Details toggles).
+  // queryWorkoutId  = the ACTUAL workout_id from completionsByDate (used for
+  //   the workout_logs lookup). Week-cycling + historical logs mean these can
+  //   differ; the query has to use the real ID or set_logs come back empty.
+  const fetchWorkoutDetails = async (date: Date, displayWorkoutId: string, queryWorkoutId?: string) => {
+    const workoutId = queryWorkoutId || displayWorkoutId
     setLoadingDetails(true)
-    setShowingDetailsFor(workoutId)
+    setShowingDetailsFor(displayWorkoutId)
     setWorkoutDetails(null)
-    
+
     try {
       const dateStr = formatDateLocal(date)
-      
+
       console.log('🔍 [Calendar] Fetching details for workout:', workoutId, 'date:', dateStr)
-      
+
       // Get current user for filtering
       const { data: { user } } = await supabase.auth.getUser()
       if (!user) {
@@ -613,14 +619,20 @@ export default function WorkoutCalendar({ scheduleByDay, scheduleByWeekAndDay, c
                             {/* View Log button for completed.
                                 Uses the ACTUAL logged workout_id from
                                 completionsByDate (not the week-computed one)
-                                so the set_logs lookup finds real data. */}
+                                so the set_logs lookup finds real data.
+                                Display ID stays = workout.workoutId so the
+                                toggle state correctly pairs with this card. */}
                             {workoutCompleted && (
                               <button
                                 onClick={() => {
+                                  if (isShowingDetails) {
+                                    closeDetails()
+                                    return
+                                  }
                                   const dateStr = formatDateLocal(selectedDate)
                                   const actual = completionsByDate?.[dateStr]
                                   const queryWorkoutId = actual?.workout_id || workout.workoutId
-                                  return isShowingDetails ? closeDetails() : fetchWorkoutDetails(selectedDate, queryWorkoutId)
+                                  fetchWorkoutDetails(selectedDate, workout.workoutId, queryWorkoutId)
                                 }}
                                 className="flex-1 py-2 bg-green-500/20 hover:bg-green-500/30 text-green-400 text-xs font-medium rounded-lg transition-colors"
                               >
