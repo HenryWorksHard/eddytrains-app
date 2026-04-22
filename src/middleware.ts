@@ -1,5 +1,6 @@
 import { createServerClient } from '@supabase/ssr'
 import { NextResponse, type NextRequest } from 'next/server'
+import { signPayload, verifyPayload } from '@/app/lib/impersonation'
 
 // Short-lived cookie that caches the middleware-relevant profile fields.
 // Skips the DB roundtrip on most requests — auth.getUser() already runs
@@ -25,15 +26,20 @@ type CachedProfile = {
 function readCache(request: NextRequest): CachedProfile | null {
   const raw = request.cookies.get(PROFILE_CACHE_COOKIE)?.value
   if (!raw) return null
+  // Signed-cookie path: `${base64url(json)}.${hmac}`. On signature failure,
+  // treat as cache miss rather than trusting tampered content.
+  const verified = verifyPayload(raw)
+  if (!verified) return null
   try {
-    return JSON.parse(raw) as CachedProfile
+    return JSON.parse(verified) as CachedProfile
   } catch {
     return null
   }
 }
 
 function writeCache(response: NextResponse, data: CachedProfile) {
-  response.cookies.set(PROFILE_CACHE_COOKIE, JSON.stringify(data), {
+  const signed = signPayload(JSON.stringify(data))
+  response.cookies.set(PROFILE_CACHE_COOKIE, signed, {
     httpOnly: true,
     sameSite: 'lax',
     secure: process.env.NODE_ENV === 'production',

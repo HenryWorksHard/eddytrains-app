@@ -1,5 +1,6 @@
 import { createClient } from '@supabase/supabase-js'
 import { NextRequest, NextResponse } from 'next/server'
+import { getAuthContext, unauthorized, forbidden, authorizeUserAccess } from '@/app/lib/auth-guard'
 
 function getAdminClient() {
   return createClient(
@@ -19,7 +20,12 @@ export async function GET(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const ctx = await getAuthContext()
+    if (!ctx) return unauthorized()
     const { id: clientId } = await params
+    const gate = await authorizeUserAccess(ctx, clientId)
+    if (!gate.profile) return NextResponse.json({ error: 'User not found' }, { status: 404 })
+    if (!gate.allowed) return forbidden()
     const { searchParams } = new URL(request.url)
     const exerciseName = searchParams.get('exercise')
     const period = searchParams.get('period') || 'month'

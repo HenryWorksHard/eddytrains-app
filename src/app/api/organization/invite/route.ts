@@ -1,9 +1,19 @@
 import { NextResponse } from 'next/server';
 import { getSupabaseAdmin } from '@/lib/supabase-admin';
+import { getAuthContext, unauthorized, forbidden, isTrainerRole } from '@/app/lib/auth-guard';
 
 export async function POST(req: Request) {
   try {
+    const ctx = await getAuthContext();
+    if (!ctx) return unauthorized();
+    if (!isTrainerRole(ctx.role)) return forbidden();
+
     const { organization_id, email, role } = await req.json();
+
+    // Caller must be in the target org (or super_admin).
+    if (ctx.role !== 'super_admin' && ctx.organizationId !== organization_id) {
+      return forbidden();
+    }
 
     if (!organization_id || !email || !role) {
       return NextResponse.json(
@@ -140,11 +150,16 @@ export async function POST(req: Request) {
 // Accept invitation
 export async function PUT(req: Request) {
   try {
-    const { token, user_id } = await req.json();
+    const ctx = await getAuthContext();
+    if (!ctx) return unauthorized();
 
-    if (!token || !user_id) {
+    const { token } = await req.json();
+    // Bind user_id server-side to the authenticated caller. Ignore anything in the body.
+    const user_id = ctx.userId;
+
+    if (!token) {
       return NextResponse.json(
-        { error: 'Token and user_id are required' },
+        { error: 'Token is required' },
         { status: 400 }
       );
     }

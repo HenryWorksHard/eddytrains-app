@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 
 import { getSupabaseAdmin } from '@/lib/supabase-admin';
+import { getAuthContext, unauthorized, forbidden } from '@/app/lib/auth-guard';
 
 const TIER_CLIENT_LIMITS: Record<string, number> = {
   starter: 10,
@@ -11,6 +12,10 @@ const TIER_CLIENT_LIMITS: Record<string, number> = {
 
 export async function POST(request: NextRequest) {
   try {
+    const ctx = await getAuthContext();
+    if (!ctx) return unauthorized();
+    if (ctx.role !== 'super_admin') return forbidden();
+
     const body = await request.json();
     const { email, password, fullName, orgName, orgSlug, accessType, expiryDate, tier, customMonthlyPrice } = body;
 

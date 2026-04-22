@@ -4,6 +4,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { randomBytes } from 'crypto'
 import { sendInviteEmail } from '@/app/lib/email'
 import { getEffectiveOrgId } from '@/app/lib/org-context'
+import { getAuthContext, unauthorized, forbidden, isTrainerRole } from '@/app/lib/auth-guard'
 
 // Admin client with service role for user management
 function getAdminClient() {
@@ -42,14 +43,18 @@ function generateRandomPassword(): string {
 
 export async function GET() {
   try {
+    const ctx = await getAuthContext()
+    if (!ctx) return unauthorized()
+    if (!isTrainerRole(ctx.role)) return forbidden()
+
     const adminClient = getAdminClient()
-    
-    // Get current user from auth session
+
+    // Get current user from auth session (still needed for cookie context below)
     const supabase = await createServerClient()
     const { data: { user } } = await supabase.auth.getUser()
-    
+
     if (!user) {
-      return NextResponse.json({ users: [], debug: { reason: 'not_authenticated' } })
+      return unauthorized()
     }
     
     // Get user profile using admin client (bypasses RLS)
@@ -140,6 +145,10 @@ export async function GET() {
 
 export async function DELETE(request: NextRequest) {
   try {
+    const ctx = await getAuthContext()
+    if (!ctx) return unauthorized()
+    if (!isTrainerRole(ctx.role)) return forbidden()
+
     const { searchParams } = new URL(request.url)
     const userId = searchParams.get('id')
 
@@ -285,6 +294,10 @@ async function generateSlug(adminClient: ReturnType<typeof getAdminClient>, name
 
 export async function POST(request: NextRequest) {
   try {
+    const ctx = await getAuthContext()
+    if (!ctx) return unauthorized()
+    if (!isTrainerRole(ctx.role)) return forbidden()
+
     const { email, full_name, permissions, trainer_id } = await request.json()
 
     if (!email) {

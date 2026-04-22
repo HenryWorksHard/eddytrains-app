@@ -1,5 +1,6 @@
 import { createClient } from '@supabase/supabase-js'
 import { NextRequest, NextResponse } from 'next/server'
+import { getAuthContext, unauthorized, forbidden, authorizeUserAccess } from '@/app/lib/auth-guard'
 
 function getAdminClient() {
   return createClient(
@@ -19,9 +20,14 @@ export async function GET(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const ctx = await getAuthContext()
+    if (!ctx) return unauthorized()
     const { id: userId } = await params
+    const gate = await authorizeUserAccess(ctx, userId)
+    if (!gate.profile) return NextResponse.json({ error: 'User not found' }, { status: 404 })
+    if (!gate.allowed) return forbidden()
     const adminClient = getAdminClient()
-    
+
     const { data, error } = await adminClient
       .from('progress_images')
       .select('*')

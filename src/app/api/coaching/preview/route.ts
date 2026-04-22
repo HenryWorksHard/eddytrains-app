@@ -1,5 +1,6 @@
 import { createClient } from '@supabase/supabase-js'
 import { NextRequest, NextResponse } from 'next/server'
+import { getAuthContext, unauthorized, forbidden, isTrainerRole } from '@/app/lib/auth-guard'
 
 function getAdminClient() {
   return createClient(
@@ -10,6 +11,10 @@ function getAdminClient() {
 
 export async function GET(request: NextRequest) {
   try {
+    const ctx = await getAuthContext()
+    if (!ctx) return unauthorized()
+    if (!isTrainerRole(ctx.role)) return forbidden()
+
     const { searchParams } = new URL(request.url)
     const workoutId = searchParams.get('workoutId')
     

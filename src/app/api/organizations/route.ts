@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 
 import { getSupabaseAdmin } from '@/lib/supabase-admin';
+import { getAuthContext, unauthorized, forbidden, isTrainerRole } from '@/app/lib/auth-guard';
 
 // Generate URL-safe slug from business name
 function generateSlug(name: string): string {
@@ -13,14 +14,22 @@ function generateSlug(name: string): string {
 
 export async function POST(req: Request) {
   try {
-    const { name, owner_id, owner_email, owner_name } = await req.json();
+    const ctx = await getAuthContext();
+    if (!ctx) return unauthorized();
+    if (!isTrainerRole(ctx.role)) return forbidden();
 
-    if (!name || !owner_id) {
+    const { name } = await req.json();
+
+    if (!name) {
       return NextResponse.json(
-        { error: 'Name and owner_id are required' },
+        { error: 'Name is required' },
         { status: 400 }
       );
     }
+
+    // Bind owner to the caller. Ignore any owner_id / tier / limit from the body.
+    const owner_id = ctx.userId;
+    const owner_email = ctx.email;
 
     // Generate unique slug
     let slug = generateSlug(name);
@@ -38,16 +47,15 @@ export async function POST(req: Request) {
     const trialEndsAt = new Date();
     trialEndsAt.setDate(trialEndsAt.getDate() + 14);
 
-    // Create organization
-    // During trial: full access (gym tier, unlimited clients)
-    // User picks their plan when trial ends or when they subscribe
+    // Create organization with safe defaults. Stripe webhook is the source of
+    // truth for subscription_tier / client_limit after signup.
     const { data: org, error: orgError } = await getSupabaseAdmin()
       .from('organizations')
       .insert({
         name,
         slug,
         owner_id,
-        subscription_tier: 'gym', // Full access during trial
+        subscription_tier: 'gym', // Full access during 14-day trial
         subscription_status: 'trialing',
         client_limit: -1, // Unlimited during trial
         trial_ends_at: trialEndsAt.toISOString(),
@@ -69,7 +77,6 @@ export async function POST(req: Request) {
       .upsert({
         id: owner_id,
         email: owner_email,
-        full_name: owner_name,
         organization_id: org.id,
         role: 'trainer',
         is_active: true,
@@ -95,11 +102,18 @@ export async function POST(req: Request) {
 
 export async function GET(req: Request) {
   try {
+    const ctx = await getAuthContext();
+    if (!ctx) return unauthorized();
+
     const { searchParams } = new URL(req.url);
     const ownerId = searchParams.get('owner_id');
 
     if (ownerId) {
-      // Get organization for specific owner
+      // Allow if caller is that owner, or super_admin.
+      if (ctx.role !== 'super_admin' && ctx.userId !== ownerId) {
+        return forbidden();
+      }
+
       const { data: profile } = await getSupabaseAdmin()
         .from('profiles')
         .select('organization_id')
@@ -119,7 +133,9 @@ export async function GET(req: Request) {
       return NextResponse.json({ organization: org });
     }
 
-    // List all organizations (super_admin only - add auth check in production)
+    // Listing all orgs is super_admin only.
+    if (ctx.role !== 'super_admin') return forbidden();
+
     const { data: orgs, error } = await getSupabaseAdmin()
       .from('organizations')
       .select('*')

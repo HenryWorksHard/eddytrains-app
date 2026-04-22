@@ -1,5 +1,6 @@
 import { createClient } from '@supabase/supabase-js'
 import { NextRequest, NextResponse } from 'next/server'
+import { getAuthContext, unauthorized, forbidden, isTrainerRole } from '@/app/lib/auth-guard'
 
 function getAdminClient() {
   return createClient(
@@ -10,10 +11,14 @@ function getAdminClient() {
 
 export async function POST(request: NextRequest) {
   try {
+    const ctx = await getAuthContext()
+    if (!ctx) return unauthorized()
+    if (!isTrainerRole(ctx.role)) return forbidden()
+
     const body = await request.json()
-    const { 
-      clientId, 
-      workoutId, 
+    const {
+      clientId,
+      workoutId,
       clientProgramId,
       trainerId, 
       completedAt, 
@@ -29,6 +34,18 @@ export async function POST(request: NextRequest) {
     }
 
     const adminClient = getAdminClient()
+
+    // Assert same-org unless super_admin
+    if (ctx.role !== 'super_admin') {
+      const { data: clientProfile } = await adminClient
+        .from('profiles')
+        .select('organization_id')
+        .eq('id', clientId)
+        .single()
+      if (!clientProfile || clientProfile.organization_id !== ctx.organizationId) {
+        return forbidden()
+      }
+    }
     
     // Create workout log (include scheduled_date for lookup)
     const { data: workoutLog, error: logError } = await adminClient

@@ -1,13 +1,31 @@
 import { createClient } from '@/app/lib/supabase/server'
 import { NextRequest, NextResponse } from 'next/server'
+import { getAuthContext, unauthorized, forbidden, isTrainerRole, authorizeUserAccess } from '@/app/lib/auth-guard'
 
 export async function POST(
   request: NextRequest,
   context: { params: Promise<{ id: string }> }
 ) {
   try {
+    const ctx = await getAuthContext()
+    if (!ctx) return unauthorized()
+    // Cloning is a trainer-only action; clients cannot self-clone.
+    if (!isTrainerRole(ctx.role)) return forbidden()
+
     const { id: targetUserId } = await context.params
+    if (ctx.userId === targetUserId) return forbidden()
     const { sourceUserId, includePrograms, includeNutrition } = await request.json()
+
+    // Caller must be in the same org as BOTH target and source.
+    const targetGate = await authorizeUserAccess(ctx, targetUserId)
+    if (!targetGate.profile) return NextResponse.json({ error: 'Target user not found' }, { status: 404 })
+    if (!targetGate.allowed) return forbidden()
+
+    if (sourceUserId) {
+      const srcGate = await authorizeUserAccess(ctx, sourceUserId)
+      if (!srcGate.profile) return NextResponse.json({ error: 'Source user not found' }, { status: 404 })
+      if (!srcGate.allowed) return forbidden()
+    }
 
     const supabase = await createClient()
 

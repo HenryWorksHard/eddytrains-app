@@ -2,8 +2,10 @@ import { createClient } from './supabase/server'
 import { createClient as createSupabaseClient } from '@supabase/supabase-js'
 import { cookies } from 'next/headers'
 import { headers } from 'next/headers'
+import { IMPERSONATION_COOKIE, verifyImpersonationCookie } from './impersonation'
 
-export const IMPERSONATION_COOKIE = 'impersonating_org'
+// Re-export so existing imports from org-context keep working.
+export { IMPERSONATION_COOKIE }
 
 // Lazy admin client creation to avoid build-time errors
 function getAdminClient() {
@@ -17,72 +19,66 @@ function getAdminClient() {
 
 /**
  * Get the effective organization ID for the current context.
- * Checks for impersonation cookie first (for super admins viewing as trainers),
- * then falls back to the user's own organization_id.
- * 
+ * - Impersonation cookie is honored ONLY when the caller's role is super_admin
+ *   AND the cookie's HMAC signature verifies.
+ * - Falls back to the user's own organization_id otherwise.
+ *
  * Supports both cookie-based auth AND header-based auth (X-Supabase-Auth)
  * for Capacitor/WKWebView compatibility.
  */
 export async function getEffectiveOrgId(): Promise<string | null> {
   const cookieStore = await cookies()
   const headerStore = await headers()
-  
-  // Check for impersonation first
-  const impersonatingOrg = cookieStore.get(IMPERSONATION_COOKIE)?.value
-  if (impersonatingOrg) {
-    console.log('[getEffectiveOrgId] Using impersonation org:', impersonatingOrg)
-    return impersonatingOrg
-  }
-  
-  // Check for auth token in header (Capacitor/WKWebView fallback)
+
+  // Check for auth token in header (Capacitor/WKWebView fallback) vs cookie.
   const authToken = headerStore.get('x-supabase-auth')
-  
+
   let user = null
-  let authError = null
-  
+
   if (authToken) {
-    // Use admin client to verify the token and get user
-    console.log('[getEffectiveOrgId] Using header-based auth')
     try {
       const adminClient = getAdminClient()
-      const { data, error } = await adminClient.auth.getUser(authToken)
-      user = data?.user
-      authError = error
+      const { data } = await adminClient.auth.getUser(authToken)
+      user = data?.user ?? null
     } catch (e) {
       console.error('[getEffectiveOrgId] Admin client error:', e)
     }
   } else {
-    // Fall back to cookie-based auth
-    console.log('[getEffectiveOrgId] Using cookie-based auth')
     const supabase = await createClient()
     const result = await supabase.auth.getUser()
-    user = result.data?.user
-    authError = result.error
+    user = result.data?.user ?? null
   }
-  
-  console.log('[getEffectiveOrgId] Auth result:', { userId: user?.id, error: authError?.message, method: authToken ? 'header' : 'cookie' })
-  
+
   if (!user) {
-    console.log('[getEffectiveOrgId] No user found')
     return null
   }
-  
-  // Use admin client to fetch profile (bypasses RLS)
+
+  // Resolve the user's profile to know their own org AND their role.
+  type UserProfile = { organization_id: string | null; role: string | null }
+  let userProfile: UserProfile | null = null
   try {
     const adminClient = getAdminClient()
-    const { data: profile, error: profileError } = await adminClient
+    const { data: profile } = await adminClient
       .from('profiles')
-      .select('organization_id')
+      .select('organization_id, role')
       .eq('id', user.id)
       .single()
-    
-    console.log('[getEffectiveOrgId] Profile result:', { orgId: profile?.organization_id, error: profileError?.message })
-    
-    return profile?.organization_id || null
+    userProfile = (profile as UserProfile) ?? null
   } catch (e) {
     console.error('[getEffectiveOrgId] Profile fetch error:', e)
     return null
   }
+
+  // Honor impersonation ONLY for super_admins with a valid signed cookie.
+  const rawCookie = cookieStore.get(IMPERSONATION_COOKIE)?.value
+  if (rawCookie && userProfile?.role === 'super_admin') {
+    const impersonatedOrg = verifyImpersonationCookie(rawCookie)
+    if (impersonatedOrg) {
+      return impersonatedOrg
+    }
+  }
+
+  return userProfile?.organization_id || null
 }
 
 /**
@@ -92,12 +88,12 @@ export async function isSuperAdmin(): Promise<boolean> {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return false
-  
+
   const { data: profile } = await supabase
     .from('profiles')
     .select('role')
     .eq('id', user.id)
     .single()
-  
+
   return profile?.role === 'super_admin'
 }

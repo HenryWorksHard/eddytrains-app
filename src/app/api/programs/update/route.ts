@@ -1,6 +1,6 @@
 import { createClient } from '@supabase/supabase-js'
 import { NextRequest, NextResponse } from 'next/server'
-import { createClient as createServerClient } from '@/app/lib/supabase/server'
+import { getAuthContext, unauthorized, forbidden, isTrainerRole, getEffectiveOrgIdStrict } from '@/app/lib/auth-guard'
 
 export async function POST(request: NextRequest) {
   const supabaseAdmin = createClient(
@@ -9,26 +9,24 @@ export async function POST(request: NextRequest) {
   )
 
   try {
-    // Verify user is authenticated and is admin
-    const supabase = await createServerClient()
-    const { data: { user } } = await supabase.auth.getUser()
-    
-    if (!user) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-    }
-
-    const { data: profile } = await supabaseAdmin
-      .from('profiles')
-      .select('role')
-      .eq('id', user.id)
-      .single()
-
-    if (!profile?.role || !['admin', 'trainer', 'super_admin', 'company_admin'].includes(profile.role)) {
-      return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
-    }
+    const ctx = await getAuthContext()
+    if (!ctx) return unauthorized()
+    if (!isTrainerRole(ctx.role)) return forbidden()
 
     const body = await request.json()
     const { id, name, description, category, difficulty, durationWeeks, isActive, workouts } = body
+
+    // Assert the target program belongs to caller's effective org.
+    const { data: programRow } = await supabaseAdmin
+      .from('programs')
+      .select('organization_id')
+      .eq('id', id)
+      .single()
+    if (!programRow) return NextResponse.json({ error: 'Program not found' }, { status: 404 })
+    const effectiveOrg = await getEffectiveOrgIdStrict(ctx)
+    if (ctx.role !== 'super_admin' && programRow.organization_id !== effectiveOrg) {
+      return forbidden()
+    }
 
     // 1. Update the program metadata
     const { error: programError } = await supabaseAdmin

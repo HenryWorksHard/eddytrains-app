@@ -1,24 +1,17 @@
 import { NextResponse } from 'next/server';
 
+import { getStripe } from '@/lib/stripe';
 import { getSupabaseAdmin } from '@/lib/supabase-admin';
+import { getAuthContext, unauthorized, forbidden, isTrainerRole } from '@/app/lib/auth-guard';
 
-// Price IDs for each tier (using Starter for trial)
-const STARTER_PRICE_ID = 'price_1SxHgCBDGilw48s7lrc9Pjox';
-
-async function stripeRequest(endpoint: string, data: Record<string, string>) {
-  const response = await fetch(`https://api.getStripe().com/v1/${endpoint}`, {
-    method: 'POST',
-    headers: {
-      'Authorization': `Bearer ${process.env.STRIPE_SECRET_KEY}`,
-      'Content-Type': 'application/x-www-form-urlencoded',
-    },
-    body: new URLSearchParams(data).toString(),
-  });
-  return response.json();
-}
+const STARTER_PRICE_ID = process.env.STRIPE_PRICE_STARTER || 'price_1SxHgCBDGilw48s7lrc9Pjox';
 
 export async function POST(req: Request) {
   try {
+    const ctx = await getAuthContext();
+    if (!ctx) return unauthorized();
+    if (!isTrainerRole(ctx.role)) return forbidden();
+
     const { organizationId, email, organizationName } = await req.json();
 
     if (!organizationId || !email) {
@@ -28,7 +21,12 @@ export async function POST(req: Request) {
       );
     }
 
-    // Check if organization already has a Stripe customer
+    if (ctx.role !== 'super_admin' && ctx.organizationId !== organizationId) {
+      return forbidden();
+    }
+
+    const stripe = getStripe();
+
     const { data: org } = await getSupabaseAdmin()
       .from('organizations')
       .select('stripe_customer_id, name')
@@ -37,56 +35,38 @@ export async function POST(req: Request) {
 
     let customerId = org?.stripe_customer_id;
 
-    // Create new customer if needed
     if (!customerId) {
-      const customer = await stripeRequest('customers', {
+      const customer = await stripe.customers.create({
         email,
-        'metadata[organization_id]': organizationId,
-        'metadata[organization_name]': organizationName || org?.name || '',
+        metadata: {
+          organization_id: organizationId,
+          organization_name: organizationName || org?.name || '',
+        },
       });
-      
-      if (customer.error) {
-        return NextResponse.json(
-          { error: 'Failed to create customer', details: customer.error.message },
-          { status: 500 }
-        );
-      }
-      
       customerId = customer.id;
 
-      // Save customer ID to organization
       await getSupabaseAdmin()
         .from('organizations')
         .update({ stripe_customer_id: customerId })
         .eq('id', organizationId);
     }
 
-    // Create checkout session with 14-day trial
     const successUrl = 'https://eddytrains-admin.vercel.app/dashboard?welcome=true';
     const cancelUrl = 'https://eddytrains-admin.vercel.app/signup?canceled=true';
-    
-    const sessionParams: Record<string, string> = {
+
+    const session = await stripe.checkout.sessions.create({
       customer: customerId,
-      'payment_method_types[0]': 'card',
-      'line_items[0][price]': STARTER_PRICE_ID,
-      'line_items[0][quantity]': '1',
+      payment_method_types: ['card'],
+      line_items: [{ price: STARTER_PRICE_ID, quantity: 1 }],
       mode: 'subscription',
       success_url: successUrl,
       cancel_url: cancelUrl,
-      'metadata[organization_id]': organizationId,
-      'subscription_data[metadata][organization_id]': organizationId,
-      'subscription_data[trial_period_days]': '14',
-    };
-    
-    const session = await stripeRequest('checkout/sessions', sessionParams);
-
-    if (session.error) {
-      console.error('Stripe error:', JSON.stringify(session.error));
-      return NextResponse.json(
-        { error: 'Failed to create checkout', details: session.error.message, code: session.error.code },
-        { status: 500 }
-      );
-    }
+      metadata: { organization_id: organizationId },
+      subscription_data: {
+        metadata: { organization_id: organizationId },
+        trial_period_days: 14,
+      },
+    });
 
     return NextResponse.json({ url: session.url });
   } catch (error) {

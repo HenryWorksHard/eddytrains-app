@@ -1,6 +1,6 @@
 import { createClient } from '@supabase/supabase-js'
 import { NextRequest, NextResponse } from 'next/server'
-import { createClient as createServerClient } from '@/app/lib/supabase/server'
+import { getAuthContext, unauthorized, forbidden, isTrainerRole, getEffectiveOrgIdStrict } from '@/app/lib/auth-guard'
 
 function getAdminClient() {
   return createClient(
@@ -15,27 +15,12 @@ export async function GET(
 ) {
   try {
     const { id } = await params
-    
-    // Verify user is authenticated
-    const supabase = await createServerClient()
-    const { data: { user } } = await supabase.auth.getUser()
-    
-    if (!user) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-    }
 
-    // Check if user is admin/trainer/super_admin
-    const { data: profile } = await getAdminClient()
-      .from('profiles')
-      .select('role')
-      .eq('id', user.id)
-      .single()
+    const ctx = await getAuthContext()
+    if (!ctx) return unauthorized()
+    if (!isTrainerRole(ctx.role)) return forbidden()
 
-    if (!profile?.role || !['admin', 'trainer', 'super_admin', 'company_admin'].includes(profile.role)) {
-      return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
-    }
-
-    // Fetch program with all nested data
+    // Fetch program metadata first so we can assert org ownership.
     const { data: program, error: programError } = await getAdminClient()
       .from('programs')
       .select('*')
@@ -45,6 +30,11 @@ export async function GET(
     if (programError) {
       console.error('Error fetching program:', programError)
       throw programError
+    }
+
+    const effectiveOrg = await getEffectiveOrgIdStrict(ctx)
+    if (ctx.role !== 'super_admin' && program?.organization_id !== effectiveOrg) {
+      return forbidden()
     }
 
     // Fetch parent workouts (where parent_workout_id is null)
@@ -137,23 +127,22 @@ export async function DELETE(
 ) {
   try {
     const { id } = await params
-    
-    // Verify user is authenticated and is admin
-    const supabase = await createServerClient()
-    const { data: { user } } = await supabase.auth.getUser()
-    
-    if (!user) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-    }
 
-    const { data: profile } = await getAdminClient()
-      .from('profiles')
-      .select('role')
-      .eq('id', user.id)
+    const ctx = await getAuthContext()
+    if (!ctx) return unauthorized()
+    if (!isTrainerRole(ctx.role)) return forbidden()
+
+    // Load target program to check org ownership before deleting.
+    const { data: program } = await getAdminClient()
+      .from('programs')
+      .select('organization_id')
+      .eq('id', id)
       .single()
+    if (!program) return NextResponse.json({ error: 'Program not found' }, { status: 404 })
 
-    if (!profile?.role || !['admin', 'trainer', 'super_admin', 'company_admin'].includes(profile.role)) {
-      return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+    const effectiveOrg = await getEffectiveOrgIdStrict(ctx)
+    if (ctx.role !== 'super_admin' && program.organization_id !== effectiveOrg) {
+      return forbidden()
     }
 
     // Delete program (should cascade)

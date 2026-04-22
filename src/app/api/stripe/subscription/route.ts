@@ -212,11 +212,12 @@ export async function POST(req: Request) {
       if (org.subscription_status === 'trialing') {
         await getStripe().subscriptions.cancel(org.stripe_subscription_id);
 
+        // Clear the subscription reference. Do NOT mutate subscription_tier —
+        // the Stripe webhook is the single source of truth for tier.
         await getSupabaseAdmin()
           .from('organizations')
           .update({
             stripe_subscription_id: null,
-            subscription_tier: 'gym'
           })
           .eq('id', organizationId);
 

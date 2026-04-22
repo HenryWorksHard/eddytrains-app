@@ -1,17 +1,24 @@
 import { NextResponse } from 'next/server';
-import Stripe from 'stripe';
 import { getStripe } from '@/lib/stripe';
-
 import { getSupabaseAdmin } from '@/lib/supabase-admin';
+import { getAuthContext, unauthorized, forbidden, isTrainerRole } from '@/app/lib/auth-guard';
 
 
 // Create SetupIntent for adding/updating payment method
 export async function POST(req: Request) {
   try {
+    const ctx = await getAuthContext();
+    if (!ctx) return unauthorized();
+    if (!isTrainerRole(ctx.role)) return forbidden();
+
     const { organizationId } = await req.json();
 
     if (!organizationId) {
       return NextResponse.json({ error: 'Missing organization ID' }, { status: 400 });
+    }
+
+    if (ctx.role !== 'super_admin' && ctx.organizationId !== organizationId) {
+      return forbidden();
     }
 
     // Get organization's Stripe customer ID

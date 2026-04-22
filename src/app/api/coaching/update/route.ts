@@ -1,5 +1,6 @@
 import { createClient } from '@supabase/supabase-js'
 import { NextRequest, NextResponse } from 'next/server'
+import { getAuthContext, unauthorized, forbidden, isTrainerRole } from '@/app/lib/auth-guard'
 
 function getAdminClient() {
   return createClient(
@@ -10,16 +11,38 @@ function getAdminClient() {
 
 export async function POST(request: NextRequest) {
   try {
+    const ctx = await getAuthContext()
+    if (!ctx) return unauthorized()
+    if (!isTrainerRole(ctx.role)) return forbidden()
+
     const body = await request.json()
     const { workoutLogId, sets } = body
-    
+
     if (!workoutLogId || !sets) {
       return NextResponse.json({ error: 'Missing workoutLogId or sets' }, { status: 400 })
     }
 
     const adminClient = getAdminClient()
-    
-    // Update each set
+
+    // Resolve the client for this workoutLog and assert same-org.
+    const { data: wl } = await adminClient
+      .from('workout_logs')
+      .select('client_id')
+      .eq('id', workoutLogId)
+      .single()
+    if (!wl) return NextResponse.json({ error: 'Workout log not found' }, { status: 404 })
+
+    if (ctx.role !== 'super_admin') {
+      const { data: clientProfile } = await adminClient
+        .from('profiles')
+        .select('organization_id')
+        .eq('id', wl.client_id)
+        .single()
+      if (!clientProfile || clientProfile.organization_id !== ctx.organizationId) {
+        return forbidden()
+      }
+    }
+
     for (const set of sets) {
       const { error } = await adminClient
         .from('set_logs')

@@ -1,7 +1,6 @@
 import { createClient } from '@supabase/supabase-js'
-import { createClient as createServerClient } from '@/app/lib/supabase/server'
 import { NextRequest, NextResponse } from 'next/server'
-import { getEffectiveOrgId } from '@/app/lib/org-context'
+import { getAuthContext, unauthorized, forbidden, canAccessUser, isTrainerRole } from '@/app/lib/auth-guard'
 
 function getAdminClient() {
   return createClient(
@@ -19,7 +18,7 @@ function getAdminClient() {
 // Resolve slug, email, or UUID to profile
 async function resolveProfile(adminClient: ReturnType<typeof getAdminClient>, identifier: string) {
   const decoded = decodeURIComponent(identifier)
-  
+
   // Determine lookup field: email has @, UUID has dashes, otherwise it's a slug
   let lookupField: string
   if (decoded.includes('@')) {
@@ -29,13 +28,13 @@ async function resolveProfile(adminClient: ReturnType<typeof getAdminClient>, id
   } else {
     lookupField = 'slug'
   }
-  
+
   const { data: profile, error } = await adminClient
     .from('profiles')
     .select('*')
     .eq(lookupField, decoded)
     .single()
-  
+
   return { profile, error, lookupField }
 }
 
@@ -44,15 +43,16 @@ export async function GET(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const ctx = await getAuthContext()
+    if (!ctx) return unauthorized()
+
     const { id } = await params
     const adminClient = getAdminClient()
-    
-    // Resolve by slug, email, or UUID
+
     const { profile, error: profileError, lookupField } = await resolveProfile(adminClient, id)
-    
+
     if (profileError || !profile) {
-      console.error('Profile query error:', profileError)
-      return NextResponse.json({ 
+      return NextResponse.json({
         error: 'User not found',
         details: profileError?.message,
         lookupField,
@@ -60,15 +60,16 @@ export async function GET(
       }, { status: 404 })
     }
 
-    // Get auth user for email verification
+    if (!canAccessUser(ctx, { id: profile.id, organization_id: profile.organization_id })) {
+      return forbidden()
+    }
+
     const { data: authUser } = await adminClient.auth.admin.getUserById(profile.id)
-    
-    // Return profile with permissions embedded (no JOIN needed)
-    return NextResponse.json({ 
+
+    return NextResponse.json({
       user: {
         ...profile,
         email: authUser?.user?.email || profile.email || 'Unknown',
-        // Map embedded permissions to the expected format for frontend compatibility
         user_permissions: [{
           can_access_strength: profile.can_access_strength,
           can_access_cardio: profile.can_access_cardio,
@@ -79,7 +80,7 @@ export async function GET(
     })
   } catch (error) {
     console.error('Get user error:', error)
-    return NextResponse.json({ 
+    return NextResponse.json({
       error: 'Failed to fetch user',
       details: error instanceof Error ? error.message : 'Unknown error'
     }, { status: 500 })
@@ -91,28 +92,49 @@ export async function PATCH(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const ctx = await getAuthContext()
+    if (!ctx) return unauthorized()
+
     const { id } = await params
-    const { full_name, email, permissions } = await request.json()
+    const body = await request.json()
+    const { full_name, email, permissions, role: newRole } = body
     const adminClient = getAdminClient()
-    
+
     const { profile, error: lookupError } = await resolveProfile(adminClient, id)
     if (lookupError || !profile) {
       return NextResponse.json({ error: 'User not found' }, { status: 404 })
     }
-    
+
+    if (!canAccessUser(ctx, { id: profile.id, organization_id: profile.organization_id })) {
+      return forbidden()
+    }
+
     const userId = profile.id
-    
+    const callerIsTrainer = isTrainerRole(ctx.role)
+
     // Build update object
     const updateData: Record<string, unknown> = {
       updated_at: new Date().toISOString()
     }
-    
+
     if (full_name !== undefined) updateData.full_name = full_name
-    if (email !== undefined) updateData.email = email
-    
-    // Permissions are now embedded in profiles table
-    // "programs" controls access to all program types (strength/cardio/hyrox/hybrid)
+
+    // Only trainer-role callers can change email; clients self-editing cannot.
+    if (email !== undefined) {
+      if (!callerIsTrainer) return forbidden()
+      updateData.email = email
+    }
+
+    // Role changes: only trainer-role+. (Still don't let a trainer escalate to super_admin.)
+    if (newRole !== undefined) {
+      if (!callerIsTrainer) return forbidden()
+      if (newRole === 'super_admin' && ctx.role !== 'super_admin') return forbidden()
+      updateData.role = newRole
+    }
+
+    // Permissions: only trainer-role+.
     if (permissions) {
+      if (!callerIsTrainer) return forbidden()
       const hasPrograms = permissions.programs || false
       updateData.can_access_strength = hasPrograms
       updateData.can_access_cardio = hasPrograms
@@ -120,15 +142,14 @@ export async function PATCH(
       updateData.can_access_hybrid = hasPrograms
       updateData.can_access_nutrition = permissions.nutrition || false
     }
-    
+
     const { error: profileError } = await adminClient
       .from('profiles')
       .update(updateData)
       .eq('id', userId)
-    
+
     if (profileError) throw profileError
 
-    // Update auth user email if changed
     if (email && email !== profile.email) {
       await adminClient.auth.admin.updateUserById(userId, { email })
     }
@@ -145,6 +166,9 @@ export async function DELETE(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const ctx = await getAuthContext()
+    if (!ctx) return unauthorized()
+
     const { id } = await params
     const adminClient = getAdminClient()
 
@@ -153,33 +177,15 @@ export async function DELETE(
       return NextResponse.json({ error: 'User not found' }, { status: 404 })
     }
 
+    // Deletion requires trainer-role in the same org, or super_admin. Self-delete via
+    // this endpoint is not allowed (clients go through a separate flow).
+    const callerIsTrainer = isTrainerRole(ctx.role)
+    const sameOrg = !!ctx.organizationId && ctx.organizationId === profile.organization_id
+    const allowed = ctx.role === 'super_admin' || (callerIsTrainer && sameOrg)
+    if (!allowed) return forbidden()
+
     const userId = profile.id
 
-    // Enforce org boundary: caller must be in the same effective org as the target,
-    // unless caller is a super_admin.
-    const supabase = await createServerClient()
-    const { data: { user: caller } } = await supabase.auth.getUser()
-    if (!caller) {
-      return NextResponse.json({ error: 'Not authenticated' }, { status: 401 })
-    }
-    const { data: callerProfile } = await adminClient
-      .from('profiles')
-      .select('role')
-      .eq('id', caller.id)
-      .single()
-    if (!callerProfile) {
-      return NextResponse.json({ error: 'Not authorized' }, { status: 403 })
-    }
-    const callerEffectiveOrgId = await getEffectiveOrgId()
-    if (
-      callerProfile.role !== 'super_admin' &&
-      profile.organization_id !== callerEffectiveOrgId
-    ) {
-      return NextResponse.json({ error: 'Not authorized to delete this user' }, { status: 403 })
-    }
-
-    // Clean up child data first to satisfy FK constraints.
-    // client_exercise_sets → client_programs → (child tables)
     const { data: clientPrograms } = await adminClient
       .from('client_programs')
       .select('id')
@@ -210,7 +216,6 @@ export async function DELETE(
     await adminClient.from('progress_images').delete().eq('user_id', userId)
     await adminClient.from('invite_tokens').delete().eq('user_id', userId)
 
-    // Profile before auth — FK from profiles.id → auth.users(id)
     const { error: profileDeleteError } = await adminClient
       .from('profiles')
       .delete()

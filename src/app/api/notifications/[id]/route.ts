@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { createClient } from '@/app/lib/supabase/server'
+import { getAuthContext, unauthorized } from '@/app/lib/auth-guard'
 
 // Update a notification (mark as read, dismiss, etc.)
 export async function PATCH(
@@ -7,6 +8,9 @@ export async function PATCH(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const ctx = await getAuthContext()
+    if (!ctx) return unauthorized()
+
     const { id } = await params
     const body = await request.json()
     const supabase = await createClient()
@@ -26,6 +30,7 @@ export async function PATCH(
       .from('admin_notifications')
       .update(updateData)
       .eq('id', id)
+      .eq('user_id', ctx.userId)
 
     if (error) {
       return NextResponse.json({ error: error.message }, { status: 500 })
@@ -46,6 +51,9 @@ export async function DELETE(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const ctx = await getAuthContext()
+    if (!ctx) return unauthorized()
+
     const { id } = await params
     const supabase = await createClient()
 
@@ -53,6 +61,7 @@ export async function DELETE(
       .from('admin_notifications')
       .delete()
       .eq('id', id)
+      .eq('user_id', ctx.userId)
 
     if (error) {
       return NextResponse.json({ error: error.message }, { status: 500 })

@@ -1,15 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createAdminClient } from '@/app/lib/supabase/admin'
-import { createClient } from '@/app/lib/supabase/server'
+import { getAuthContext, unauthorized, forbidden, authorizeUserAccess } from '@/app/lib/auth-guard'
 
 export async function GET(request: NextRequest) {
-  // Verify trainer is authenticated
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  
-  if (!user) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-  }
+  const ctx = await getAuthContext()
+  if (!ctx) return unauthorized()
 
   const { searchParams } = new URL(request.url)
   const clientId = searchParams.get('clientId')
@@ -18,6 +13,10 @@ export async function GET(request: NextRequest) {
   if (!clientId || !date) {
     return NextResponse.json({ error: 'Missing clientId or date' }, { status: 400 })
   }
+
+  const gate = await authorizeUserAccess(ctx, clientId)
+  if (!gate.profile) return NextResponse.json({ error: 'Client not found' }, { status: 404 })
+  if (!gate.allowed) return forbidden()
 
   try {
     // Try multiple strategies to find the workout log
