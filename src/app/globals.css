@@ -280,9 +280,12 @@ html.light-mode body {
    The Capacitor WebView uses statusBarStyle: black-translucent which means
    content is rendered under the status bar by default. Padding the body
    by safe-area-inset-top pushes headers, hamburger buttons, etc. back down. */
+html {
+  background-color: #18181b; /* zinc-900, fills the safe-area-inset-top strip */
+}
 body {
   padding-top: env(safe-area-inset-top, 0);
-  background-color: #000;
+  background-color: #18181b; /* zinc-900, matches dashboard header gradient top */
 }
 
 .safe-area-top {
