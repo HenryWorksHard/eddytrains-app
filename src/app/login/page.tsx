@@ -124,7 +124,7 @@ function LoginInner() {
   }
 
   return (
-    <div className="min-h-screen bg-zinc-950 flex items-center justify-center p-4">
+    <div className="fixed inset-0 bg-black flex items-center justify-center p-4 overflow-hidden overscroll-none">
       <div className="w-full max-w-md">
         {/* Logo/Brand */}
         <div className="text-center mb-8">
