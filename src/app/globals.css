@@ -276,6 +276,19 @@ html.light-mode body {
   padding-bottom: env(safe-area-inset-bottom, 0);
 }
 
+/* iOS status bar / Dynamic Island: push ALL content below the system UI.
+   The Capacitor WebView uses statusBarStyle: black-translucent which means
+   content is rendered under the status bar by default. Padding the body
+   by safe-area-inset-top pushes headers, hamburger buttons, etc. back down. */
+body {
+  padding-top: env(safe-area-inset-top, 0);
+  background-color: #000;
+}
+
+.safe-area-top {
+  padding-top: env(safe-area-inset-top, 0);
+}
+
 /* Animations */
 @keyframes slide-up {
   from {

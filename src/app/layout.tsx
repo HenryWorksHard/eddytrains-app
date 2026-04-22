@@ -19,6 +19,7 @@ export const viewport: Viewport = {
   maximumScale: 1,
   userScalable: false,
   themeColor: "#000000",
+  viewportFit: "cover", // required for env(safe-area-inset-*) to return real values on iOS
 };
 
 // Blocking script to prevent theme flash
