@@ -270,7 +270,7 @@ export default function ProfilePage() {
       <SlideOutMenu isOpen={menuOpen} onClose={() => setMenuOpen(false)} />
       
       {/* Header - Industrial Minimal */}
-      <header className="bg-zinc-900 border-b border-zinc-800">
+      <header className="bg-black border-b border-zinc-800">
         {/* Hamburger Row */}
         <div className="flex items-center justify-between px-4 pt-3">
           <HamburgerButton onClick={() => setMenuOpen(true)} />

@@ -28,7 +28,7 @@ export default function PageHeader({ title, showBack, backHref, rightElement }: 
     <>
       <SlideOutMenu isOpen={menuOpen} onClose={() => setMenuOpen(false)} />
       
-      <header className="bg-zinc-900 border-b border-zinc-800">
+      <header className="bg-black border-b border-zinc-800">
         <div className="flex items-center justify-between px-4 h-14">
           {/* Left - Hamburger or Back */}
           <div className="w-10">

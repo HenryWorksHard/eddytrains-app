@@ -13,7 +13,10 @@ type Props = {
  */
 export default function AppLoading({ message = 'Loading...' }: Props) {
   return (
-    <div className="min-h-screen bg-black flex flex-col items-center justify-center">
+    // Fixed inset-0 covers the full viewport (ignores the body's
+    // safe-area-inset-top padding), so the GIF sits at TRUE center
+    // on every device regardless of notch / Dynamic Island size.
+    <div className="fixed inset-0 bg-black flex flex-col items-center justify-center z-50">
       {/* eslint-disable-next-line @next/next/no-img-element */}
       <img
         src="/loading.gif"

@@ -165,7 +165,7 @@ export default async function ProgramDetailPage({ params }: { params: Promise<{ 
   return (
     <div className="min-h-screen bg-black pb-32">
       {/* Header */}
-      <header className="bg-zinc-900 border-b border-zinc-800">
+      <header className="bg-black border-b border-zinc-800">
         <div className="px-6 py-4">
           <Link href="/programs" className="text-yellow-400 text-sm font-medium mb-2 inline-flex items-center gap-1">
             <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">

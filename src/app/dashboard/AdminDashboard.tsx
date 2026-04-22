@@ -5,6 +5,7 @@ import { Users, Dumbbell, Calendar, Activity, TrendingUp, UserPlus, AlertTriangl
 import OnboardingBanner from '@/components/OnboardingBanner'
 import TrialExpiryBanner from '@/components/TrialExpiryBanner'
 import Sidebar from '@/components/Sidebar'
+import NativeAppHidden from '@/components/NativeAppHidden'
 
 // Force dynamic rendering - no caching
 export const dynamic = 'force-dynamic'
@@ -342,9 +343,11 @@ export default async function AdminDashboard({
                   <span className="font-semibold text-red-400">Subscription Canceled</span> — Resubscribe to regain full access
                 </span>
               </div>
-              <Link href="/billing" className="px-4 py-2 bg-red-500 hover:bg-red-400 text-white font-medium rounded-lg transition-colors text-sm">
-                Resubscribe
-              </Link>
+              <NativeAppHidden>
+                <Link href="/billing" className="px-4 py-2 bg-red-500 hover:bg-red-400 text-white font-medium rounded-lg transition-colors text-sm">
+                  Resubscribe
+                </Link>
+              </NativeAppHidden>
             </div>
           )}
 
@@ -373,9 +376,11 @@ export default async function AdminDashboard({
                   <span className="font-semibold text-blue-400">{orgInfo.trialDaysRemaining} days</span> left — full access to all features
                 </span>
               </div>
-              <Link href="/billing" className="px-4 py-2 bg-blue-500 hover:bg-blue-400 text-white font-medium rounded-lg transition-colors text-sm">
-                Choose Plan
-              </Link>
+              <NativeAppHidden>
+                <Link href="/billing" className="px-4 py-2 bg-blue-500 hover:bg-blue-400 text-white font-medium rounded-lg transition-colors text-sm">
+                  Choose Plan
+                </Link>
+              </NativeAppHidden>
             </div>
           )}
 

@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { Lock, Sparkles } from 'lucide-react';
 import { usePermissions } from '@/hooks/usePermissions';
 import { TierFeatures, getUpgradeTier } from '@/app/lib/permissions';
+import { useIsNativeApp } from '@/hooks/useIsNativeApp';
 
 interface FeatureGateProps {
   feature: keyof TierFeatures;
@@ -14,6 +15,7 @@ interface FeatureGateProps {
 
 export function FeatureGate({ feature, children, fallback, showUpgrade = true }: FeatureGateProps) {
   const { loading, can, tier } = usePermissions();
+  const isNativeApp = useIsNativeApp();
 
   if (loading) {
     return <div className="animate-pulse bg-zinc-800 rounded-xl h-20" />;
@@ -28,6 +30,11 @@ export function FeatureGate({ feature, children, fallback, showUpgrade = true }:
   }
 
   if (!showUpgrade) {
+    return null;
+  }
+
+  // Native app: hide upgrade CTA entirely (App Store compliance — no external payment links)
+  if (isNativeApp) {
     return null;
   }
 
@@ -56,11 +63,27 @@ export function FeatureGate({ feature, children, fallback, showUpgrade = true }:
 // Inline version for smaller UI elements
 export function FeatureBadge({ feature, children }: { feature: keyof TierFeatures; children: React.ReactNode }) {
   const { can, loading } = usePermissions();
+  const isNativeApp = useIsNativeApp();
 
   if (loading) return null;
 
   if (can(feature)) {
     return <>{children}</>;
+  }
+
+  // Native: show locked state without billing link
+  if (isNativeApp) {
+    return (
+      <div className="relative">
+        <div className="opacity-50 pointer-events-none">{children}</div>
+        <div className="absolute inset-0 flex items-center justify-center bg-zinc-900/80 rounded-lg">
+          <span className="flex items-center gap-1 text-xs text-yellow-400">
+            <Lock className="w-3 h-3" />
+            Pro
+          </span>
+        </div>
+      </div>
+    );
   }
 
   return (

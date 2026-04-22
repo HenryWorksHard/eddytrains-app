@@ -15,7 +15,7 @@ export default function AppHeader({ title, showBack, onBack, rightElement }: App
 
   return (
     <>
-      <header className="sticky top-0 bg-zinc-900/95 backdrop-blur-lg border-b border-zinc-800 z-40">
+      <header className="sticky top-0 bg-black/95 backdrop-blur-lg border-b border-zinc-800 z-40">
         <div className="flex items-center justify-between px-4 h-14">
           {/* Left - Hamburger or Back */}
           <div className="w-10">

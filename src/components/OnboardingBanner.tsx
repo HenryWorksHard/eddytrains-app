@@ -3,6 +3,7 @@
 import { useState, useEffect, useRef } from 'react'
 import Link from 'next/link'
 import { CheckCircle, Sparkles } from 'lucide-react'
+import { useIsNativeApp } from '@/hooks/useIsNativeApp'
 
 interface ChecklistItem {
   label: string
@@ -28,6 +29,7 @@ export default function OnboardingBanner({
   const [visibleItems, setVisibleItems] = useState<boolean[]>(checklistItems.map(() => true))
   const [showComplete, setShowComplete] = useState(false)
   const hasAnimated = useRef(false)
+  const isNativeApp = useIsNativeApp()
   
   const allComplete = checklistItems.every(item => item.complete)
   const completedCount = checklistItems.filter(item => item.complete).length
@@ -77,12 +79,14 @@ export default function OnboardingBanner({
               </p>
             </div>
           </div>
-          <Link 
-            href="/billing" 
-            className="px-6 py-3 bg-gradient-to-r from-green-500 to-emerald-600 hover:from-green-400 hover:to-emerald-500 text-white font-semibold rounded-xl transition-all shadow-lg shadow-green-500/20"
-          >
-            Upgrade Now
-          </Link>
+          {!isNativeApp && (
+            <Link
+              href="/billing"
+              className="px-6 py-3 bg-gradient-to-r from-green-500 to-emerald-600 hover:from-green-400 hover:to-emerald-500 text-white font-semibold rounded-xl transition-all shadow-lg shadow-green-500/20"
+            >
+              Upgrade Now
+            </Link>
+          )}
         </div>
       </div>
     )
@@ -152,9 +156,11 @@ export default function OnboardingBanner({
                 Create Program
               </Link>
             )}
-            <Link href="/billing" className="px-4 py-2 bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-400 hover:to-blue-500 text-white font-medium rounded-lg transition-all shadow-lg shadow-blue-500/20">
-              Upgrade Now
-            </Link>
+            {!isNativeApp && (
+              <Link href="/billing" className="px-4 py-2 bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-400 hover:to-blue-500 text-white font-medium rounded-lg transition-all shadow-lg shadow-blue-500/20">
+                Upgrade Now
+              </Link>
+            )}
           </div>
         </div>
       </div>

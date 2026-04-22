@@ -37,7 +37,7 @@ export default function AdminUsersPage() {
   return (
     <div className="min-h-screen bg-black">
       {/* Header - Industrial Minimal */}
-      <header className="bg-zinc-900 border-b border-zinc-800 px-6 py-4">
+      <header className="bg-black border-b border-zinc-800 px-6 py-4">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-3">
             <Link href="/admin" className="text-zinc-500 hover:text-yellow-400 transition-colors">← Admin</Link>

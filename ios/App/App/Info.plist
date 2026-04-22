@@ -47,5 +47,13 @@
 	</array>
 	<key>UIViewControllerBasedStatusBarAppearance</key>
 	<true/>
+	<key>NSCameraUsageDescription</key>
+	<string>CMPD Fitness may use the camera to take progress photos showing your training results.</string>
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>CMPD Fitness may access your photo library to upload progress photos showing your training results.</string>
+	<key>NSPhotoLibraryAddUsageDescription</key>
+	<string>CMPD Fitness may save progress photos to your photo library.</string>
+	<key>NSFaceIDUsageDescription</key>
+	<string>CMPD Fitness may use Face ID to quickly and securely sign you into your account.</string>
 </dict>
 </plist>

@@ -34,7 +34,7 @@ export default async function AdminDashboardPage() {
   return (
     <div className="min-h-screen bg-black">
       {/* Header - Industrial Minimal */}
-      <header className="bg-zinc-900 border-b border-zinc-800 px-6 py-6">
+      <header className="bg-black border-b border-zinc-800 px-6 py-6">
         <div className="flex items-center justify-between">
           <div>
             <Link href="/dashboard" className="text-zinc-500 hover:text-yellow-400 text-sm transition-colors">← Back to App</Link>

@@ -348,7 +348,7 @@ export default async function WorkoutDetailPage({
   return (
     <div className="min-h-screen bg-black pb-24">
       {/* Header */}
-      <header className="bg-gradient-to-b from-zinc-900 to-black border-b border-zinc-800">
+      <header className="bg-black border-b border-zinc-800">
         <div className="px-6 py-4">
           <BackButton className="mb-2" />
         </div>
