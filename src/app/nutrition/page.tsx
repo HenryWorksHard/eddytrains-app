@@ -143,7 +143,7 @@ export default async function NutritionPage() {
 
   if (!profile?.can_access_nutrition) {
     return (
-      <div className="min-h-screen bg-black pb-32">
+      <div className="min-h-screen bg-black pb-nav">
         <PageHeader title="Nutrition" />
         <main className="px-6 py-6">
           <div className="bg-zinc-900 border border-zinc-800 rounded-2xl p-8 text-center">
@@ -180,7 +180,7 @@ export default async function NutritionPage() {
   const hasAnyPlan = trainerNutrition || clientNutrition
 
   return (
-    <div className="min-h-screen bg-black pb-32">
+    <div className="min-h-screen bg-black pb-nav">
       <PageHeader 
         title="Nutrition" 
         rightElement={

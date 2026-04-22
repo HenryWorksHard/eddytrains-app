@@ -96,7 +96,7 @@ export default async function OneRMPage() {
   })
 
   return (
-    <div className="min-h-screen bg-black pb-24">
+    <div className="min-h-screen bg-black pb-nav">
       <OneRMClient initialOneRMs={oneRMs || []} progressData={progressData} />
       <BottomNav />
     </div>

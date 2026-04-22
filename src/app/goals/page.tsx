@@ -58,7 +58,7 @@ export default function GoalsPage() {
   const achieved = (data?.goals || []).filter((g) => g.achieved)
 
   return (
-    <div className="min-h-screen bg-black pb-32">
+    <div className="min-h-screen bg-black pb-nav">
       <header className="sticky top-0 bg-black/95 backdrop-blur-lg border-b border-zinc-800 z-20">
         <div className="flex items-center gap-3 px-4 py-4">
           <Link href="/dashboard" className="p-1.5 -ml-1.5 text-zinc-400 hover:text-white">

@@ -346,7 +346,7 @@ export default async function WorkoutDetailPage({
   const program = Array.isArray(programData) ? programData[0] : programData
 
   return (
-    <div className="min-h-screen bg-black pb-24">
+    <div className="min-h-screen bg-black pb-nav">
       {/* Header */}
       <header className="bg-black border-b border-zinc-800">
         <div className="px-6 py-4">

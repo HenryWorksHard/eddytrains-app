@@ -173,7 +173,7 @@ export default async function SchedulePage() {
   })
 
   return (
-    <div className="min-h-screen bg-black pb-24">
+    <div className="min-h-screen bg-black pb-nav">
       <ScheduleClient 
         scheduleByDay={scheduleByDay}
         scheduleByWeekAndDay={scheduleByWeekAndDay}

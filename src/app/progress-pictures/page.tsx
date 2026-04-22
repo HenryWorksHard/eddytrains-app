@@ -20,7 +20,7 @@ export default async function ProgressPicturesPage() {
     .order('created_at', { ascending: false })
 
   return (
-    <div className="min-h-screen bg-black pb-24">
+    <div className="min-h-screen bg-black pb-nav">
       <ProgressPicturesClient initialImages={images || []} />
       <BottomNav />
     </div>

@@ -548,7 +548,7 @@ export default function LogClient({ scheduleByDay }: LogClientProps) {
       </header>
 
       {/* Content */}
-      <main className="px-4 py-4 pb-24">
+      <main className="px-4 py-4 pb-nav">
         {loadingHistory ? (
           // Loading historical data
           <div className="flex flex-col items-center justify-center py-16">

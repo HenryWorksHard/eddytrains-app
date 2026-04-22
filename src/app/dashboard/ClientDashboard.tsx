@@ -64,7 +64,7 @@ export default function ClientDashboard() {
   }
 
   return (
-    <div className="min-h-screen bg-black pb-32">
+    <div className="min-h-screen bg-black pb-nav">
       <ClientDashboardContent
         firstName={data.firstName}
         workoutsByDay={data.workoutsByDay}

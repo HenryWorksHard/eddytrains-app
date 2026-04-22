@@ -292,6 +292,18 @@ body {
   padding-top: env(safe-area-inset-top, 0);
 }
 
+/* Bottom-nav clearance helpers.
+   BottomNav is fixed bottom-0, 4rem tall, with additional padding-bottom =
+   env(safe-area-inset-bottom). Pages must reserve space below their content
+   so nothing is hidden behind the nav. Use .pb-nav on the outer wrapper.
+   Use .bottom-nav-button for any fixed floating button (like Complete Workout). */
+.pb-nav {
+  padding-bottom: calc(4rem + env(safe-area-inset-bottom, 0px) + 1rem);
+}
+.bottom-nav-button {
+  bottom: calc(4rem + env(safe-area-inset-bottom, 0px) + 0.5rem);
+}
+
 /* Animations */
 @keyframes slide-up {
   from {

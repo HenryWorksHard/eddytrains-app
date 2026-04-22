@@ -68,7 +68,7 @@ export default function TodayWorkoutPage() {
 
   // Show loading skeleton immediately
   return (
-    <div className="min-h-screen bg-black pb-24">
+    <div className="min-h-screen bg-black pb-nav">
       <header className="bg-black border-b border-zinc-800 animate-pulse">
         <div className="px-6 py-4">
           <div className="w-20 h-8 bg-zinc-800 rounded-lg"></div>

@@ -163,7 +163,7 @@ export default async function ProgramDetailPage({ params }: { params: Promise<{ 
   )
 
   return (
-    <div className="min-h-screen bg-black pb-32">
+    <div className="min-h-screen bg-black pb-nav">
       {/* Header */}
       <header className="bg-black border-b border-zinc-800">
         <div className="px-6 py-4">

@@ -36,7 +36,7 @@ export default function ClientPrograms() {
 
   if (data.clientPrograms.length === 0) {
     return (
-      <div className="min-h-screen bg-black pb-24">
+      <div className="min-h-screen bg-black pb-nav">
         <PageHeader title="Programs" />
         <main className="px-6 py-6">
           <div className="bg-zinc-900 border border-zinc-800 rounded-2xl p-8 text-center">
@@ -53,7 +53,7 @@ export default function ClientPrograms() {
   }
 
   return (
-    <div className="min-h-screen bg-black pb-24">
+    <div className="min-h-screen bg-black pb-nav">
       <PageHeader title="Programs" />
       <main className="px-6 py-6">
         <ClientProgramsContent 

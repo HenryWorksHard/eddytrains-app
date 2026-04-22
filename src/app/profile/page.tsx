@@ -265,7 +265,7 @@ export default function ProfilePage() {
   }
 
   return (
-    <div className="min-h-screen bg-black pb-24">
+    <div className="min-h-screen bg-black pb-nav">
       {/* Slide Out Menu */}
       <SlideOutMenu isOpen={menuOpen} onClose={() => setMenuOpen(false)} />
       
@@ -556,7 +556,7 @@ export default function ProfilePage() {
           <h2 className="text-sm font-medium text-zinc-500 uppercase tracking-wider mb-3">Support</h2>
           <div className="bg-zinc-900 border border-zinc-800 rounded-2xl overflow-hidden">
             <a 
-              href="mailto:support@compound.com"
+              href="mailto:contact@cmpdcollective.com"
               className="flex items-center justify-between px-4 py-4 border-b border-zinc-800 hover:bg-zinc-800/50 transition-colors"
             >
               <span className="text-white">Contact Support</span>

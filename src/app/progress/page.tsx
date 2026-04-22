@@ -36,7 +36,7 @@ export default function ProgressPage() {
   }
 
   return (
-    <div className="min-h-screen bg-black pb-24">
+    <div className="min-h-screen bg-black pb-nav">
       <PageHeader title="Progress" />
       <ProgressClient
         oneRMs={data.oneRMs}
