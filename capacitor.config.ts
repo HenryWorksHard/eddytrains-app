@@ -2,7 +2,7 @@ import type { CapacitorConfig } from '@capacitor/cli';
 
 const config: CapacitorConfig = {
   appId: 'com.eddytrains.app',
-  appName: 'EddyTrains',
+  appName: 'CMPD Fitness',
   webDir: 'out',
   server: {
     // Load from live URL in production
