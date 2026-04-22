@@ -88,8 +88,8 @@ export function SlideOutMenu({ isOpen, onClose }: SlideOutMenuProps) {
       />
       
       {/* Drawer */}
-      <div 
-        className={`fixed top-0 left-0 h-full w-72 bg-zinc-900 border-r border-zinc-800 z-50 transform transition-transform duration-300 ease-out ${
+      <div
+        className={`fixed top-0 left-0 h-full w-72 bg-zinc-900 border-r border-zinc-800 z-50 transform transition-transform duration-300 ease-out pt-[env(safe-area-inset-top)] ${
           isOpen ? 'translate-x-0' : '-translate-x-full'
         }`}
       >
