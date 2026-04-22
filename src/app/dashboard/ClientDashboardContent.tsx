@@ -316,8 +316,10 @@ export default function DashboardClient({ firstName, workoutsByDay, programCount
       {/* Slide Out Menu */}
       <SlideOutMenu isOpen={menuOpen} onClose={() => setMenuOpen(false)} />
       
-      {/* Header */}
-      <header className="relative bg-gradient-to-b from-zinc-900 to-black border-b border-zinc-800">
+      {/* Header - pure black to seamlessly meet the iOS status bar safe-area strip (body bg = #000).
+          Previously used `bg-gradient-to-b from-zinc-900 to-black` which painted a subtly lighter
+          band right below the status bar on iOS. */}
+      <header className="relative bg-black border-b border-zinc-800">
         <div className="px-4 pt-14 pb-4">
           {/* Greeting - Top */}
           <div className="text-center mb-4">
