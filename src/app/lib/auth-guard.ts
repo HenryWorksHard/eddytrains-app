@@ -119,7 +119,7 @@ export async function getEffectiveOrgIdStrict(ctx: AuthContext): Promise<string 
   const cookieStore = await cookies()
   const raw = cookieStore.get(IMPERSONATION_COOKIE)?.value
   if (raw && ctx.role === 'super_admin') {
-    const orgId = verifyImpersonationCookie(raw)
+    const orgId = await verifyImpersonationCookie(raw)
     if (orgId) return orgId
   }
   return ctx.organizationId

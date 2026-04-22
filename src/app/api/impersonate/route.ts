@@ -45,7 +45,7 @@ export async function POST(request: NextRequest) {
   }
 
   // Sign the value so a forged cookie cannot grant impersonation.
-  const signed = signImpersonationCookie(orgId)
+  const signed = await signImpersonationCookie(orgId)
 
   const response = NextResponse.json({ success: true, orgName: org.name })
   response.cookies.set(IMPERSONATION_COOKIE, signed, {

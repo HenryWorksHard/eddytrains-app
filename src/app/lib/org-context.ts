@@ -72,7 +72,7 @@ export async function getEffectiveOrgId(): Promise<string | null> {
   // Honor impersonation ONLY for super_admins with a valid signed cookie.
   const rawCookie = cookieStore.get(IMPERSONATION_COOKIE)?.value
   if (rawCookie && userProfile?.role === 'super_admin') {
-    const impersonatedOrg = verifyImpersonationCookie(rawCookie)
+    const impersonatedOrg = await verifyImpersonationCookie(rawCookie)
     if (impersonatedOrg) {
       return impersonatedOrg
     }

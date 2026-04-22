@@ -23,12 +23,12 @@ type CachedProfile = {
   trial_ends_at: string | null
 }
 
-function readCache(request: NextRequest): CachedProfile | null {
+async function readCache(request: NextRequest): Promise<CachedProfile | null> {
   const raw = request.cookies.get(PROFILE_CACHE_COOKIE)?.value
   if (!raw) return null
   // Signed-cookie path: `${base64url(json)}.${hmac}`. On signature failure,
   // treat as cache miss rather than trusting tampered content.
-  const verified = verifyPayload(raw)
+  const verified = await verifyPayload(raw)
   if (!verified) return null
   try {
     return JSON.parse(verified) as CachedProfile
@@ -37,8 +37,8 @@ function readCache(request: NextRequest): CachedProfile | null {
   }
 }
 
-function writeCache(response: NextResponse, data: CachedProfile) {
-  const signed = signPayload(JSON.stringify(data))
+async function writeCache(response: NextResponse, data: CachedProfile) {
+  const signed = await signPayload(JSON.stringify(data))
   response.cookies.set(PROFILE_CACHE_COOKIE, signed, {
     httpOnly: true,
     sameSite: 'lax',
@@ -76,7 +76,7 @@ export async function middleware(request: NextRequest) {
 
   const pathname = request.nextUrl.pathname
 
-  const publicRoutes = ['/login', '/signup', '/reset-password', '/auth/callback', '/join', '/api/exercises', '/accept-invite', '/api/accept-invite']
+  const publicRoutes = ['/login', '/signup', '/reset-password', '/auth/callback', '/join', '/api/exercises', '/accept-invite', '/api/accept-invite', '/privacy']
   const isPublicRoute = publicRoutes.some(route => pathname.startsWith(route))
 
   if (!user && !isPublicRoute) {
@@ -98,7 +98,7 @@ export async function middleware(request: NextRequest) {
   }
 
   // Try the cache first. On cache hit: zero DB roundtrips for this navigation.
-  let profile = readCache(request)
+  let profile = await readCache(request)
 
   if (!profile) {
     const { data } = await supabase
@@ -134,7 +134,7 @@ export async function middleware(request: NextRequest) {
       trial_ends_at,
     }
 
-    writeCache(supabaseResponse, profile)
+    await writeCache(supabaseResponse, profile)
   }
 
   // Force password reset if the client hasn't set theirs yet.
