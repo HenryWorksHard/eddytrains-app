@@ -245,17 +245,14 @@ export default function ScheduleClient({ scheduleByDay, scheduleByWeekAndDay, co
     <>
       {/* Slide Out Menu */}
       <SlideOutMenu isOpen={menuOpen} onClose={() => setMenuOpen(false)} />
-      
-      {/* Header */}
-      <header className="sticky top-0 bg-black/95 backdrop-blur-lg border-b border-zinc-800 z-40">
-        <div className="flex items-center justify-between px-4 h-14">
-          <HamburgerButton onClick={() => setMenuOpen(true)} />
-          <h1 className="text-lg font-semibold text-white">Schedule</h1>
-          <div className="w-10" />
-        </div>
-      </header>
 
-      <main className="px-6 py-6 space-y-8">
+      {/* Sticky hamburger — only the button floats at top, page content scrolls normally. */}
+      <div className="fixed top-0 left-0 right-0 z-30 bg-black flex items-center px-4 py-2" style={{ paddingTop: 'calc(env(safe-area-inset-top) + 0.5rem)' }}>
+        <HamburgerButton onClick={() => setMenuOpen(true)} />
+      </div>
+
+      <main className="px-6 pt-14 pb-6 space-y-8">
+        <h1 className="text-2xl font-bold text-white text-center">Schedule</h1>
         {/* Weekly Schedule */}
         <section>
           <h2 className="text-sm font-medium text-zinc-500 uppercase tracking-wider mb-4">This Week</h2>
