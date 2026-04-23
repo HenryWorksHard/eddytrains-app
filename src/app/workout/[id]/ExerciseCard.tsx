@@ -572,7 +572,7 @@ function ExerciseCardInner({
             
             {/* Exercise Name */}
             <div className="flex-1 min-w-0 flex items-center gap-1.5">
-              <h3 className="font-semibold text-white text-sm truncate">{currentExerciseName}</h3>
+              <h3 className="font-semibold text-white text-sm leading-tight line-clamp-2 break-words">{currentExerciseName}</h3>
               {currentExerciseName !== exerciseName && (
                 <span className="px-1.5 py-0.5 bg-yellow-500/20 text-yellow-400 text-[10px] rounded flex-shrink-0">
                   Swapped

@@ -1,7 +1,6 @@
 'use client'
 
 import { useState } from 'react'
-import { createClient } from '../lib/supabase/client'
 import Link from 'next/link'
 
 export default function ResetPasswordPage() {
@@ -15,19 +14,19 @@ export default function ResetPasswordPage() {
     setLoading(true)
     setError('')
 
-    const supabase = createClient()
-    
-    const { error } = await supabase.auth.resetPasswordForEmail(email, {
-      redirectTo: `${window.location.origin}/update-password`
-    })
-
-    if (error) {
-      setError(error.message)
-    } else {
+    try {
+      const res = await fetch('/api/auth/send-password-reset', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email }),
+      })
+      if (!res.ok) throw new Error('Failed to send reset email')
       setSent(true)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to send reset email')
+    } finally {
+      setLoading(false)
     }
-    
-    setLoading(false)
   }
 
   if (sent) {

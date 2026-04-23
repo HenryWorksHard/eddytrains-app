@@ -38,8 +38,12 @@ function getAppUrl() {
   return process.env.NEXT_PUBLIC_APP_URL || 'https://app.cmpdcollective.com'
 }
 
-function getFromInvite() {
-  return process.env.RESEND_FROM_INVITE || 'eddy@cmpdcollective.com'
+function getFromAddress() {
+  return (
+    process.env.RESEND_FROM_ADDRESS ||
+    process.env.RESEND_FROM_INVITE ||
+    'app@cmpdcollective.com'
+  )
 }
 
 /**
@@ -152,7 +156,7 @@ export async function sendInviteEmail({
     : 'Your CMPD Fitness account is ready'
 
   const result = await resend.emails.send({
-    from: getFromInvite(),
+    from: getFromAddress(),
     to: email,
     replyTo: await getReplyTo(),
     subject,
@@ -238,7 +242,7 @@ export async function sendAccessRestoredEmail({
   `
 
   const result = await resend.emails.send({
-    from: getFromInvite(),
+    from: getFromAddress(),
     to: email,
     replyTo: await getReplyTo(),
     subject: 'Your CMPD Fitness app access has been restored',
@@ -327,7 +331,7 @@ export async function sendAccessPausedEmail({
   `
 
   const result = await resend.emails.send({
-    from: getFromInvite(),
+    from: getFromAddress(),
     to: email,
     replyTo: await getReplyTo(),
     subject: 'Your CMPD Fitness app access has been paused',
@@ -437,12 +441,102 @@ export async function sendPasswordChangedEmail({
   `
 
   const result = await resend.emails.send({
-    from: getFromInvite(),
+    from: getFromAddress(),
     to: email,
     replyTo: await getReplyTo(),
     subject: 'Your CMPD Fitness password was changed',
     html,
     tags: [{ name: 'template', value: 'password_changed' }],
+  })
+
+  if (result.error) {
+    throw new Error(`Resend error: ${result.error.message}`)
+  }
+
+  return { id: result.data?.id }
+}
+
+/**
+ * Sent when a user requests a password reset from /reset-password.
+ * `resetLink` is a Supabase recovery link generated server-side via
+ * auth.admin.generateLink — it lands on /update-password with the
+ * recovery session attached.
+ */
+export async function sendPasswordResetEmail({
+  email,
+  fullName,
+  resetLink,
+}: {
+  email: string
+  fullName?: string | null
+  resetLink: string
+}): Promise<{ id: string | null | undefined; skipped?: boolean }> {
+  if (!(await isEmailEnabled('password_reset'))) {
+    return { id: null, skipped: true }
+  }
+  const resend = getResend()
+  const logoUrl = `${getAppUrl()}/logo.svg`
+  const greeting = fullName ? `Hi ${fullName.split(' ')[0]},` : 'Hi,'
+
+  const html = `
+    <!doctype html>
+    <html>
+      <body style="margin:0; padding:0; background:#0a0a0a; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;">
+        <table width="100%" cellpadding="0" cellspacing="0" style="background:#0a0a0a; padding:48px 24px;">
+          <tr>
+            <td align="center">
+              <table width="560" cellpadding="0" cellspacing="0" style="max-width:560px; background:#18181b; border-radius:16px; padding:40px;">
+                <tr>
+                  <td style="padding-bottom:24px;">
+                    <div style="width:56px; height:56px; border-radius:14px; background:#000; display:inline-block; overflow:hidden; text-align:center;">
+                      <img src="${logoUrl}" alt="CMPD" width="56" height="56" style="display:block; width:56px; height:56px; border-radius:14px;" />
+                    </div>
+                  </td>
+                </tr>
+                <tr>
+                  <td style="color:#fff; font-size:24px; font-weight:700; padding-bottom:16px;">
+                    Reset your password.
+                  </td>
+                </tr>
+                <tr>
+                  <td style="color:#d4d4d8; font-size:16px; line-height:1.6; padding-bottom:24px;">
+                    ${greeting}<br><br>
+                    We got a request to reset your CMPD Fitness password. Click the button below to set a new one.
+                  </td>
+                </tr>
+                <tr>
+                  <td style="padding-bottom:24px;">
+                    <a href="${resetLink}" style="display:inline-block; background:#facc15; color:#000; padding:14px 28px; border-radius:12px; font-weight:700; text-decoration:none; font-size:16px;">
+                      Set new password
+                    </a>
+                  </td>
+                </tr>
+                <tr>
+                  <td style="color:#71717a; font-size:13px; line-height:1.5; padding-bottom:16px;">
+                    Or copy this link into your browser:<br>
+                    <span style="color:#a1a1aa; word-break:break-all;">${resetLink}</span>
+                  </td>
+                </tr>
+                <tr>
+                  <td style="color:#52525b; font-size:12px; line-height:1.5; border-top:1px solid #27272a; padding-top:16px;">
+                    This link expires in 1 hour. If you didn't request a reset, you can safely ignore this email — your password won't change.
+                  </td>
+                </tr>
+              </table>
+            </td>
+          </tr>
+        </table>
+      </body>
+    </html>
+  `
+
+  const result = await resend.emails.send({
+    from: getFromAddress(),
+    to: email,
+    replyTo: await getReplyTo(),
+    subject: 'Reset your CMPD Fitness password',
+    html,
+    tags: [{ name: 'template', value: 'password_reset' }],
   })
 
   if (result.error) {
@@ -534,7 +628,7 @@ export async function sendProgramAssignedEmail({
     : 'A new program is ready for you'
 
   const result = await resend.emails.send({
-    from: getFromInvite(),
+    from: getFromAddress(),
     to: email,
     replyTo: await getReplyTo(),
     subject,
@@ -627,7 +721,7 @@ export async function sendWelcomeAfterSignupEmail({
   `
 
   const result = await resend.emails.send({
-    from: getFromInvite(),
+    from: getFromAddress(),
     to: email,
     replyTo: await getReplyTo(),
     subject: 'Welcome to CMPD Fitness — your account is ready',
