@@ -3,6 +3,29 @@ import { Resend } from 'resend'
 // Transactional email via Resend.
 // Replaces the previous Klaviyo integration (removed 2026-04-20).
 
+/**
+ * Per-template enable/disable check. Driven by the email_template_settings
+ * table (managed via /platform/emails). Defaults to TRUE on any error so a
+ * config glitch never silently kills all transactional email.
+ */
+async function isEmailEnabled(name: string): Promise<boolean> {
+  try {
+    const url = process.env.NEXT_PUBLIC_SUPABASE_URL!
+    const key = process.env.SUPABASE_SERVICE_ROLE_KEY!
+    const { createClient } = await import('@supabase/supabase-js')
+    const admin = createClient(url, key, { auth: { persistSession: false } })
+    const { data } = await admin
+      .from('email_template_settings')
+      .select('enabled')
+      .eq('name', name)
+      .maybeSingle()
+    return data?.enabled !== false
+  } catch (e) {
+    console.error('[email] isEmailEnabled check failed, defaulting to true:', e)
+    return true
+  }
+}
+
 function getResend() {
   const key = process.env.RESEND_API_KEY
   if (!key) {
@@ -37,7 +60,10 @@ export async function sendInviteEmail({
   token,
   trainerName,
   orgName,
-}: SendInviteArgs) {
+}: SendInviteArgs): Promise<{ id: string | null | undefined; skipped?: boolean }> {
+  if (!(await isEmailEnabled('invite'))) {
+    return { id: null, skipped: true }
+  }
   const resend = getResend()
   const link = `${getAppUrl()}/accept-invite?token=${token}`
   const logoUrl = `${getAppUrl()}/logo.svg`
@@ -131,7 +157,10 @@ export async function sendAccessRestoredEmail({
   email: string
   fullName?: string | null
   trainerName?: string | null
-}) {
+}): Promise<{ id: string | null | undefined; skipped?: boolean }> {
+  if (!(await isEmailEnabled('access_restored'))) {
+    return { id: null, skipped: true }
+  }
   const resend = getResend()
   const logoUrl = `${getAppUrl()}/logo.svg`
   const appUrl = getAppUrl()
@@ -214,7 +243,10 @@ export async function sendAccessPausedEmail({
   email: string
   fullName?: string | null
   trainerName?: string | null
-}) {
+}): Promise<{ id: string | null | undefined; skipped?: boolean }> {
+  if (!(await isEmailEnabled('access_paused'))) {
+    return { id: null, skipped: true }
+  }
   const resend = getResend()
   const logoUrl = `${getAppUrl()}/logo.svg`
   const greeting = fullName ? `Hi ${fullName.split(' ')[0]},` : 'Hi,'

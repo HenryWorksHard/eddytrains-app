@@ -20,6 +20,7 @@ import {
   Building2,
   Shield,
   UserCheck,
+  Mail,
   Menu,
   X,
 } from 'lucide-react'
@@ -32,6 +33,7 @@ const superAdminNavItems = [
   { name: 'Platform', href: '/platform', icon: Shield },
   { name: 'Companies', href: '/platform/companies', icon: Building2 },
   { name: 'Trainers', href: '/platform/trainers', icon: UserCheck },
+  { name: 'Emails', href: '/platform/emails', icon: Mail },
   { name: 'Settings', href: '/settings', icon: Settings },
 ]
 
