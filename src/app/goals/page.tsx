@@ -52,7 +52,7 @@ export default function GoalsPage() {
   })
   const [adding, setAdding] = useState(false)
 
-  if (isLoading && !data) return <AppLoading />
+  if (!data) return <AppLoading />
 
   const active = (data?.goals || []).filter((g) => !g.achieved)
   const achieved = (data?.goals || []).filter((g) => g.achieved)
@@ -132,9 +132,14 @@ export default function GoalsPage() {
 function GoalCard({ goal, onChange }: { goal: Goal; onChange: () => void }) {
   const [updating, setUpdating] = useState(false)
   const [customValue, setCustomValue] = useState<string>('')
+  // Optimistic override of current_value while the PATCH is in flight.
+  // Cleared on success (parent SWR refetch supersedes us) or on error.
+  const [optimisticValue, setOptimisticValue] = useState<number | null>(null)
+  const [updateError, setUpdateError] = useState<string | null>(null)
+  const displayValue = optimisticValue ?? goal.current_value
   const pct =
     goal.target_value && goal.target_value > 0
-      ? Math.min(100, Math.round((goal.current_value / goal.target_value) * 100))
+      ? Math.min(100, Math.round((displayValue / goal.target_value) * 100))
       : null
 
   const handleDelete = async () => {
@@ -148,15 +153,28 @@ function GoalCard({ goal, onChange }: { goal: Goal; onChange: () => void }) {
   const handleCustomUpdate = async () => {
     const n = Number(customValue)
     if (Number.isNaN(n)) return
-    setUpdating(true)
-    await fetch(`/api/goals/${goal.id}`, {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ current_value: n }),
-    })
-    setUpdating(false)
+    // Flip the displayed number/bar instantly. The PATCH happens in the
+    // background; on failure we revert and surface a small inline error.
+    setOptimisticValue(n)
+    setUpdateError(null)
     setCustomValue('')
-    onChange()
+    setUpdating(true)
+    try {
+      const res = await fetch(`/api/goals/${goal.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ current_value: n }),
+      })
+      if (!res.ok) throw new Error('failed')
+      // Re-fetch goals so server-side fields (achieved, achieved_at) sync.
+      onChange()
+      setOptimisticValue(null)
+    } catch {
+      setOptimisticValue(null)
+      setUpdateError("Couldn't update — try again")
+    } finally {
+      setUpdating(false)
+    }
   }
 
   return (
@@ -195,7 +213,7 @@ function GoalCard({ goal, onChange }: { goal: Goal; onChange: () => void }) {
         <div>
           <div className="flex items-baseline justify-between mb-1">
             <span className="text-white font-semibold tabular-nums text-sm">
-              {goal.current_value}
+              {displayValue}
               <span className="text-zinc-500 font-normal"> / {goal.target_value}</span>
             </span>
             {pct !== null && <span className="text-xs text-zinc-500 tabular-nums">{pct}%</span>}
@@ -213,22 +231,27 @@ function GoalCard({ goal, onChange }: { goal: Goal; onChange: () => void }) {
 
       {/* Manual-update input for custom / body_weight goals */}
       {!goal.achieved && (goal.kind === 'custom' || goal.kind === 'body_weight') && (
-        <div className="flex items-center gap-2 mt-3">
-          <input
-            type="number"
-            inputMode="decimal"
-            value={customValue}
-            onChange={(e) => setCustomValue(e.target.value)}
-            placeholder={`Current (${goal.current_value})`}
-            className="flex-1 px-3 py-2 bg-zinc-800 border border-zinc-700 rounded-lg text-white text-sm placeholder-zinc-500 focus:outline-none focus:ring-1 focus:ring-yellow-400"
-          />
-          <button
-            onClick={handleCustomUpdate}
-            disabled={updating || customValue === ''}
-            className="px-3 py-2 bg-zinc-800 hover:bg-zinc-700 text-white text-sm rounded-lg disabled:opacity-50"
-          >
-            Update
-          </button>
+        <div className="mt-3">
+          <div className="flex items-center gap-2">
+            <input
+              type="number"
+              inputMode="decimal"
+              value={customValue}
+              onChange={(e) => setCustomValue(e.target.value)}
+              placeholder={`Current (${displayValue})`}
+              className="flex-1 px-3 py-2 bg-zinc-800 border border-zinc-700 rounded-lg text-white text-sm placeholder-zinc-500 focus:outline-none focus:ring-1 focus:ring-yellow-400"
+            />
+            <button
+              onClick={handleCustomUpdate}
+              disabled={updating || customValue === ''}
+              className="px-3 py-2 bg-zinc-800 hover:bg-zinc-700 text-white text-sm rounded-lg disabled:opacity-50"
+            >
+              Update
+            </button>
+          </div>
+          {updateError && (
+            <p className="mt-2 text-xs text-red-400">{updateError}</p>
+          )}
         </div>
       )}
     </div>

@@ -30,7 +30,7 @@ export default function ClientPrograms() {
     }
   }, [error, router])
 
-  if (isLoading || !data) {
+  if (!data) {
     return <AppLoading />
   }
 

@@ -31,7 +31,7 @@ export default function ProgressPage() {
     }
   }, [error, router])
 
-  if (isLoading || !data) {
+  if (!data) {
     return <AppLoading />
   }
 

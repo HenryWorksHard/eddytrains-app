@@ -157,6 +157,9 @@ export default function WorkoutClient({ workoutId, exercises, oneRMs, personalBe
   const [setLogs, setSetLogs] = useState<Map<string, SetLog>>(new Map())
   const [previousLogs, setPreviousLogs] = useState<Map<string, PreviousSetLog[]>>(new Map())
   const [saving, setSaving] = useState(false)
+  // Surface only on hard save failures — keeps the autosave loop silent
+  // during normal happy-path saves. See SaveIndicator for rationale.
+  const [saveError, setSaveError] = useState(false)
   const [workoutLogId, setWorkoutLogId] = useState<string | null>(null)
   const [swappedExercises, setSwappedExercises] = useState<Map<string, SwappedExercise>>(new Map())
   // EMOM round tracking: finisherId -> Set of completed round numbers
@@ -460,7 +463,8 @@ export default function WorkoutClient({ workoutId, exercises, oneRMs, personalBe
     
     isSavingRef.current = true
     setSaving(true)
-    
+    setSaveError(false)
+
     console.log('[saveWorkoutLogs] Starting save for workout:', workoutId)
     console.log('[saveWorkoutLogs] Logs to save:', Array.from(logsToProcess.values()))
     
@@ -577,6 +581,7 @@ export default function WorkoutClient({ workoutId, exercises, oneRMs, personalBe
       }
     } catch (err) {
       console.error('[saveWorkoutLogs] ❌ Failed to save workout logs:', err)
+      setSaveError(true)
     } finally {
       isSavingRef.current = false
       setSaving(false)
@@ -643,7 +648,7 @@ export default function WorkoutClient({ workoutId, exercises, oneRMs, personalBe
     <div className="space-y-3 relative">
       {/* Floating auto-save indicator */}
       <div className="sticky top-2 z-20 flex justify-end pointer-events-none">
-        <SaveIndicator saving={saving} />
+        <SaveIndicator saving={saving} error={saveError} />
       </div>
 
       {exerciseGroups.map((group, groupIndex) => {
@@ -848,13 +853,8 @@ export default function WorkoutClient({ workoutId, exercises, oneRMs, personalBe
         )
       })}
       
-      {/* Auto-save indicator */}
-      {saving && (
-        <div className="fixed bottom-24 left-1/2 -translate-x-1/2 bg-zinc-800 text-zinc-300 px-4 py-2 rounded-full text-sm flex items-center gap-2">
-          <div className="w-2 h-2 bg-yellow-400 rounded-full animate-pulse" />
-          Saving...
-        </div>
-      )}
+      {/* Auto-save indicator: silent on happy path. Errors surface via the
+          sticky SaveIndicator at the top of the workout list. */}
     </div>
   )
 }

@@ -161,6 +161,8 @@ export default function CompleteWorkoutButton({
   isCompleted: initialCompleted = false 
 }: CompleteWorkoutButtonProps) {
   const [isCompleted, setIsCompleted] = useState(initialCompleted)
+  const [optimisticComplete, setOptimisticComplete] = useState(false)
+  const [optimisticError, setOptimisticError] = useState<string | null>(null)
   const [isFirstRating, setIsFirstRating] = useState(false)
   const [isLoading, setIsLoading] = useState(false)
   const [isVisible, setIsVisible] = useState(false)
@@ -203,6 +205,11 @@ export default function CompleteWorkoutButton({
 
   const submitWorkoutCompletion = async (rating?: WorkoutRating) => {
     setIsSubmittingRating(true)
+    // Optimistically flip to completed state IMMEDIATELY so the inline
+    // button shows the green check + "Completed" without a spinner flash.
+    // If the POST below errors we'll revert and surface the error.
+    setOptimisticComplete(true)
+    setOptimisticError(null)
     try {
       const { data: { user } } = await supabase.auth.getUser()
       if (!user) return
@@ -292,6 +299,9 @@ export default function CompleteWorkoutButton({
       }, 1500)
     } catch (error) {
       console.error('Failed to complete workout:', error)
+      // Revert optimistic state so the user can retry.
+      setOptimisticComplete(false)
+      setOptimisticError("Couldn't save — tap to retry")
     } finally {
       setIsSubmittingRating(false)
       setIsLoading(false)
@@ -341,6 +351,27 @@ export default function CompleteWorkoutButton({
     )
   }
 
+  // Optimistic "Completed" state — shown the instant the user taps Done in
+  // the rating modal, before the network round-trip resolves. Same green
+  // styling as a real completed workout so there's no visible flash. If the
+  // request fails we revert (optimisticComplete back to false) and surface
+  // the error in the main yellow button below.
+  if (optimisticComplete && !isCompleted) {
+    return (
+      <div className="px-4 mt-6 mb-8">
+        <button
+          disabled
+          className="w-full bg-green-500 text-black py-4 px-6 rounded-2xl font-semibold flex items-center justify-center gap-2 shadow-lg shadow-green-500/20"
+        >
+          <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7" />
+          </svg>
+          Completed
+        </button>
+      </div>
+    )
+  }
+
   return (
     <>
       <div
@@ -350,6 +381,11 @@ export default function CompleteWorkoutButton({
             : 'opacity-0 translate-y-4 pointer-events-none'
         }`}
       >
+        {optimisticError && (
+          <div className="mb-2 px-3 py-2 bg-red-500/10 border border-red-500/30 text-red-400 text-xs rounded-lg text-center">
+            {optimisticError}
+          </div>
+        )}
         <button
           onClick={handleComplete}
           disabled={isLoading}

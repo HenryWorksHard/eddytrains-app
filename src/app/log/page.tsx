@@ -28,7 +28,7 @@ export default function LogPage() {
     }
   }, [error, router])
 
-  if (isLoading || !data) {
+  if (!data) {
     return <AppLoading />
   }
 

@@ -57,7 +57,7 @@ export default function ClientDashboard() {
     }
   }, [error, router, dashboardUrl])
 
-  if (isLoading || !data) {
+  if (!data) {
     return (
       <AppLoading message="Loading your dashboard..." />
     )
