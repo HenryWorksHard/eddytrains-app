@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback, useRef } from 'react'
 import { createClient } from '../../lib/supabase/client'
 import ExerciseCard from './ExerciseCard'
 import SaveIndicator from '../../components/SaveIndicator'
+import { formatDateToString } from '../../lib/dateUtils'
 
 interface ExerciseSet {
   set_number: number
@@ -213,7 +214,7 @@ export default function WorkoutClient({ workoutId, exercises, oneRMs, personalBe
       .select('id')
       .eq('client_id', user.id)
       .eq('workout_id', workoutId)
-      .eq('scheduled_date', scheduledDate || new Date().toISOString().split('T')[0])
+      .eq('scheduled_date', scheduledDate || formatDateToString(new Date()))
       .order('created_at', { ascending: false })
       .limit(1)
       .maybeSingle()
@@ -254,7 +255,7 @@ export default function WorkoutClient({ workoutId, exercises, oneRMs, personalBe
     console.log('[loadPreviousLogs] Loading for workout:', workoutId)
 
     // Get the scheduled date to EXCLUDE from previous logs
-    const viewingDateStr = scheduledDate || new Date().toISOString().split('T')[0]
+    const viewingDateStr = scheduledDate || formatDateToString(new Date())
     const viewingDateStart = new Date(viewingDateStr + 'T00:00:00')
 
     const logsByExercise = new Map<string, PreviousSetLog[]>()
@@ -495,7 +496,7 @@ export default function WorkoutClient({ workoutId, exercises, oneRMs, personalBe
             client_id: user.id,
             workout_id: workoutId,
             completed_at: new Date().toISOString(),
-            scheduled_date: scheduledDate || new Date().toISOString().split('T')[0]
+            scheduled_date: scheduledDate || formatDateToString(new Date())
           }
           console.log('[saveWorkoutLogs] Creating new workout_log:', insertData)
           

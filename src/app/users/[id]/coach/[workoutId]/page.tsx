@@ -485,7 +485,16 @@ export default function CoachSessionPage() {
         }
       }
 
-      // Call API to save session (uses admin client to bypass RLS)
+      // Resolve today's date in the trainer's local timezone (YYYY-MM-DD).
+      // Vercel runs in UTC so deriving on the server would roll over early
+      // for AU/SA trainers — derive on the client instead.
+      const now = new Date()
+      const scheduledDate = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`
+
+      // Call API to save session (uses admin client to bypass RLS).
+      // NOTE: API expects `sets` + `notes` (not `setLogs` + `sessionNotes`)
+      // and requires `scheduledDate` so the workout_completion + workout_log
+      // land on the right calendar day.
       const response = await fetch('/api/coaching/complete', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -493,8 +502,11 @@ export default function CoachSessionPage() {
           clientId,
           workoutId,
           clientProgramId,
-          sessionNotes: sessionNotes.trim() || null,
-          setLogs: setLogsArray,
+          trainerId,
+          scheduledDate,
+          completedAt: new Date().toISOString(),
+          notes: sessionNotes.trim() || null,
+          sets: setLogsArray,
           exercises: exercises.map(e => ({ id: e.id, exercise_name: e.exercise_name }))
         })
       })

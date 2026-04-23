@@ -52,24 +52,62 @@ export async function POST(request: NextRequest) {
     const resolvedScheduledDate: string =
       scheduledDate || completedAt?.split('T')[0] || formatDateToString(new Date())
 
-    // Create workout log (include scheduled_date for lookup)
-    const { data: workoutLog, error: logError } = await adminClient
-      .from('workout_logs')
-      .insert({
-        client_id: clientId,
-        workout_id: workoutId,
-        trainer_id: trainerId || null,
-        completed_at: completedAt || new Date().toISOString(),
-        scheduled_date: resolvedScheduledDate,
-        notes: notes || null,
-        rating: rating || null
-      })
-      .select()
-      .single()
+    // Find or create workout log for (client, workout, scheduled_date).
+    // Unique constraint on (client_id, workout_id, scheduled_date) means a
+    // second coach session on the same day must UPDATE, not INSERT.
+    let workoutLog: { id: string } | null = null
+    {
+      const { data: existing } = await adminClient
+        .from('workout_logs')
+        .select('id')
+        .eq('client_id', clientId)
+        .eq('workout_id', workoutId)
+        .eq('scheduled_date', resolvedScheduledDate)
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .maybeSingle()
 
-    if (logError) {
-      console.error('Error creating workout log:', logError)
-      throw logError
+      if (existing) {
+        const { data: updated, error: updErr } = await adminClient
+          .from('workout_logs')
+          .update({
+            trainer_id: trainerId || null,
+            completed_at: completedAt || new Date().toISOString(),
+            notes: notes || null,
+            rating: rating || null
+          })
+          .eq('id', existing.id)
+          .select('id')
+          .single()
+        if (updErr) {
+          console.error('Error updating workout log:', updErr)
+          throw updErr
+        }
+        workoutLog = updated
+      } else {
+        const { data: inserted, error: logError } = await adminClient
+          .from('workout_logs')
+          .insert({
+            client_id: clientId,
+            workout_id: workoutId,
+            trainer_id: trainerId || null,
+            completed_at: completedAt || new Date().toISOString(),
+            scheduled_date: resolvedScheduledDate,
+            notes: notes || null,
+            rating: rating || null
+          })
+          .select('id')
+          .single()
+        if (logError) {
+          console.error('Error creating workout log:', logError)
+          throw logError
+        }
+        workoutLog = inserted
+      }
+    }
+
+    if (!workoutLog) {
+      throw new Error('Failed to resolve workout_log')
     }
 
     // Create set logs with user_id and exercise_uuid for proper history lookup
@@ -95,12 +133,17 @@ export async function POST(request: NextRequest) {
         reps_completed: set.reps_completed || null
       }))
 
+      // Upsert: a rerun on the same workout_log replaces the prior set values
+      // rather than 23505'ing on the (workout_log_id, exercise_id, set_number)
+      // unique constraint.
       const { error: setsError } = await adminClient
         .from('set_logs')
-        .insert(setLogsToInsert)
+        .upsert(setLogsToInsert, {
+          onConflict: 'workout_log_id,exercise_id,set_number'
+        })
 
       if (setsError) {
-        console.error('Error creating set logs:', setsError)
+        console.error('Error upserting set logs:', setsError)
       }
     }
 
