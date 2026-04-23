@@ -6,7 +6,7 @@ import useSWR from 'swr'
 import BottomNav from '../components/BottomNav'
 import PageHeader from '../components/PageHeader'
 import ClientProgramsContent from './ClientProgramsContent'
-import AppLoading from '@/components/AppLoading'
+import ProgramsSkeleton from '@/components/skeletons/ProgramsSkeleton'
 
 const fetcher = (url: string) => fetch(url).then(res => {
   if (!res.ok) throw new Error('Failed to fetch')
@@ -31,7 +31,7 @@ export default function ClientPrograms() {
   }, [error, router])
 
   if (!data) {
-    return <AppLoading />
+    return <ProgramsSkeleton />
   }
 
   if (data.clientPrograms.length === 0) {

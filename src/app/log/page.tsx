@@ -4,7 +4,7 @@ import { useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import useSWR from 'swr'
 import LogClient from './LogClient'
-import AppLoading from '@/components/AppLoading'
+import LogSkeleton from '@/components/skeletons/LogSkeleton'
 
 const fetcher = (url: string) => fetch(url).then(res => {
   if (!res.ok) throw new Error('Failed to fetch')
@@ -29,7 +29,7 @@ export default function LogPage() {
   }, [error, router])
 
   if (!data) {
-    return <AppLoading />
+    return <LogSkeleton />
   }
 
   return <LogClient scheduleByDay={data.scheduleByDay} />

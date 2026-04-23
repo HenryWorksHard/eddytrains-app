@@ -6,7 +6,7 @@ import useSWR from 'swr'
 import BottomNav from '../components/BottomNav'
 import PageHeader from '../components/PageHeader'
 import ProgressClient from './ProgressClient'
-import AppLoading from '@/components/AppLoading'
+import ProgressSkeleton from '@/components/skeletons/ProgressSkeleton'
 
 const fetcher = (url: string) => fetch(url).then(res => {
   if (!res.ok) throw new Error('Failed to fetch')
@@ -32,7 +32,7 @@ export default function ProgressPage() {
   }, [error, router])
 
   if (!data) {
-    return <AppLoading />
+    return <ProgressSkeleton />
   }
 
   return (

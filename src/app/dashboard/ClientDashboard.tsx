@@ -6,7 +6,7 @@ import useSWR from 'swr'
 import BottomNav from '../components/BottomNav'
 import ClientDashboardContent from './ClientDashboardContent'
 import { formatDateToString } from '../lib/dateUtils'
-import AppLoading from '@/components/AppLoading'
+import DashboardSkeleton from '@/components/skeletons/DashboardSkeleton'
 
 const fetcher = (url: string) => fetch(url).then(res => {
   if (!res.ok) throw new Error('Failed to fetch')
@@ -58,9 +58,7 @@ export default function ClientDashboard() {
   }, [error, router, dashboardUrl])
 
   if (!data) {
-    return (
-      <AppLoading message="Loading your dashboard..." />
-    )
+    return <DashboardSkeleton />
   }
 
   return (

@@ -5,7 +5,7 @@ import Link from 'next/link'
 import useSWR from 'swr'
 import { ArrowLeft, Plus, Target, Trash2, Check, Loader2, X } from 'lucide-react'
 import BottomNav from '../components/BottomNav'
-import AppLoading from '@/components/AppLoading'
+import GoalsSkeleton from '@/components/skeletons/GoalsSkeleton'
 
 type Goal = {
   id: string
@@ -52,7 +52,7 @@ export default function GoalsPage() {
   })
   const [adding, setAdding] = useState(false)
 
-  if (!data) return <AppLoading />
+  if (!data) return <GoalsSkeleton />
 
   const active = (data?.goals || []).filter((g) => !g.achieved)
   const achieved = (data?.goals || []).filter((g) => g.achieved)
