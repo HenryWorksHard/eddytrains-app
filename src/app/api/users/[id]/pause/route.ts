@@ -1,6 +1,7 @@
 import { createClient } from '@supabase/supabase-js'
 import { NextRequest, NextResponse } from 'next/server'
 import { getAuthContext, unauthorized, forbidden, authorizeUserAccess, isTrainerRole } from '@/app/lib/auth-guard'
+import { sendAccessPausedEmail } from '@/app/lib/email'
 
 function getAdminClient() {
   return createClient(
@@ -63,7 +64,42 @@ export async function PATCH(
       return NextResponse.json({ error: 'Failed to update access' }, { status: 500 })
     }
 
-    return NextResponse.json({ success: true, access_paused: paused })
+    // On PAUSE only (not unpause): notify the client via Resend so they know
+    // why the app stopped working. Fire-and-forget — we don't fail the toggle
+    // if the email send hiccups (the trainer can always re-trigger or DM).
+    let emailSent = false
+    let emailError: string | null = null
+    if (paused) {
+      try {
+        // Fetch client email + name + trainer name for the template.
+        const [{ data: clientAuth }, { data: clientProfile }, { data: trainerProfile }] = await Promise.all([
+          admin.auth.admin.getUserById(profile.id),
+          admin.from('profiles').select('full_name').eq('id', profile.id).single(),
+          admin.from('profiles').select('full_name').eq('id', ctx.userId).single(),
+        ])
+        const toEmail = clientAuth?.user?.email
+        if (toEmail) {
+          await sendAccessPausedEmail({
+            email: toEmail,
+            fullName: clientProfile?.full_name ?? null,
+            trainerName: trainerProfile?.full_name ?? null,
+          })
+          emailSent = true
+        } else {
+          emailError = 'Client has no email on record'
+        }
+      } catch (e) {
+        console.error('[pause] email send error:', e)
+        emailError = e instanceof Error ? e.message : 'Email send failed'
+      }
+    }
+
+    return NextResponse.json({
+      success: true,
+      access_paused: paused,
+      emailSent,
+      emailError,
+    })
   } catch (error) {
     console.error('[pause] error:', error)
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
