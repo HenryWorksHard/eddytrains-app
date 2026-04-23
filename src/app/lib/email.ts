@@ -43,7 +43,10 @@ function getFromInvite() {
 }
 
 function getReplyTo() {
-  return process.env.RESEND_REPLY_TO || 'eddy@cmpdcollective.com'
+  // Where client replies to any transactional email land. Set
+  // RESEND_REPLY_TO in Vercel to override; the fallback is the inbox we
+  // currently watch for support questions.
+  return process.env.RESEND_REPLY_TO || 'cmpdcollective@gmail.com'
 }
 
 type SendInviteArgs = {
