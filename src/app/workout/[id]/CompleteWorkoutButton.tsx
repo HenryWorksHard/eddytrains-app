@@ -309,7 +309,10 @@ export default function CompleteWorkoutButton({
   // For already-completed workouts, show "Update Workout" button
   if (isCompleted && !showRatingModal) {
     return (
-      <div className="fixed bottom-nav-button left-4 right-4 z-40">
+      {/* Inline button (was fixed bottom) — sits centered after the last
+          exercise card with breathing room. Page wrapper has pb-nav so the
+          BottomNav doesn't cover this button. */}
+      <div className="px-4 mt-6 mb-8">
         <button
           onClick={async () => {
             // Trigger a save by dispatching a custom event that WorkoutClient listens to
@@ -342,7 +345,7 @@ export default function CompleteWorkoutButton({
   return (
     <>
       <div
-        className={`fixed bottom-nav-button left-4 right-4 z-40 transition-all duration-300 ${
+        className={`px-4 mt-6 mb-8 transition-all duration-300 ${
           isVisible
             ? 'opacity-100 translate-y-0'
             : 'opacity-0 translate-y-4 pointer-events-none'

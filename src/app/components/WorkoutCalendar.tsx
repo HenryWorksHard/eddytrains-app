@@ -37,12 +37,21 @@ interface WorkoutLogDetail {
   sets: { setNumber: number; weight: number; reps: number }[]
 }
 
+/** Workout-level meta loaded alongside the per-exercise details. Drives the
+ *  "Completed with trainer" badge in the View Log modal. trainer_id non-null
+ *  means a trainer ran the coaching/complete endpoint for this session. */
+interface WorkoutLogMeta {
+  trainerId: string | null
+  trainerName: string | null
+}
+
 export default function WorkoutCalendar({ scheduleByDay, scheduleByWeekAndDay, completedWorkouts, completionsByDate, compact = false, programStartDate, maxWeek = 1 }: WorkoutCalendarProps) {
   const [mounted, setMounted] = useState(false)
   const [today, setToday] = useState(new Date())
   const [currentMonth, setCurrentMonth] = useState(new Date())
   const [selectedDate, setSelectedDate] = useState<Date | null>(null)
   const [workoutDetails, setWorkoutDetails] = useState<WorkoutLogDetail[] | null>(null)
+  const [workoutMeta, setWorkoutMeta] = useState<WorkoutLogMeta | null>(null)
   const [loadingDetails, setLoadingDetails] = useState(false)
   const [showingDetailsFor, setShowingDetailsFor] = useState<string | null>(null)
   const supabase = createClient()
@@ -227,6 +236,7 @@ export default function WorkoutCalendar({ scheduleByDay, scheduleByWeekAndDay, c
     setLoadingDetails(true)
     setShowingDetailsFor(displayWorkoutId)
     setWorkoutDetails(null)
+    setWorkoutMeta(null)
 
     try {
       const dateStr = formatDateLocal(date)
@@ -244,48 +254,55 @@ export default function WorkoutCalendar({ scheduleByDay, scheduleByWeekAndDay, c
       
       console.log('[Calendar] User:', user.id)
       
-      // Get workout log for this date - filter by client_id for RLS
+      // Get workout log for this date - filter by client_id for RLS.
+      // Also pull trainer info so the modal can show "Completed with trainer".
       const { data: workoutLogs, error: logError } = await supabase
         .from('workout_logs')
-        .select('id, scheduled_date, completed_at')
+        .select('id, scheduled_date, completed_at, trainer_id, trainer:trainer_id (full_name)')
         .eq('client_id', user.id)
         .eq('workout_id', workoutId)
         .eq('scheduled_date', dateStr)
         .order('completed_at', { ascending: false })
         .limit(1)
-      
+
       console.log('[Calendar] workout_logs query result:', workoutLogs, 'error:', logError?.message)
-      
+
       if (logError) {
         console.error('[Calendar] Error fetching workout log:', logError)
       }
-      
+
       if (workoutLogs && workoutLogs.length > 0) {
-        console.log('[Calendar] Found workout_log:', workoutLogs[0])
-        await fetchSetLogs(workoutLogs[0].id)
+        const wl = workoutLogs[0] as { id: string; trainer_id: string | null; trainer?: { full_name: string | null } | { full_name: string | null }[] | null }
+        console.log('[Calendar] Found workout_log:', wl.id, 'trainer:', wl.trainer_id)
+        const trainer = Array.isArray(wl.trainer) ? wl.trainer[0] : wl.trainer
+        setWorkoutMeta({ trainerId: wl.trainer_id, trainerName: trainer?.full_name ?? null })
+        await fetchSetLogs(wl.id)
         setLoadingDetails(false)
         return
       }
-      
+
       console.log('[Calendar] No workout_log found with scheduled_date, trying completed_at fallback...')
-      
+
       // Fallback: Try with completed_at date range
       const { data: fallbackLogs, error: fallbackError } = await supabase
         .from('workout_logs')
-        .select('id, completed_at')
+        .select('id, completed_at, trainer_id, trainer:trainer_id (full_name)')
         .eq('client_id', user.id)
         .eq('workout_id', workoutId)
         .gte('completed_at', `${dateStr}T00:00:00`)
         .lte('completed_at', `${dateStr}T23:59:59`)
         .order('completed_at', { ascending: false })
         .limit(1)
-      
+
       if (fallbackError) {
         console.error('Error fetching fallback workout log:', fallbackError)
       }
-      
+
       if (fallbackLogs && fallbackLogs.length > 0) {
-        await fetchSetLogs(fallbackLogs[0].id)
+        const wl = fallbackLogs[0] as { id: string; trainer_id: string | null; trainer?: { full_name: string | null } | { full_name: string | null }[] | null }
+        const trainer = Array.isArray(wl.trainer) ? wl.trainer[0] : wl.trainer
+        setWorkoutMeta({ trainerId: wl.trainer_id, trainerName: trainer?.full_name ?? null })
+        await fetchSetLogs(wl.id)
         setLoadingDetails(false)
         return
       }
@@ -368,6 +385,7 @@ export default function WorkoutCalendar({ scheduleByDay, scheduleByWeekAndDay, c
   const closeDetails = () => {
     setShowingDetailsFor(null)
     setWorkoutDetails(null)
+    setWorkoutMeta(null)
   }
 
   if (!mounted) {
@@ -644,6 +662,15 @@ export default function WorkoutCalendar({ scheduleByDay, scheduleByWeekAndDay, c
                           {/* Workout Details */}
                           {isShowingDetails && workoutDetails && (
                             <div className="mt-3 pt-3 border-t border-zinc-700 space-y-3">
+                              {/* "Completed with trainer" badge — workout_log.trainer_id
+                                  is non-null when /api/coaching/complete (trainer flow)
+                                  wrote the row. Same data row as user-self path; just
+                                  attribution. */}
+                              {workoutMeta?.trainerId && (
+                                <div className="flex items-center gap-1.5 text-[11px] text-yellow-300 bg-yellow-400/10 border border-yellow-400/20 rounded-full px-2 py-1 self-start">
+                                  <span>✓ Completed with trainer{workoutMeta.trainerName ? ` (${workoutMeta.trainerName.split(' ')[0]})` : ''}</span>
+                                </div>
+                              )}
                               {workoutDetails.length === 0 ? (
                                 <p className="text-zinc-500 text-xs text-center">No sets logged</p>
                               ) : (
