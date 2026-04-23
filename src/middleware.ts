@@ -21,6 +21,7 @@ type CachedProfile = {
   organization_id: string | null
   subscription_status: string | null
   trial_ends_at: string | null
+  access_paused: boolean | null
 }
 
 async function readCache(request: NextRequest): Promise<CachedProfile | null> {
@@ -76,7 +77,7 @@ export async function middleware(request: NextRequest) {
 
   const pathname = request.nextUrl.pathname
 
-  const publicRoutes = ['/login', '/signup', '/reset-password', '/auth/callback', '/join', '/api/exercises', '/accept-invite', '/api/accept-invite', '/privacy']
+  const publicRoutes = ['/login', '/signup', '/reset-password', '/auth/callback', '/join', '/api/exercises', '/accept-invite', '/api/accept-invite', '/privacy', '/access-paused']
   const isPublicRoute = publicRoutes.some(route => pathname.startsWith(route))
 
   if (!user && !isPublicRoute) {
@@ -103,7 +104,7 @@ export async function middleware(request: NextRequest) {
   if (!profile) {
     const { data } = await supabase
       .from('profiles')
-      .select('password_changed, role, organization_id')
+      .select('password_changed, role, organization_id, access_paused')
       .eq('id', user.id)
       .single()
 
@@ -132,6 +133,7 @@ export async function middleware(request: NextRequest) {
       organization_id: data.organization_id ?? null,
       subscription_status,
       trial_ends_at,
+      access_paused: data.access_paused ?? false,
     }
 
     await writeCache(supabaseResponse, profile)
@@ -146,6 +148,21 @@ export async function middleware(request: NextRequest) {
   }
 
   const role = profile.role || 'client'
+
+  // Client access pause — trainer can lock out unpaid clients without
+  // affecting the org's other clients or the trainer's subscription.
+  // Has no effect on trainer/admin/super_admin roles.
+  if (role === 'client' && profile.access_paused) {
+    if (
+      !pathname.startsWith('/access-paused') &&
+      !pathname.startsWith('/login') &&
+      !pathname.startsWith('/api/auth')
+    ) {
+      const url = request.nextUrl.clone()
+      url.pathname = '/access-paused'
+      return NextResponse.redirect(url)
+    }
+  }
 
   // Super-admin-only routes
   const superAdminRoutes = ['/platform']

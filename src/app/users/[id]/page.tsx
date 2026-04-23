@@ -27,7 +27,8 @@ import {
   ChevronRight,
   Apple,
   Settings2,
-  Weight
+  Weight,
+  Lock
 } from 'lucide-react'
 import { createClient } from '@/app/lib/supabase/client'
 import dynamic from 'next/dynamic'
@@ -64,6 +65,9 @@ interface User {
   goals: string | null
   presenting_condition: string | null
   medical_history: string | null
+  role: string | null
+  access_paused: boolean | null
+  access_paused_at: string | null
 }
 
 interface Program {
@@ -273,6 +277,39 @@ export default function UserProfilePage() {
     programs: false,
     nutrition: false,
   })
+
+  // Pause-access toggle state. Optimistic — flipped immediately on click,
+  // rolled back if the PATCH fails.
+  const [pausing, setPausing] = useState(false)
+
+  const handleTogglePause = async () => {
+    if (!user || pausing) return
+    const next = !user.access_paused
+    const previous = user
+    setPausing(true)
+    setUser({
+      ...user,
+      access_paused: next,
+      access_paused_at: next ? new Date().toISOString() : null,
+    })
+    try {
+      const res = await fetch(`/api/users/${user.id}/pause`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ paused: next }),
+      })
+      const result = await res.json().catch(() => ({}))
+      if (!res.ok || result?.error) {
+        throw new Error(result?.error || 'Failed to update access')
+      }
+    } catch (err) {
+      console.error('Pause toggle failed:', err)
+      setUser(previous)
+      setError(err instanceof Error ? err.message : 'Failed to update access')
+    } finally {
+      setPausing(false)
+    }
+  }
 
   useEffect(() => {
     fetchUser()
@@ -1791,6 +1828,51 @@ export default function UserProfilePage() {
           </div>
         </div>
       </div>
+
+      {/* Pause access toggle — clients only. Lets the trainer lock out a
+          client who hasn't paid their off-platform PT invoice. Doesn't touch
+          the trainer's Stripe subscription or any other client. */}
+      {user.role === 'client' && (
+        <div className={`card p-4 mb-6 border ${user.access_paused ? 'border-orange-500/40 bg-orange-500/5' : 'border-zinc-800'}`}>
+          <div className="flex items-start justify-between gap-4">
+            <div className="flex-1 min-w-0">
+              <div className="flex items-center gap-2 mb-1">
+                <Lock className={`w-4 h-4 ${user.access_paused ? 'text-orange-400' : 'text-zinc-500'}`} />
+                <h3 className="text-white font-semibold">Pause app access</h3>
+                {user.access_paused && (
+                  <span className="text-xs px-2 py-0.5 rounded-full bg-orange-500/20 text-orange-300 font-medium">
+                    Paused
+                  </span>
+                )}
+              </div>
+              <p className="text-sm text-zinc-400">
+                Locks the client out of the app until you re-enable. Use for unpaid sessions.
+              </p>
+              {user.access_paused && user.access_paused_at && (
+                <p className="text-xs text-orange-300 mt-2">
+                  Access paused since {new Date(user.access_paused_at).toLocaleDateString()}
+                </p>
+              )}
+            </div>
+            <button
+              onClick={handleTogglePause}
+              disabled={pausing}
+              role="switch"
+              aria-checked={!!user.access_paused}
+              aria-label="Pause app access"
+              className={`relative w-12 h-7 rounded-full transition-colors flex-shrink-0 disabled:opacity-50 ${
+                user.access_paused ? 'bg-orange-500' : 'bg-zinc-700'
+              }`}
+            >
+              <div
+                className={`absolute top-1 w-5 h-5 rounded-full bg-white shadow transition-transform ${
+                  user.access_paused ? 'translate-x-6' : 'translate-x-1'
+                }`}
+              />
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* Tab Navigation */}
       <ClientTabs activeTab={activeTab} setActiveTab={setActiveTab} />

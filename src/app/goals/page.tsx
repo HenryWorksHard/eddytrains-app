@@ -288,7 +288,7 @@ function AddGoalModal({ onClose, onAdded }: { onClose: () => void; onAdded: () =
   }
 
   return (
-    <div className="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 flex items-end sm:items-center justify-center px-4 pb-6">
+    <div className="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 flex items-center justify-center px-4 py-6 overflow-y-auto">
       <form
         onSubmit={handleSave}
         className="w-full max-w-md bg-zinc-900 border border-zinc-800 rounded-2xl p-6 space-y-4"
