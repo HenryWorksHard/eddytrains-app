@@ -417,7 +417,6 @@ export default async function WorkoutDetailPage({
           </div>
         ) : null}
         
-        {exercises.length > 0 && <div className="h-24" />}
         {exercises.length > 0 && <div id="workout-end-sentinel" className="h-1" />}
       </main>
 
