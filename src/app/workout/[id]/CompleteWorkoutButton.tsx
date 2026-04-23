@@ -306,12 +306,11 @@ export default function CompleteWorkoutButton({
     submitWorkoutCompletion()
   }
 
-  // For already-completed workouts, show "Update Workout" button
+  // For already-completed workouts, show "Update Workout" button.
+  // Inline (not fixed) — sits centered after the last exercise card with
+  // breathing room. Page wrapper has pb-nav so BottomNav clearance is OK.
   if (isCompleted && !showRatingModal) {
     return (
-      {/* Inline button (was fixed bottom) — sits centered after the last
-          exercise card with breathing room. Page wrapper has pb-nav so the
-          BottomNav doesn't cover this button. */}
       <div className="px-4 mt-6 mb-8">
         <button
           onClick={async () => {
