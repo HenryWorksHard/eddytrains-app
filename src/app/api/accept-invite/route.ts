@@ -1,5 +1,6 @@
 import { createClient } from '@supabase/supabase-js'
 import { NextRequest, NextResponse } from 'next/server'
+import { sendWelcomeAfterSignupEmail } from '@/app/lib/email'
 
 function getAdminClient() {
   return createClient(
@@ -53,7 +54,7 @@ export async function POST(request: NextRequest) {
 
     const { data: row, error: fetchError } = await admin
       .from('invite_tokens')
-      .select('token, user_id, email, expires_at, used_at')
+      .select('token, user_id, email, expires_at, used_at, created_by')
       .eq('token', token)
       .maybeSingle()
 
@@ -90,6 +91,35 @@ export async function POST(request: NextRequest) {
         status: 'active',
       })
       .eq('id', row.user_id)
+
+    // Fire-and-forget welcome email — don't block the response if Resend
+    // hiccups. Resolve the new client's name + the inviting trainer's name
+    // best-effort so we can personalise; both are optional.
+    try {
+      const [clientRes, trainerRes] = await Promise.all([
+        admin
+          .from('profiles')
+          .select('full_name')
+          .eq('id', row.user_id)
+          .maybeSingle(),
+        row.created_by
+          ? admin
+              .from('profiles')
+              .select('full_name')
+              .eq('id', row.created_by)
+              .maybeSingle()
+          : Promise.resolve({ data: null as { full_name: string | null } | null }),
+      ])
+      sendWelcomeAfterSignupEmail({
+        email: row.email,
+        fullName: clientRes.data?.full_name ?? null,
+        trainerName: trainerRes.data?.full_name ?? null,
+      }).catch((e) => {
+        console.error('[accept-invite] welcome email send failed:', e)
+      })
+    } catch (e) {
+      console.error('[accept-invite] welcome email setup failed:', e)
+    }
 
     // Invalidate the middleware's profile cache so the new password_changed
     // value takes effect immediately rather than on the next 60s refresh.

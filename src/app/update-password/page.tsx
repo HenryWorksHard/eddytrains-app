@@ -61,6 +61,10 @@ function UpdatePasswordForm() {
       // honored on the very next navigation.
       await fetch('/api/auth/cache-refresh', { method: 'POST' }).catch(() => {})
 
+      // Fire-and-forget confirmation email. Server resolves the address
+      // from the session — we never pass it from the browser.
+      fetch('/api/auth/notify-password-changed', { method: 'POST' }).catch(() => {})
+
       setMessage('Password updated successfully!')
 
       setTimeout(() => {

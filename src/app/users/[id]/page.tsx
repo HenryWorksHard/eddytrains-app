@@ -945,7 +945,15 @@ export default function UserProfilePage() {
         .single()
       
       if (programError) throw programError
-      
+
+      // Fire-and-forget program-assigned email. Server resolves program +
+      // trainer names from the IDs so we don't trust browser strings.
+      fetch('/api/admin/notify/program-assigned', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ clientId: user.id, programId: selectedProgram.id }),
+      }).catch(() => {})
+
       // Insert customized sets if we have any
       if (customizedSets.size > 0 && clientProgram) {
         const setsToInsert = Array.from(customizedSets.values()).map(set => ({

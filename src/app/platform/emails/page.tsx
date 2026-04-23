@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { Mail, ExternalLink, RefreshCw } from 'lucide-react'
+import { Mail, ExternalLink, RefreshCw, Check } from 'lucide-react'
 import AppLoading from '@/components/AppLoading'
 
 type TemplateSetting = {
@@ -18,6 +18,7 @@ type ResendEmail = {
   subject: string
   created_at: string
   last_event?: string | null
+  tags?: { name: string; value: string }[] | null
 }
 
 function relativeTime(iso: string): string {
@@ -53,6 +54,53 @@ export default function EmailsPage() {
   const [emailsError, setEmailsError] = useState<string | null>(null)
   const [refreshingEmails, setRefreshingEmails] = useState(false)
   const [savingName, setSavingName] = useState<string | null>(null)
+  const [replyTo, setReplyTo] = useState('')
+  const [replyToInput, setReplyToInput] = useState('')
+  const [replyToSaving, setReplyToSaving] = useState(false)
+  const [replyToSavedAt, setReplyToSavedAt] = useState<number | null>(null)
+  const [replyToError, setReplyToError] = useState<string | null>(null)
+  const [templateFilter, setTemplateFilter] = useState<string>('all')
+
+  async function loadReplyTo() {
+    try {
+      const res = await fetch('/api/admin/email-settings/reply-to', { cache: 'no-store' })
+      const json = await res.json()
+      if (res.ok) {
+        setReplyTo(json.reply_to || '')
+        setReplyToInput(json.reply_to || '')
+      }
+    } catch {
+      // ignore — fallback handled server-side anyway
+    }
+  }
+
+  async function saveReplyTo() {
+    const next = replyToInput.trim()
+    if (!next || next === replyTo) return
+    const prev = replyTo
+    setReplyToError(null)
+    setReplyToSaving(true)
+    setReplyTo(next) // optimistic
+    try {
+      const res = await fetch('/api/admin/email-settings/reply-to', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ reply_to: next }),
+      })
+      const json = await res.json()
+      if (!res.ok) throw new Error(json.error || 'save failed')
+      setReplyTo(json.reply_to || next)
+      setReplyToInput(json.reply_to || next)
+      setReplyToSavedAt(Date.now())
+      setTimeout(() => setReplyToSavedAt(null), 2500)
+    } catch (e) {
+      setReplyTo(prev) // rollback
+      setReplyToInput(prev)
+      setReplyToError(e instanceof Error ? e.message : 'Save failed')
+    } finally {
+      setReplyToSaving(false)
+    }
+  }
 
   async function loadTemplates() {
     const res = await fetch('/api/admin/email-settings', { cache: 'no-store' })
@@ -76,7 +124,7 @@ export default function EmailsPage() {
 
   useEffect(() => {
     (async () => {
-      await Promise.all([loadTemplates(), loadEmails()])
+      await Promise.all([loadTemplates(), loadEmails(), loadReplyTo()])
       setLoading(false)
     })()
   }, [])
@@ -112,6 +160,41 @@ export default function EmailsPage() {
           Email notifications
         </h1>
         <p className="text-zinc-400">Toggle transactional templates and review recent sends.</p>
+      </div>
+
+      {/* Reply-to address */}
+      <div className="mb-10">
+        <h2 className="text-lg font-semibold text-white mb-2">Reply-to address</h2>
+        <p className="text-zinc-400 text-sm mb-4">
+          Where client replies to any transactional email land. Changes apply immediately to new sends.
+        </p>
+        <div className="bg-zinc-900 rounded-xl border border-zinc-800 p-5">
+          <div className="flex flex-col sm:flex-row gap-3 sm:items-center">
+            <input
+              type="email"
+              value={replyToInput}
+              onChange={(e) => setReplyToInput(e.target.value)}
+              placeholder="contact@cmpdcollective.com"
+              className="flex-1 px-3 py-2 bg-zinc-950 border border-zinc-800 rounded-lg text-white text-sm placeholder-zinc-600 focus:outline-none focus:border-yellow-400 transition-colors font-mono"
+            />
+            <button
+              onClick={saveReplyTo}
+              disabled={replyToSaving || !replyToInput.trim() || replyToInput.trim() === replyTo}
+              className="px-4 py-2 bg-yellow-400 hover:bg-yellow-300 disabled:bg-zinc-700 disabled:text-zinc-500 text-black font-semibold rounded-lg text-sm transition-colors"
+            >
+              {replyToSaving ? 'Saving...' : 'Save'}
+            </button>
+            {replyToSavedAt && (
+              <span className="inline-flex items-center gap-1 text-green-400 text-sm">
+                <Check className="w-4 h-4" />
+                Saved
+              </span>
+            )}
+          </div>
+          {replyToError && (
+            <p className="mt-2 text-red-400 text-sm">{replyToError}</p>
+          )}
+        </div>
       </div>
 
       {/* Templates */}
@@ -150,16 +233,34 @@ export default function EmailsPage() {
 
       {/* Recent sends */}
       <div>
-        <div className="flex items-center justify-between mb-4">
+        <div className="flex items-center justify-between mb-4 gap-3 flex-wrap">
           <h2 className="text-lg font-semibold text-white">Recent sends</h2>
-          <button
-            onClick={loadEmails}
-            disabled={refreshingEmails}
-            className="flex items-center gap-2 px-3 py-1.5 bg-zinc-800 hover:bg-zinc-700 text-zinc-300 rounded-lg text-sm disabled:opacity-50"
-          >
-            <RefreshCw className={`w-4 h-4 ${refreshingEmails ? 'animate-spin' : ''}`} />
-            Refresh
-          </button>
+          <div className="flex items-center gap-2">
+            <label htmlFor="template-filter" className="text-zinc-400 text-sm">
+              Filter by template
+            </label>
+            <select
+              id="template-filter"
+              value={templateFilter}
+              onChange={(e) => setTemplateFilter(e.target.value)}
+              className="px-3 py-1.5 bg-zinc-800 border border-zinc-700 text-zinc-200 rounded-lg text-sm focus:outline-none focus:border-yellow-400"
+            >
+              <option value="all">All templates</option>
+              {templates.map((t) => (
+                <option key={t.name} value={t.name}>
+                  {t.name}
+                </option>
+              ))}
+            </select>
+            <button
+              onClick={loadEmails}
+              disabled={refreshingEmails}
+              className="flex items-center gap-2 px-3 py-1.5 bg-zinc-800 hover:bg-zinc-700 text-zinc-300 rounded-lg text-sm disabled:opacity-50"
+            >
+              <RefreshCw className={`w-4 h-4 ${refreshingEmails ? 'animate-spin' : ''}`} />
+              Refresh
+            </button>
+          </div>
         </div>
 
         {emailsError && (
@@ -180,7 +281,13 @@ export default function EmailsPage() {
               </tr>
             </thead>
             <tbody>
-              {emails.map(e => {
+              {emails
+                .filter((e) => {
+                  if (templateFilter === 'all') return true
+                  const tag = e.tags?.find((t) => t.name === 'template')?.value
+                  return tag === templateFilter
+                })
+                .map(e => {
                 const to = Array.isArray(e.to) ? e.to.join(', ') : e.to
                 return (
                   <tr key={e.id} className="border-b border-zinc-800 hover:bg-zinc-800/50">
@@ -209,6 +316,13 @@ export default function EmailsPage() {
           {emails.length === 0 && !emailsError && (
             <div className="p-8 text-center text-zinc-500 text-sm">No recent sends.</div>
           )}
+          {emails.length > 0 &&
+            templateFilter !== 'all' &&
+            emails.filter((e) => e.tags?.find((t) => t.name === 'template')?.value === templateFilter).length === 0 && (
+              <div className="p-8 text-center text-zinc-500 text-sm">
+                No recent sends match this template.
+              </div>
+            )}
         </div>
       </div>
     </div>

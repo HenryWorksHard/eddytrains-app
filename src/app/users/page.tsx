@@ -16,6 +16,7 @@ interface User {
   created_at: string
   status: string | null
   password_changed: boolean | null
+  access_paused: boolean | null
   can_access_strength: boolean
   can_access_cardio: boolean
   can_access_hyrox: boolean
@@ -220,6 +221,16 @@ export default function UsersPage() {
         
         const { error } = await supabase.from('client_programs').insert(insertData)
         if (error) throw error
+
+        // Fire-and-forget program-assigned email per client. Server resolves
+        // program + trainer names from the IDs so we don't trust browser strings.
+        for (const userId of userIds) {
+          fetch('/api/admin/notify/program-assigned', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ clientId: userId, programId: selectedProgram }),
+          }).catch(() => {})
+        }
       } else if (bulkAction === 'nutrition' && selectedNutrition) {
         // First delete existing nutrition assignments
         await supabase.from('client_nutrition').delete().in('client_id', userIds)
@@ -398,7 +409,12 @@ export default function UsersPage() {
                       </div>
                     </td>
                     <td className="hidden sm:table-cell">
-                      {user.password_changed ? (
+                      {user.access_paused ? (
+                        <span className="badge bg-orange-500/15 text-orange-400 border border-orange-500/30 flex items-center gap-1 w-fit">
+                          <Clock className="w-3 h-3" />
+                          Paused
+                        </span>
+                      ) : user.password_changed ? (
                         <span className="badge badge-success">Active</span>
                       ) : (
                         <span className="badge badge-warning flex items-center gap-1 w-fit">
