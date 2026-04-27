@@ -7,10 +7,6 @@ export const PASCAL_DEFAULT = 100
 export const PASCAL_STAGES = 20
 export const PASCAL_PER_STAGE = PASCAL_MAX / PASCAL_STAGES // 10
 
-export const POINTS_COMPLETED = 10
-export const POINTS_MISSED_SCHEDULED = -15
-export const POINTS_DECAY = -2
-
 export type PascalTier = 1 | 2 | 3 | 4
 
 /** Map score to stage 1..20. */
@@ -57,59 +53,23 @@ export function formatDate(d: Date): string {
 }
 
 /**
- * Replay daily deltas between (lastProcessed, today] against the user's
- * completions + scheduled day-of-week set. Pure function — the caller
- * handles persistence.
+ * Rolling 7-day target score: how much of this week's training target
+ * the user hit. 100 = on target, <100 = behind, >100 = overachieving.
+ *
+ * Day-agnostic: a workout completed any day in the last 7 counts —
+ * mixing up which day you train doesn't punish you. New users with no
+ * completions yet start at the friendly default so Pascal isn't sad
+ * on day 1 before they've had a chance to start.
  */
-export function replayScore(params: {
-  startingScore: number
-  lastProcessedDate: string | null
-  today: string
-  completionDates: string[] // YYYY-MM-DD values from workout_completions.scheduled_date
-  scheduledDaysOfWeek: number[] // 0=Sun .. 6=Sat; empty means "no schedule known"
-}): { score: number; lastProcessedDate: string } {
-  const { startingScore, lastProcessedDate, today, completionDates, scheduledDaysOfWeek } = params
+export function computeRollingScore(params: {
+  completionsLast7d: number
+  sessionsPerWeek: number
+  totalCompletionsEver: number
+}): number {
+  const { completionsLast7d, sessionsPerWeek, totalCompletionsEver } = params
 
-  // Fresh user — anchor on today, no replay needed.
-  if (!lastProcessedDate) {
-    return { score: clampScore(startingScore), lastProcessedDate: today }
-  }
+  if (sessionsPerWeek === 0) return PASCAL_DEFAULT
+  if (totalCompletionsEver === 0) return PASCAL_DEFAULT
 
-  const endDate = parseDate(today)
-  const cursor = parseDate(lastProcessedDate)
-  cursor.setDate(cursor.getDate() + 1)
-
-  if (cursor > endDate) {
-    return { score: clampScore(startingScore), lastProcessedDate }
-  }
-
-  const completionsByDate = new Map<string, number>()
-  for (const d of completionDates) {
-    completionsByDate.set(d, (completionsByDate.get(d) || 0) + 1)
-  }
-
-  const scheduled = new Set(scheduledDaysOfWeek)
-  const hasSchedule = scheduled.size > 0
-
-  let score = startingScore
-
-  while (cursor <= endDate) {
-    const dateStr = formatDate(cursor)
-    const completed = completionsByDate.get(dateStr) || 0
-    const dow = cursor.getDay()
-
-    if (completed > 0) {
-      score += POINTS_COMPLETED * completed
-    } else if (hasSchedule && scheduled.has(dow)) {
-      // Missed a scheduled workout day
-      score += POINTS_MISSED_SCHEDULED
-    } else {
-      // Ordinary day with no workout — slow decay
-      score += POINTS_DECAY
-    }
-
-    cursor.setDate(cursor.getDate() + 1)
-  }
-
-  return { score: clampScore(score), lastProcessedDate: today }
+  return clampScore(Math.round((completionsLast7d / sessionsPerWeek) * 100))
 }

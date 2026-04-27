@@ -1,13 +1,7 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
 import {
-  PASCAL_DEFAULT,
   PASCAL_MAX,
-  POINTS_COMPLETED,
-  POINTS_DECAY,
-  POINTS_MISSED_SCHEDULED,
-  clampScore,
-  formatDate,
-  parseDate,
+  computeRollingScore,
   scoreToStage,
   stageToTier,
   todayInTz,
@@ -26,21 +20,19 @@ export type PascalResult = {
 type AnySupabase = SupabaseClient<any, any, any, any, any>
 
 /**
- * Bring a user's Pascal score up to date and persist it. Correct
- * semantics (the old version had a "short-circuit if last_processed
- * is today" bug that dropped the +10 when a client completed a
- * workout after the dashboard had already loaded that day):
+ * Recompute the user's Pascal score from a rolling 7-day window:
  *
- *   - Decay / missed-workout penalties are applied to each day in
- *     (last_processed_date, yesterday]. Today is intentionally
- *     skipped — it's still in progress.
- *   - Every workout_completion with pascal_counted = FALSE adds
- *     POINTS_COMPLETED to the score, then gets flipped to TRUE so
- *     it's never credited twice.
+ *   score = round((completions in last 7 days / sessions_per_week) * 100)
  *
- * Safe to call multiple times in a day. Safe to call from
- * GET /api/pascal (dashboard load) AND POST /api/workouts/complete
- * (fresh completion just landed).
+ * Capped 0-200. Day-agnostic — completed_at is what matters, not which
+ * scheduled day the workout was for. So if the program says Mon/Wed/Fri
+ * but the user trains Tue/Thu/Sat, they still get full credit. Brand-
+ * new users with zero history start at PASCAL_DEFAULT so the mascot
+ * isn't sad before they've had a chance to begin.
+ *
+ * Stateless replay — safe to call from /api/pascal (dashboard load) AND
+ * /api/workouts/complete (fresh completion). Each call recomputes from
+ * source data, so there's no drift to manage.
  */
 export async function recomputeAndPersistPascal(
   supabase: AnySupabase,
@@ -48,61 +40,15 @@ export async function recomputeAndPersistPascal(
   tz: string
 ): Promise<PascalResult> {
   const today = todayInTz(tz)
-  const todayDate = parseDate(today)
-  const yesterday = new Date(todayDate)
-  yesterday.setDate(yesterday.getDate() - 1)
-  const yesterdayStr = formatDate(yesterday)
 
-  // Load or create the Pascal row.
-  const { data: existing } = await supabase
-    .from('pascal_scores')
-    .select('score, last_processed_date')
-    .eq('user_id', userId)
-    .maybeSingle()
+  const sevenDaysAgoIso = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString()
 
-  if (!existing) {
-    const { data: inserted, error: insertError } = await supabase
-      .from('pascal_scores')
-      .insert({
-        user_id: userId,
-        score: PASCAL_DEFAULT,
-        last_processed_date: yesterdayStr,
-      })
-      .select('score, last_processed_date')
-      .single()
-
-    if (insertError || !inserted) {
-      throw new Error(`Failed to initialise pascal_scores: ${insertError?.message}`)
-    }
-
-    // Still need to credit any uncounted completions this user may have
-    // (rare, but possible if the row was wiped manually).
-    return creditUncountedAndFinish(supabase, userId, inserted.score, inserted.last_processed_date, todayDate)
-  }
-
-  const startingScore: number = existing.score
-  const lastProcessed: string | null = existing.last_processed_date
-
-  // Collect:
-  //   1. Completion scheduled_dates inside the decay window — these
-  //      are days WITHOUT a decay/missed penalty (client did something).
-  //   2. All uncounted completions — each adds POINTS_COMPLETED.
-  //   3. Program scheduled days-of-week for missed-workout detection.
-  const windowStart = lastProcessed || yesterdayStr // for a fresh row, no past days to process
-
-  const [windowCompletionsResult, uncountedResult, programResult] = await Promise.all([
-    supabase
-      .from('workout_completions')
-      .select('scheduled_date')
-      .eq('client_id', userId)
-      .gt('scheduled_date', windowStart)
-      .lte('scheduled_date', yesterdayStr),
-
+  const [completionsResult, programResult, allTimeResult] = await Promise.all([
     supabase
       .from('workout_completions')
       .select('id')
       .eq('client_id', userId)
-      .eq('pascal_counted', false),
+      .gte('completed_at', sevenDaysAgoIso),
 
     supabase
       .from('client_programs')
@@ -116,12 +62,15 @@ export async function recomputeAndPersistPascal(
       `)
       .eq('client_id', userId)
       .eq('is_active', true),
+
+    supabase
+      .from('workout_completions')
+      .select('id', { count: 'exact', head: true })
+      .eq('client_id', userId),
   ])
 
-  const completedDatesInWindow = new Set<string>()
-  for (const c of windowCompletionsResult.data || []) {
-    if (c.scheduled_date) completedDatesInWindow.add(c.scheduled_date)
-  }
+  const completionsLast7d = completionsResult.data?.length ?? 0
+  const totalCompletionsEver = allTimeResult.count ?? 0
 
   const scheduledDays = new Set<number>()
   for (const cp of programResult.data || []) {
@@ -135,49 +84,20 @@ export async function recomputeAndPersistPascal(
     })
   }
 
-  // Walk past days (last_processed, yesterday] and apply decay/missed
-  // on days without completions.
-  let score = startingScore
-  if (lastProcessed) {
-    const cursor = parseDate(lastProcessed)
-    cursor.setDate(cursor.getDate() + 1)
-    while (cursor <= yesterday) {
-      const dateStr = formatDate(cursor)
-      if (!completedDatesInWindow.has(dateStr)) {
-        const dow = cursor.getDay()
-        if (scheduledDays.has(dow)) {
-          score += POINTS_MISSED_SCHEDULED
-        } else {
-          score += POINTS_DECAY
-        }
-      }
-      cursor.setDate(cursor.getDate() + 1)
-    }
-  }
+  const score = computeRollingScore({
+    completionsLast7d,
+    sessionsPerWeek: scheduledDays.size,
+    totalCompletionsEver,
+  })
 
-  // Credit uncounted completions — each +10, regardless of scheduled_date.
-  const uncountedIds = (uncountedResult.data || []).map((r) => r.id as string)
-  score += uncountedIds.length * POINTS_COMPLETED
-  score = clampScore(score)
-
-  // Persist. Flip uncounted completions in the same transaction window
-  // (two queries; a small race is harmless — worst case a just-inserted
-  // completion gets counted twice if the user double-taps across devices).
   await supabase
     .from('pascal_scores')
-    .update({
+    .upsert({
+      user_id: userId,
       score,
-      last_processed_date: yesterdayStr,
+      last_processed_date: today,
       last_updated: new Date().toISOString(),
-    })
-    .eq('user_id', userId)
-
-  if (uncountedIds.length > 0) {
-    await supabase
-      .from('workout_completions')
-      .update({ pascal_counted: true })
-      .in('id', uncountedIds)
-  }
+    }, { onConflict: 'user_id' })
 
   const stage = scoreToStage(score)
   return {
@@ -185,54 +105,6 @@ export async function recomputeAndPersistPascal(
     max: PASCAL_MAX,
     stage,
     tier: stageToTier(stage),
-    lastProcessedDate: yesterdayStr,
-  }
-}
-
-/**
- * First-ever row path — credit any uncounted completions that might
- * already exist (edge case: row was deleted or the app is being run
- * on a fresh DB). Then return.
- */
-async function creditUncountedAndFinish(
-  supabase: AnySupabase,
-  userId: string,
-  startingScore: number,
-  lastProcessedDate: string,
-  todayDate: Date
-): Promise<PascalResult> {
-  const { data: uncounted } = await supabase
-    .from('workout_completions')
-    .select('id')
-    .eq('client_id', userId)
-    .eq('pascal_counted', false)
-
-  const ids = (uncounted || []).map((r) => r.id as string)
-  let score = startingScore + ids.length * POINTS_COMPLETED
-  score = clampScore(score)
-
-  if (ids.length > 0 || score !== startingScore) {
-    await supabase
-      .from('pascal_scores')
-      .update({ score, last_updated: new Date().toISOString() })
-      .eq('user_id', userId)
-  }
-  if (ids.length > 0) {
-    await supabase
-      .from('workout_completions')
-      .update({ pascal_counted: true })
-      .in('id', ids)
-  }
-
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  const _todayUnused = todayDate // kept for signature compatibility
-
-  const stage = scoreToStage(score)
-  return {
-    score,
-    max: PASCAL_MAX,
-    stage,
-    tier: stageToTier(stage),
-    lastProcessedDate,
+    lastProcessedDate: today,
   }
 }
