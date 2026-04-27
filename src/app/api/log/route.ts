@@ -84,7 +84,9 @@ export async function GET(request: NextRequest) {
       const diffMs = todayLocal.getTime() - programStart.getTime()
       const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24))
       const rawWeek = Math.floor(diffDays / 7) + 1
-      currentWeek = maxWeek > 0 ? ((rawWeek - 1) % maxWeek) + 1 : rawWeek
+      // Linear progression: clamp to last week once program ends. See
+      // dashboard/route.ts for rationale.
+      currentWeek = maxWeek > 0 ? Math.min(rawWeek, maxWeek) : rawWeek
     }
   }
 

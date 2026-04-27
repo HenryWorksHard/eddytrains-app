@@ -91,12 +91,13 @@ export default function WorkoutCalendar({ scheduleByDay, scheduleByWeekAndDay, c
     const diffTime = dateStart.getTime() - programStart.getTime()
     const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24))
     
-    // Week number (1-indexed, cycling through maxWeek)
     const weekNum = Math.floor(diffDays / 7) + 1
-    
-    // Cycle through weeks if program repeats
+
+    // Linear progression: clamp at the last week once the program ends, so
+    // the calendar keeps showing the trainer's latest week until they
+    // extend the program.
     if (maxWeek > 0) {
-      return ((weekNum - 1) % maxWeek) + 1
+      return Math.min(weekNum, maxWeek)
     }
     return weekNum
   }

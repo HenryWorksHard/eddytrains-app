@@ -220,8 +220,11 @@ export async function GET(request: NextRequest) {
       const diffMs = todayLocal.getTime() - programStart.getTime()
       const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24))
       const rawWeek = Math.floor(diffDays / 7) + 1
+      // Linear progression: clamp to the last week once the program ends.
+      // Trainers extend a program by adding more weeks; clients should stay
+      // on the latest week until that happens, not loop back to Week 1.
       if (maxWeek > 0) {
-        currentWeek = ((rawWeek - 1) % maxWeek) + 1
+        currentWeek = Math.min(rawWeek, maxWeek)
       } else {
         currentWeek = rawWeek
       }
