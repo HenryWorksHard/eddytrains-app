@@ -113,13 +113,10 @@ export default function UserSchedule({ userId }: UserScheduleProps) {
     if (daysSinceStart < 0) return 1 // Before program start, show week 1
     
     const weekNum = Math.floor(daysSinceStart / 7) + 1
-    
-    // Cycle through weeks if we exceed maxWeek (programs repeat)
-    if (weekNum > maxWeek) {
-      return ((weekNum - 1) % maxWeek) + 1
-    }
-    
-    return weekNum
+
+    // Linear progression: clamp at the last week once the program ends.
+    // Trainer's view of the client mirrors the client's calendar.
+    return Math.min(weekNum, maxWeek)
   }
 
   // Get workouts for a specific date (considering week number)
