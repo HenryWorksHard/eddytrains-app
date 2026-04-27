@@ -136,10 +136,20 @@ function SwapExerciseModal({
   )
   
   return (
-    <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-      <div className="bg-zinc-900 border border-zinc-700 rounded-3xl w-full max-w-md max-h-[80vh] overflow-hidden">
+    <div
+      className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-end justify-center"
+      onClick={onClose}
+    >
+      <div
+        className="bg-zinc-900 border-t border-zinc-700 rounded-t-3xl w-full max-w-md max-h-[85dvh] overflow-hidden pb-[env(safe-area-inset-bottom)] flex flex-col"
+        onClick={(e) => e.stopPropagation()}
+      >
+        {/* Drag handle */}
+        <div className="flex justify-center pt-2.5 pb-1 shrink-0">
+          <div className="w-10 h-1 bg-zinc-700 rounded-full" />
+        </div>
         {/* Header */}
-        <div className="p-4 border-b border-zinc-800">
+        <div className="p-4 border-b border-zinc-800 shrink-0">
           <div className="flex items-center justify-between mb-3">
             <h3 className="text-lg font-semibold text-white">Swap Exercise</h3>
             <button onClick={onClose} className="p-2 text-zinc-400 hover:text-white">
@@ -163,7 +173,7 @@ function SwapExerciseModal({
         </div>
         
         {/* Content */}
-        <div className="p-4 overflow-y-auto max-h-[60vh]">
+        <div className="p-4 overflow-y-auto flex-1 min-h-0">
           {loading ? (
             <div className="flex justify-center py-8">
               <div className="w-8 h-8 border-2 border-yellow-400 border-t-transparent rounded-full animate-spin" />
