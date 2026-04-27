@@ -168,6 +168,11 @@ export default function CompleteWorkoutButton({
   const [isVisible, setIsVisible] = useState(false)
   const [showRatingModal, setShowRatingModal] = useState(false)
   const [isSubmittingRating, setIsSubmittingRating] = useState(false)
+  // True between the moment a fresh completion lands and the dashboard
+  // navigation firing. Keeps the green "Completed" pill visible across
+  // that window so the UI doesn't flash through the gray "Update Workout"
+  // state on its way home.
+  const [navigatingHome, setNavigatingHome] = useState(false)
   const router = useRouter()
   const supabase = createClient()
 
@@ -293,10 +298,11 @@ export default function CompleteWorkoutButton({
 
       setIsCompleted(true)
       setShowRatingModal(false)
-      
+      setNavigatingHome(true)
+
       setTimeout(() => {
-        router.push('/dashboard?completed=true')
-      }, 1500)
+        router.replace('/dashboard?completed=true')
+      }, 600)
     } catch (error) {
       console.error('Failed to complete workout:', error)
       // Revert optimistic state so the user can retry.
@@ -319,7 +325,7 @@ export default function CompleteWorkoutButton({
   // For already-completed workouts, show "Update Workout" button.
   // Inline (not fixed) — sits centered after the last exercise card with
   // breathing room. Page wrapper has pb-nav so BottomNav clearance is OK.
-  if (isCompleted && !showRatingModal) {
+  if (isCompleted && !showRatingModal && !navigatingHome) {
     return (
       <div className="px-4 mt-6 mb-8">
         <button
@@ -351,12 +357,11 @@ export default function CompleteWorkoutButton({
     )
   }
 
-  // Optimistic "Completed" state — shown the instant the user taps Done in
-  // the rating modal, before the network round-trip resolves. Same green
-  // styling as a real completed workout so there's no visible flash. If the
-  // request fails we revert (optimisticComplete back to false) and surface
-  // the error in the main yellow button below.
-  if (optimisticComplete && !isCompleted) {
+  // Green "Completed" pill. Shown both during the optimistic window
+  // (after tapping Done, before the network resolves) AND during the brief
+  // post-success delay before we navigate the user home — so the UI never
+  // flickers through the gray "Update Workout" state on the way out.
+  if ((optimisticComplete && !isCompleted) || navigatingHome) {
     return (
       <div className="px-4 mt-6 mb-8">
         <button
