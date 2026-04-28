@@ -324,42 +324,134 @@ export default function UsersPage() {
 
       {/* Bulk Action Toolbar */}
       {selectedUsers.size > 0 && (
-        <div className="flex items-center gap-4 bg-yellow-400/10 border border-yellow-400/30 rounded-xl p-4">
-          <div className="flex items-center gap-2">
-            <span className="w-8 h-8 bg-yellow-400 rounded-full flex items-center justify-center text-black font-bold text-sm">
+        <div className="flex flex-col sm:flex-row sm:items-center gap-3 bg-yellow-400/10 border border-yellow-400/30 rounded-xl p-3 sm:p-4">
+          <div className="flex items-center gap-2 flex-1">
+            <span className="w-8 h-8 bg-yellow-400 rounded-full flex items-center justify-center text-black font-bold text-sm shrink-0">
               {selectedUsers.size}
             </span>
             <span className="text-white font-medium">users selected</span>
+            <button
+              onClick={() => setSelectedUsers(new Set())}
+              aria-label="Clear selection"
+              className="ml-auto sm:hidden p-2 text-zinc-400 hover:text-white transition-colors"
+            >
+              <X className="w-5 h-5" />
+            </button>
           </div>
-          
-          <div className="flex-1" />
-          
-          <button
-            onClick={() => openBulkModal('program')}
-            className="flex items-center gap-2 px-4 py-2 bg-yellow-400 hover:bg-yellow-500 text-black font-medium rounded-lg transition-colors"
-          >
-            <Dumbbell className="w-4 h-4" />
-            Assign Program
-          </button>
-          <button
-            onClick={() => openBulkModal('nutrition')}
-            className="flex items-center gap-2 px-4 py-2 bg-green-500 hover:bg-green-600 text-white font-medium rounded-lg transition-colors"
-          >
-            <Apple className="w-4 h-4" />
-            Assign Nutrition
-          </button>
+          <div className="flex flex-col sm:flex-row gap-2">
+            <button
+              onClick={() => openBulkModal('program')}
+              className="flex items-center justify-center gap-2 px-4 py-2.5 bg-yellow-400 hover:bg-yellow-500 text-black font-medium rounded-lg transition-colors"
+            >
+              <Dumbbell className="w-4 h-4" />
+              Assign Program
+            </button>
+            <button
+              onClick={() => openBulkModal('nutrition')}
+              className="flex items-center justify-center gap-2 px-4 py-2.5 bg-green-500 hover:bg-green-600 text-white font-medium rounded-lg transition-colors"
+            >
+              <Apple className="w-4 h-4" />
+              Assign Nutrition
+            </button>
+          </div>
           <button
             onClick={() => setSelectedUsers(new Set())}
-            className="p-2 text-zinc-400 hover:text-white transition-colors"
+            aria-label="Clear selection"
+            className="hidden sm:inline-flex p-2 text-zinc-400 hover:text-white transition-colors"
           >
             <X className="w-5 h-5" />
           </button>
         </div>
       )}
 
-      {/* Users Table */}
-      <div className="card">
-        {users.length > 0 ? (
+      {/* Users — mobile card view (sm:hidden) */}
+      {users.length > 0 && (
+        <div className="space-y-2 sm:hidden">
+          {users.map((user) => (
+            <div
+              key={user.id}
+              className={`relative bg-zinc-900 border rounded-xl p-3 transition-colors ${
+                selectedUsers.has(user.id) ? 'border-yellow-400/40 bg-yellow-400/5' : 'border-zinc-800'
+              }`}
+            >
+              <div className="flex items-start gap-3">
+                <input
+                  type="checkbox"
+                  checked={selectedUsers.has(user.id)}
+                  onChange={() => toggleUserSelection(user.id)}
+                  className="mt-3 w-5 h-5 rounded border-zinc-600 text-yellow-400 focus:ring-yellow-400 focus:ring-offset-0 bg-zinc-800 shrink-0"
+                />
+                <Link
+                  href={`/users/${user.slug || user.id}`}
+                  className="flex items-start gap-3 flex-1 min-w-0"
+                >
+                  <div className="w-11 h-11 rounded-full bg-gradient-to-br from-yellow-400 to-yellow-500 flex items-center justify-center text-black font-medium shrink-0">
+                    {user.full_name?.[0]?.toUpperCase() || user.email[0].toUpperCase()}
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <p className="font-medium text-white truncate">{user.full_name || 'No name set'}</p>
+                    <p className="text-xs text-zinc-500 truncate">{user.email}</p>
+                    <div className="mt-1.5">
+                      {user.access_paused ? (
+                        <span className="badge bg-orange-500/15 text-orange-400 border border-orange-500/30 inline-flex items-center gap-1">
+                          <Clock className="w-3 h-3" />
+                          Paused
+                        </span>
+                      ) : user.password_changed ? (
+                        <span className="badge badge-success">Active</span>
+                      ) : (
+                        <span className="badge badge-warning inline-flex items-center gap-1">
+                          <Clock className="w-3 h-3" />
+                          Pending
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                </Link>
+                <button
+                  onClick={() => handleDeleteUser(user.id, user.full_name || user.email)}
+                  disabled={deletingUser === user.id}
+                  aria-label="Delete client"
+                  className="p-2.5 -mr-1 rounded-lg hover:bg-red-500/10 text-zinc-400 hover:text-red-400 transition-colors disabled:opacity-50 shrink-0"
+                >
+                  {deletingUser === user.id ? (
+                    <Loader2 className="w-5 h-5 animate-spin" />
+                  ) : (
+                    <Trash2 className="w-5 h-5" />
+                  )}
+                </button>
+              </div>
+              {!user.password_changed && (
+                <div className="mt-3 pl-8 ml-3">
+                  <ResendInviteButton userId={user.id} />
+                </div>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* Empty state — shown on all viewports when zero users */}
+      {users.length === 0 && (
+        <div className="card p-6 lg:p-12 text-center">
+          <div className="w-12 h-12 lg:w-16 lg:h-16 rounded-full bg-zinc-800 flex items-center justify-center mx-auto mb-3 lg:mb-4">
+            <UserPlus className="w-6 h-6 lg:w-8 lg:h-8 text-zinc-500" />
+          </div>
+          <h3 className="text-lg lg:text-xl font-semibold text-white mb-2">No clients yet</h3>
+          <p className="text-zinc-400 text-sm lg:text-base mb-4 lg:mb-6">Get started by adding your first client</p>
+          <Link
+            href="/users/new"
+            className="inline-flex items-center gap-2 bg-yellow-400 hover:bg-yellow-500 text-black px-4 lg:px-6 py-2.5 lg:py-3 rounded-lg lg:rounded-xl text-sm lg:text-base font-medium transition-colors"
+          >
+            <UserPlus className="w-4 h-4 lg:w-5 lg:h-5" />
+            Add Your First User
+          </Link>
+        </div>
+      )}
+
+      {/* Users Table — hidden on mobile, shown sm+ */}
+      {users.length > 0 && (
+        <div className="card hidden sm:block">
           <div className="table-container">
             <table>
               <thead>
@@ -459,23 +551,8 @@ export default function UsersPage() {
               </tbody>
             </table>
           </div>
-        ) : (
-          <div className="p-6 lg:p-12 text-center">
-            <div className="w-12 h-12 lg:w-16 lg:h-16 rounded-full bg-zinc-800 flex items-center justify-center mx-auto mb-3 lg:mb-4">
-              <UserPlus className="w-6 h-6 lg:w-8 lg:h-8 text-zinc-500" />
-            </div>
-            <h3 className="text-lg lg:text-xl font-semibold text-white mb-2">No clients yet</h3>
-            <p className="text-zinc-400 text-sm lg:text-base mb-4 lg:mb-6">Get started by adding your first client</p>
-            <Link
-              href="/users/new"
-              className="inline-flex items-center gap-2 bg-yellow-400 hover:bg-yellow-500 text-black px-4 lg:px-6 py-2.5 lg:py-3 rounded-lg lg:rounded-xl text-sm lg:text-base font-medium transition-colors"
-            >
-              <UserPlus className="w-4 h-4 lg:w-5 lg:h-5" />
-              Add Your First User
-            </Link>
-          </div>
-        )}
-      </div>
+        </div>
+      )}
 
       {/* Stats */}
       <div className="grid grid-cols-3 gap-2 lg:gap-4">
