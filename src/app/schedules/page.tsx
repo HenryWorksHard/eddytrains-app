@@ -713,32 +713,36 @@ function SchedulesPageContent() {
 
       {/* Add Program Modal - Wizard */}
       {showAddModal && (
-        <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className={`bg-zinc-900 border border-zinc-800 rounded-2xl w-full ${wizardStep === 'customize' ? 'max-w-3xl max-h-[90vh] overflow-hidden flex flex-col' : 'max-w-lg'}`}>
+        <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-end sm:items-center justify-center sm:p-4">
+          <div
+            className={`bg-zinc-900 border border-zinc-800 rounded-t-2xl sm:rounded-2xl w-full max-h-[95dvh] sm:max-h-[90vh] overflow-hidden flex flex-col ${wizardStep === 'customize' ? 'sm:max-w-3xl' : 'sm:max-w-lg'}`}
+            style={{ paddingBottom: 'env(safe-area-inset-bottom)' }}
+          >
             {/* Header */}
-            <div className="flex items-center justify-between p-6 border-b border-zinc-800 flex-shrink-0">
-              <div className="flex items-center gap-3">
+            <div className="flex items-center justify-between p-4 sm:p-6 border-b border-zinc-800 flex-shrink-0">
+              <div className="flex items-center gap-2 sm:gap-3 min-w-0">
                 {wizardStep === 'customize' && (
-                  <button 
-                    onClick={() => setWizardStep('select')} 
-                    className="p-2 hover:bg-zinc-800 rounded-lg transition-colors"
+                  <button
+                    onClick={() => setWizardStep('select')}
+                    aria-label="Back"
+                    className="p-2 hover:bg-zinc-800 rounded-lg transition-colors shrink-0"
                   >
                     <ArrowLeft className="w-5 h-5 text-zinc-400" />
                   </button>
                 )}
-                <div>
-                  <h3 className="text-xl font-semibold text-white">
-                    {wizardStep === 'select' ? 'Add Program to Schedule' : 'Customize Exercises'}
+                <div className="min-w-0">
+                  <h3 className="text-base sm:text-xl font-semibold text-white truncate">
+                    {wizardStep === 'select' ? 'Add Program' : 'Customize Exercises'}
                   </h3>
-                  <p className="text-sm text-zinc-500">
-                    {wizardStep === 'select' 
-                      ? `Starting ${new Date(customStartDate || getNextStartDate()).toLocaleDateString('en-AU', { weekday: 'long', day: 'numeric', month: 'long' })}`
+                  <p className="text-xs sm:text-sm text-zinc-500 truncate">
+                    {wizardStep === 'select'
+                      ? `Starting ${new Date(customStartDate || getNextStartDate()).toLocaleDateString('en-AU', { weekday: 'short', day: 'numeric', month: 'short' })}`
                       : selectedProgram?.name
                     }
                   </p>
                 </div>
               </div>
-              <button onClick={() => setShowAddModal(false)} className="p-2 hover:bg-zinc-800 rounded-lg transition-colors">
+              <button onClick={() => setShowAddModal(false)} aria-label="Close" className="p-2 hover:bg-zinc-800 rounded-lg transition-colors shrink-0">
                 <X className="w-5 h-5 text-zinc-400" />
               </button>
             </div>
@@ -746,7 +750,7 @@ function SchedulesPageContent() {
             {/* Step 1: Select Program */}
             {wizardStep === 'select' && (
               <>
-                <div className="p-6 space-y-6">
+                <div className="p-4 sm:p-6 space-y-4 sm:space-y-6 overflow-y-auto">
                   <div>
                     <label className="block text-sm font-medium text-zinc-400 mb-2">Select Program</label>
                     <div className="space-y-2 max-h-64 overflow-y-auto">
@@ -829,10 +833,10 @@ function SchedulesPageContent() {
                   )}
                 </div>
 
-                <div className="flex justify-end gap-3 p-6 border-t border-zinc-800">
+                <div className="flex justify-end gap-3 p-4 sm:p-6 border-t border-zinc-800">
                   <button
                     onClick={() => setShowAddModal(false)}
-                    className="px-4 py-2 bg-zinc-800 hover:bg-zinc-700 text-white rounded-xl transition-colors"
+                    className="px-4 py-2.5 bg-zinc-800 hover:bg-zinc-700 text-white rounded-xl transition-colors"
                   >
                     Cancel
                   </button>
@@ -852,7 +856,7 @@ function SchedulesPageContent() {
             {/* Step 2: Customize Exercises (Grouped) */}
             {wizardStep === 'customize' && (
               <>
-                <div className="p-6 overflow-y-auto flex-1">
+                <div className="p-4 sm:p-6 overflow-y-auto flex-1">
                   {loadingWorkouts ? (
                     <div className="flex items-center justify-center py-12">
                       <Loader2 className="w-8 h-8 animate-spin text-yellow-400" />
@@ -907,7 +911,7 @@ function SchedulesPageContent() {
                                     </div>
                                     
                                     {/* Grouped controls */}
-                                    <div className="grid grid-cols-4 gap-3">
+                                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
                                       {/* Sets */}
                                       <div>
                                         <label className="block text-xs text-zinc-500 mb-1">Sets</label>
@@ -988,10 +992,10 @@ function SchedulesPageContent() {
                   )}
                 </div>
 
-                <div className="flex justify-between gap-3 p-6 border-t border-zinc-800 flex-shrink-0">
+                <div className="flex justify-between gap-3 p-4 sm:p-6 border-t border-zinc-800 flex-shrink-0">
                   <button
                     onClick={() => setWizardStep('select')}
-                    className="px-4 py-2 bg-zinc-800 hover:bg-zinc-700 text-white rounded-xl transition-colors"
+                    className="px-4 py-2.5 bg-zinc-800 hover:bg-zinc-700 text-white rounded-xl transition-colors"
                   >
                     Back
                   </button>
