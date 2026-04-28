@@ -346,53 +346,66 @@ export default function Sidebar() {
 
   return (
     <>
-      {/* Mobile Header with Hamburger */}
-      <header className="lg:hidden fixed top-0 left-0 right-0 h-16 bg-zinc-900 border-b border-zinc-800 flex items-center justify-between px-4 z-50">
-        {roleLoaded ? (
-          <Link href={userRole === 'super_admin' && !isImpersonating ? "/platform" : "/dashboard"} className="flex items-center gap-3">
-            {userRole === 'super_admin' && !isImpersonating ? (
-              <BrandMark size="sm" />
-            ) : (
-              <div className="w-9 h-9 rounded-lg bg-gradient-to-br from-yellow-400 to-yellow-500 flex items-center justify-center">
-                <span className="text-black font-bold text-sm">
-                  {isImpersonating ? impersonatedOrgName.charAt(0).toUpperCase() : orgName.charAt(0).toUpperCase()}
-                </span>
-              </div>
-            )}
-            <span className="font-bold text-white">
-              {isImpersonating ? impersonatedOrgName : (userRole === 'super_admin' ? 'CMPD' : orgName)}
-            </span>
-          </Link>
-        ) : (
-          <div className="flex items-center gap-3">
-            <div className="w-9 h-9 rounded-lg bg-zinc-800 animate-pulse" />
-            <div className="w-20 h-3 bg-zinc-800 rounded animate-pulse" />
-          </div>
-        )}
-        <button
-          onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-          className="p-2 text-zinc-400 hover:text-white transition-colors"
-        >
-          {mobileMenuOpen ? <X className="w-6 h-6" /> : <Menu className="w-6 h-6" />}
-        </button>
+      {/* Mobile Header — matches the client-app pattern: hamburger on the
+          left, org chip on the right, sits below the iOS status bar via
+          safe-area-inset-top. Background is pure black so it blends with
+          the page while staying tappable. */}
+      <header
+        className="lg:hidden fixed top-0 left-0 right-0 bg-black z-50"
+        style={{ paddingTop: 'env(safe-area-inset-top)' }}
+      >
+        <div className="h-12 flex items-center justify-between px-3">
+          <button
+            onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+            aria-label="Open menu"
+            className="p-2 -ml-1 text-zinc-300 hover:text-white transition-colors"
+          >
+            {mobileMenuOpen ? <X className="w-6 h-6" /> : <Menu className="w-6 h-6" />}
+          </button>
+          {roleLoaded ? (
+            <Link
+              href={userRole === 'super_admin' && !isImpersonating ? '/platform' : '/dashboard'}
+              className="flex items-center gap-2 px-2 py-1 rounded-lg active:bg-zinc-900 transition-colors"
+            >
+              <span className="text-sm font-semibold text-white truncate max-w-[140px]">
+                {isImpersonating ? impersonatedOrgName : (userRole === 'super_admin' ? 'CMPD' : orgName)}
+              </span>
+              {userRole === 'super_admin' && !isImpersonating ? (
+                <BrandMark size="sm" />
+              ) : (
+                <div className="w-7 h-7 rounded-md bg-gradient-to-br from-yellow-400 to-yellow-500 flex items-center justify-center shrink-0">
+                  <span className="text-black font-bold text-xs">
+                    {isImpersonating ? impersonatedOrgName.charAt(0).toUpperCase() : orgName.charAt(0).toUpperCase()}
+                  </span>
+                </div>
+              )}
+            </Link>
+          ) : (
+            <div className="w-7 h-7 rounded-md bg-zinc-800 animate-pulse" />
+          )}
+        </div>
       </header>
 
       {/* Mobile Menu Overlay */}
       {mobileMenuOpen && (
-        <div 
-          className="lg:hidden fixed inset-0 bg-black/60 z-40"
+        <div
+          className="lg:hidden fixed inset-0 bg-black/60 backdrop-blur-sm z-50"
           onClick={() => setMobileMenuOpen(false)}
         />
       )}
 
       {/* Mobile Slide-out Menu */}
-      <aside className={`lg:hidden fixed top-0 left-0 h-screen w-72 bg-zinc-900 border-r border-zinc-800 flex flex-col z-50 transform transition-transform duration-300 ease-in-out ${
-        mobileMenuOpen ? 'translate-x-0' : '-translate-x-full'
-      }`}>
+      <aside
+        className={`lg:hidden fixed top-0 left-0 h-full w-72 bg-zinc-900 border-r border-zinc-800 flex flex-col z-50 transform transition-transform duration-300 ease-out ${
+          mobileMenuOpen ? 'translate-x-0' : '-translate-x-full'
+        }`}
+        style={{ paddingTop: 'env(safe-area-inset-top)' }}
+      >
         {/* Close button inside menu */}
-        <div className="flex justify-end p-4">
+        <div className="flex justify-end p-3">
           <button
             onClick={() => setMobileMenuOpen(false)}
+            aria-label="Close menu"
             className="p-2 text-zinc-400 hover:text-white transition-colors"
           >
             <X className="w-6 h-6" />
@@ -406,8 +419,12 @@ export default function Sidebar() {
         <SidebarContent />
       </aside>
 
-      {/* Spacer for mobile header */}
-      <div className="lg:hidden h-16" />
+      {/* Spacer for mobile header (height + safe-area). Without this, page
+          content would slide under the fixed header. */}
+      <div
+        className="lg:hidden"
+        style={{ height: 'calc(env(safe-area-inset-top) + 3rem)' }}
+      />
     </>
   )
 }

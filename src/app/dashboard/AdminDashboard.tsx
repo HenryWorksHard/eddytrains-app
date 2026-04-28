@@ -385,14 +385,14 @@ export default async function AdminDashboard({
           )}
 
           {/* Header */}
-          <div className="flex items-center justify-between">
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
             <div>
-              <h1 className="text-3xl font-bold text-white">Dashboard</h1>
-              <p className="text-zinc-400 mt-1">Welcome back! Here&apos;s what&apos;s happening.</p>
+              <h1 className="text-2xl sm:text-3xl font-bold text-white">Dashboard</h1>
+              <p className="text-zinc-400 mt-1 text-sm sm:text-base">Welcome back! Here&apos;s what&apos;s happening.</p>
             </div>
             <Link
               href="/users/new"
-              className="flex items-center gap-2 bg-yellow-400 hover:bg-yellow-500 text-black px-4 py-2 rounded-xl font-medium transition-colors"
+              className="self-start sm:self-auto inline-flex items-center gap-2 bg-yellow-400 hover:bg-yellow-500 text-black px-4 py-2 rounded-xl font-medium transition-colors whitespace-nowrap"
             >
               <UserPlus className="w-5 h-5" />
               Add Client
