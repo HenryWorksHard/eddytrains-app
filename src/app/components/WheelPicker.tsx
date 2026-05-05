@@ -148,30 +148,27 @@ export default function WheelPicker({
   setNumber,
   mode = 'weight-reps'
 }: WheelPickerProps) {
-  // Reps values (0-50)
-  const repsValues = Array.from({ length: 51 }, (_, i) => i)
-  
-  // Steps values (0-50000 in 100 increments)
+  // Steps values (0-50000 in 100 increments) — kept as a wheel picker for now
   const stepsValues = Array.from({ length: 501 }, (_, i) => i * 100)
-  
+
   const getInitialWeight = (weight: number | null | undefined): string => {
     if (weight !== null && weight !== undefined && weight >= 0) {
       return weight.toString()
     }
     return suggestedWeight?.toString() ?? '20'
   }
-  
-  const getRepsIndex = (reps: number | null | undefined): number => {
+
+  const getInitialReps = (reps: number | null | undefined): string => {
     if (reps !== null && reps !== undefined && reps >= 0) {
-      return reps
+      return reps.toString()
     }
     if (targetReps) {
       const match = targetReps.match(/^(\d+)/)
-      if (match) return parseInt(match[1])
+      if (match) return match[1]
     }
-    return 10
+    return ''
   }
-  
+
   const getStepsIndex = (steps: number | null | undefined): number => {
     if (steps === null || steps === undefined) {
       if (targetSteps) {
@@ -182,16 +179,17 @@ export default function WheelPicker({
     }
     return Math.round(steps / 100)
   }
-  
+
   const [weightInput, setWeightInput] = useState(getInitialWeight(initialWeight))
-  const [repsIndex, setRepsIndex] = useState(getRepsIndex(initialReps))
+  const [repsInput, setRepsInput] = useState(getInitialReps(initialReps))
   const [stepsIndex, setStepsIndex] = useState(getStepsIndex(initialSteps))
   const weightInputRef = useRef<HTMLInputElement>(null)
-  
+  const repsInputRef = useRef<HTMLInputElement>(null)
+
   useEffect(() => {
     if (isOpen) {
       setWeightInput(getInitialWeight(initialWeight))
-      setRepsIndex(getRepsIndex(initialReps))
+      setRepsInput(getInitialReps(initialReps))
       setStepsIndex(getStepsIndex(initialSteps))
       // Focus weight input after a short delay
       setTimeout(() => {
@@ -202,16 +200,17 @@ export default function WheelPicker({
       }, 100)
     }
   }, [isOpen, initialWeight, initialReps, initialSteps, suggestedWeight, targetReps, targetSteps, mode])
-  
+
   if (!isOpen) return null
-  
+
   const handleConfirm = () => {
     if (mode === 'steps') {
       const steps = stepsValues[stepsIndex]
       onConfirm(null, null, steps)
     } else {
       const weight = parseFloat(weightInput) || 0
-      const reps = repsValues[repsIndex]
+      const repsParsed = parseInt(repsInput, 10)
+      const reps = Number.isFinite(repsParsed) && repsParsed >= 0 ? repsParsed : 0
       onConfirm(weight, reps, null)
     }
     onClose()
@@ -287,20 +286,51 @@ export default function WheelPicker({
                     max="500"
                     value={weightInput}
                     onChange={(e) => setWeightInput(e.target.value)}
+                    onKeyDown={(e) => {
+                      // Tab/Enter from weight jumps straight to reps so the
+                      // user can type both without dismissing the keyboard.
+                      if (e.key === 'Enter') {
+                        e.preventDefault()
+                        repsInputRef.current?.focus()
+                        repsInputRef.current?.select()
+                      }
+                    }}
                     className="w-full h-16 text-center text-2xl font-bold text-white bg-zinc-800 border-2 border-zinc-700 rounded-xl focus:outline-none focus:border-yellow-400 transition-colors"
                     placeholder="0"
                   />
                   <span className="absolute right-3 top-1/2 -translate-y-1/2 text-zinc-500 text-sm">kg</span>
                 </div>
               </div>
-              
-              {/* Reps - Scroll Picker */}
-              <PickerColumn
-                values={repsValues}
-                selectedIndex={repsIndex}
-                onSelect={setRepsIndex}
-                label="Reps"
-              />
+
+              {/* Reps - Text Input (was a scroll wheel) */}
+              <div className="flex-1 flex flex-col items-center">
+                <div className="text-[10px] text-zinc-500 uppercase tracking-wider mb-2">Reps</div>
+                <div className="relative w-full">
+                  <input
+                    ref={repsInputRef}
+                    type="number"
+                    inputMode="numeric"
+                    step="1"
+                    min="0"
+                    max="999"
+                    value={repsInput}
+                    onChange={(e) => {
+                      // Digits only — strip anything else so it stays a clean
+                      // integer input even if the user pastes something.
+                      const digitsOnly = e.target.value.replace(/[^0-9]/g, '')
+                      setRepsInput(digitsOnly)
+                    }}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') {
+                        e.preventDefault()
+                        handleConfirm()
+                      }
+                    }}
+                    className="w-full h-16 text-center text-2xl font-bold text-white bg-zinc-800 border-2 border-zinc-700 rounded-xl focus:outline-none focus:border-yellow-400 transition-colors"
+                    placeholder="0"
+                  />
+                </div>
+              </div>
             </>
           )}
         </div>
