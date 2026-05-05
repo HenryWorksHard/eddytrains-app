@@ -715,7 +715,7 @@ function SchedulesPageContent() {
       {showAddModal && (
         <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-end sm:items-center justify-center sm:p-4">
           <div
-            className={`bg-zinc-900 border border-zinc-800 rounded-t-2xl sm:rounded-2xl w-full max-h-[95dvh] sm:max-h-[90vh] overflow-hidden flex flex-col ${wizardStep === 'customize' ? 'sm:max-w-3xl' : 'sm:max-w-lg'}`}
+            className={`bg-zinc-900 border border-zinc-800 rounded-t-2xl sm:rounded-2xl w-full max-h-[calc(100dvh-env(safe-area-inset-top)-1rem)] sm:max-h-[90vh] overflow-hidden flex flex-col ${wizardStep === 'customize' ? 'sm:max-w-3xl' : 'sm:max-w-lg'}`}
             style={{ paddingBottom: 'env(safe-area-inset-bottom)' }}
           >
             {/* Header */}

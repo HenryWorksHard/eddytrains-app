@@ -159,7 +159,7 @@ function SwapExerciseModal({
       onClick={onClose}
     >
       <div
-        className="bg-zinc-900 border-t border-zinc-700 rounded-t-3xl w-full max-w-md max-h-[85dvh] overflow-hidden pb-[env(safe-area-inset-bottom)] flex flex-col"
+        className="bg-zinc-900 border-t border-zinc-700 rounded-t-3xl w-full max-w-md max-h-[calc(100dvh-env(safe-area-inset-top)-1rem)] overflow-hidden pb-[env(safe-area-inset-bottom)] flex flex-col"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Drag handle */}
@@ -318,7 +318,7 @@ function SkipExerciseModal({
       onClick={onClose}
     >
       <div
-        className="bg-zinc-900 border-t border-zinc-700 rounded-t-3xl w-full max-w-md max-h-[85dvh] overflow-hidden pb-[env(safe-area-inset-bottom)] flex flex-col"
+        className="bg-zinc-900 border-t border-zinc-700 rounded-t-3xl w-full max-w-md max-h-[calc(100dvh-env(safe-area-inset-top)-1rem)] overflow-hidden pb-[env(safe-area-inset-bottom)] flex flex-col"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex justify-center pt-2.5 pb-1 shrink-0">
