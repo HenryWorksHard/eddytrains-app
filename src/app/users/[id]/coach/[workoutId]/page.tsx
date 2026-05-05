@@ -79,6 +79,11 @@ export default function CoachSessionPage() {
   // workout_exercise_id (= exercise.id). If present, the trainer should
   // see the exercise marked Skipped with the reason.
   const [skips, setSkips] = useState<Map<string, { reasonCategory: string | null; reasonDetails: string | null }>>(new Map())
+  // Swaps for the most recent session — keyed by workout_exercise_id.
+  // Value = the name the client actually performed. The original name
+  // still comes from workout_exercises so we render "Original → Swapped"
+  // and the trainer sees what the client really did.
+  const [swaps, setSwaps] = useState<Map<string, string>>(new Map())
   const [clientName, setClientName] = useState('')
   const [expandedExercise, setExpandedExercise] = useState<string | null>(null)
   const [setLogs, setSetLogs] = useState<Map<string, SetLog>>(new Map()) // key: exerciseId-setNumber
@@ -251,17 +256,22 @@ export default function CoachSessionPage() {
     if (lastWorkoutLog) {
       const { data: lastSets } = await supabase
         .from('set_logs')
-        .select('exercise_id, set_number, weight_kg')
+        .select('exercise_id, set_number, weight_kg, swapped_exercise_name')
         .eq('workout_log_id', lastWorkoutLog.id)
 
       if (lastSets) {
         const weightsMap = new Map<string, number>()
+        const swapMap = new Map<string, string>()
         lastSets.forEach(set => {
           if (set.weight_kg) {
             weightsMap.set(`${set.exercise_id}-${set.set_number}`, set.weight_kg)
           }
+          if (set.swapped_exercise_name && !swapMap.has(set.exercise_id)) {
+            swapMap.set(set.exercise_id, set.swapped_exercise_name)
+          }
         })
         setLastWeights(weightsMap)
+        if (swapMap.size > 0) setSwaps(swapMap)
       }
 
       // Skipped exercises from the same session — surfaced as a badge +
@@ -637,6 +647,8 @@ export default function CoachSessionPage() {
             const isComplete = completedExercises.has(exercise.id)
             const skip = skips.get(exercise.id)
             const isSkipped = !!skip
+            const swappedTo = swaps.get(exercise.id) ?? null
+            const isSwapped = !!swappedTo
             const suggested = calculateSuggestedWeight(
               exercise.exercise_name,
               exercise.exercise_sets[0]?.intensity_type || '',
@@ -665,9 +677,24 @@ export default function CoachSessionPage() {
                     </div>
                     <div className="text-left min-w-0">
                       <div className="flex items-center gap-2 flex-wrap">
-                        <p className={`font-medium ${isSkipped ? 'text-zinc-400 line-through decoration-zinc-600' : 'text-foreground'}`}>
-                          {exercise.exercise_name}
-                        </p>
+                        {isSwapped ? (
+                          <p className="font-medium text-foreground">
+                            <span className="text-zinc-500 line-through decoration-zinc-600 mr-1.5">
+                              {exercise.exercise_name}
+                            </span>
+                            <span className="text-zinc-500 mr-1.5">→</span>
+                            <span>{swappedTo}</span>
+                          </p>
+                        ) : (
+                          <p className={`font-medium ${isSkipped ? 'text-zinc-400 line-through decoration-zinc-600' : 'text-foreground'}`}>
+                            {exercise.exercise_name}
+                          </p>
+                        )}
+                        {isSwapped && !isSkipped && (
+                          <span className="px-1.5 py-0.5 bg-yellow-500/20 text-yellow-400 text-[10px] rounded inline-flex items-center gap-1">
+                            Swapped
+                          </span>
+                        )}
                         {isSkipped && (
                           <span className="px-1.5 py-0.5 bg-orange-500/20 text-orange-400 text-[10px] rounded inline-flex items-center gap-1">
                             <Ban className="w-3 h-3" />

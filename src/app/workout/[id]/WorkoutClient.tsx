@@ -232,15 +232,18 @@ export default function WorkoutClient({ workoutId, exercises, oneRMs, personalBe
       setWorkoutLogId(todayLog.id)
       workoutLogIdRef.current = todayLog.id
 
-      // Load today's set_logs into setLogs state (these are CONFIRMED logs)
+      // Load today's set_logs into setLogs state (these are CONFIRMED logs).
+      // Also pull swapped_exercise_name so a previously-recorded swap survives
+      // a page reload — the card needs to re-mount in the swapped state.
       const { data: todaySets } = await supabase
         .from('set_logs')
-        .select('exercise_id, set_number, weight_kg, reps_completed')
+        .select('exercise_id, set_number, weight_kg, reps_completed, swapped_exercise_name')
         .eq('workout_log_id', todayLog.id)
 
       if (todaySets && todaySets.length > 0) {
         console.log('[loadTodaySession] Restoring', todaySets.length, 'logged sets from today')
         const logMap = new Map<string, SetLog>()
+        const swapMap = new Map<string, SwappedExercise>()
         todaySets.forEach(s => {
           const key = `${s.exercise_id}-${s.set_number}`
           logMap.set(key, {
@@ -249,9 +252,18 @@ export default function WorkoutClient({ workoutId, exercises, oneRMs, personalBe
             weight_kg: s.weight_kg,
             reps_completed: s.reps_completed
           })
+          if (s.swapped_exercise_name && !swapMap.has(s.exercise_id)) {
+            // isCustom isn't stored on set_logs — default to false; only the
+            // display name matters for restore. Fresh swaps still take the
+            // happy path through SwapExerciseModal.
+            swapMap.set(s.exercise_id, { exerciseId: s.exercise_id, newName: s.swapped_exercise_name, isCustom: false })
+          }
         })
         setSetLogs(logMap)
         pendingLogsRef.current = logMap
+        if (swapMap.size > 0) {
+          setSwappedExercises(swapMap)
+        }
       }
 
       // Also load any skipped exercises for this session so the cards
@@ -638,6 +650,7 @@ export default function WorkoutClient({ workoutId, exercises, oneRMs, personalBe
     const intensityValue = exercise.sets[0]?.intensity_value || '2'
     const calculatedWeight = calculateWeight(intensityType, intensityValue, oneRM)
     const prevLogs = previousLogs.get(exercise.id) || []
+    const swap = swappedExercises.get(exercise.id)
 
     // Find personal best for this exercise
     const pb = personalBests.find(p =>
@@ -665,6 +678,7 @@ export default function WorkoutClient({ workoutId, exercises, oneRMs, personalBe
         workoutExerciseId={exercise.id}
         workoutId={workoutId}
         scheduledDate={scheduledDate || formatDateToString(new Date())}
+        existingSwap={swap ? { newName: swap.newName, isCustom: swap.isCustom } : null}
         existingSkip={skips.get(exercise.id) ?? null}
         onSkipChange={(exId, next) => {
           setSkips((prev) => {

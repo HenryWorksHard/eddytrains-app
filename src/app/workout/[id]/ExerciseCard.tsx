@@ -70,6 +70,11 @@ interface ExerciseCardProps {
   scheduledDate?: string
   existingSkip?: SkipState | null
   onSkipChange?: (exerciseId: string, skip: SkipState | null) => void
+  // Restored swap from a previous session — if set, the card mounts in
+  // the swapped state (title shows the new name, "Swapped" badge appears).
+  // Keeps the UI consistent with set_logs.swapped_exercise_name after a
+  // page reload.
+  existingSwap?: { newName: string; isCustom: boolean } | null
 }
 
 // Exercise Swap Modal Component
@@ -409,6 +414,7 @@ function ExerciseCardInner({
   scheduledDate,
   existingSkip,
   onSkipChange,
+  existingSwap,
 }: ExerciseCardProps) {
   const [expanded, setExpanded] = useState(false)
   const [skip, setSkip] = useState<SkipState | null>(existingSkip ?? null)
@@ -427,7 +433,10 @@ function ExerciseCardInner({
     return new Map()
   })
   const [showSwapModal, setShowSwapModal] = useState(false)
-  const [currentExerciseName, setCurrentExerciseName] = useState(exerciseName)
+  // Seed from existingSwap (restored from set_logs.swapped_exercise_name)
+  // so a swap survives across page reloads. Falls back to the program's
+  // exercise_name for unswapped sessions.
+  const [currentExerciseName, setCurrentExerciseName] = useState(existingSwap?.newName || exerciseName)
   // Exercise history drawer state
   const [historyOpen, setHistoryOpen] = useState(false)
   const [historySessions, setHistorySessions] = useState<
@@ -1096,16 +1105,22 @@ function ExerciseCardInner({
             {/* Regular Set Rows (non-cardio) */}
             {!isCardioExercise && sets.map((set) => {
               const log = localLogs.get(set.set_number)
-              const prevLog = previousLogs.find(p => p.set_number === set.set_number)
-              const isLogged = isStepsExercise 
+              // When the user has swapped the exercise, the previousLogs
+              // array still belongs to the ORIGINAL exercise — showing
+              // those weights as "Last week" would be misleading. Suppress
+              // them entirely; the History drawer (which queries by the
+              // current exercise name) is the right place for past data.
+              const isSwapped = currentExerciseName !== exerciseName
+              const prevLog = isSwapped ? undefined : previousLogs.find(p => p.set_number === set.set_number)
+              const isLogged = isStepsExercise
                 ? (log?.steps_completed !== null && log?.steps_completed !== undefined)
                 : (log?.reps_completed !== null && log?.reps_completed !== undefined)
-              
+
               // Display values: logged > previous > calculated > placeholder
               const displayWeight = log?.weight_kg ?? prevLog?.weight_kg ?? calculatedWeight ?? null
               const displayReps = log?.reps_completed ?? prevLog?.reps_completed ?? null
               const displaySteps = log?.steps_completed ?? null
-              
+
               // Has previous data to show (but not logged yet)
               const hasPreviousData = !isLogged && (prevLog?.weight_kg || prevLog?.reps_completed)
               
