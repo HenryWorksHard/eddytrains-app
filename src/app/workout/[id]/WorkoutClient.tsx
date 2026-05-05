@@ -162,6 +162,11 @@ export default function WorkoutClient({ workoutId, exercises, oneRMs, personalBe
   const [saveError, setSaveError] = useState(false)
   const [workoutLogId, setWorkoutLogId] = useState<string | null>(null)
   const [swappedExercises, setSwappedExercises] = useState<Map<string, SwappedExercise>>(new Map())
+  // Skips for THIS session — keyed by workout_exercises.id (= exercise.id
+  // in this component). The card maintains its own optimistic copy after
+  // the user confirms a skip; this map is just the initial seed loaded
+  // alongside today's set_logs.
+  const [skips, setSkips] = useState<Map<string, { reasonCategory: 'injury' | 'equipment' | 'time' | 'other' | null; reasonDetails: string | null }>>(new Map())
   // EMOM round tracking: finisherId -> Set of completed round numbers
   const [emomRoundsCompleted, setEmomRoundsCompleted] = useState<Map<string, Set<number>>>(new Map())
   const supabase = createClient()
@@ -247,6 +252,24 @@ export default function WorkoutClient({ workoutId, exercises, oneRMs, personalBe
         })
         setSetLogs(logMap)
         pendingLogsRef.current = logMap
+      }
+
+      // Also load any skipped exercises for this session so the cards
+      // render in the skipped state on revisit.
+      const { data: skipRows } = await supabase
+        .from('workout_exercise_skips')
+        .select('workout_exercise_id, reason_category, reason_details')
+        .eq('workout_log_id', todayLog.id)
+
+      if (skipRows && skipRows.length > 0) {
+        const m = new Map<string, { reasonCategory: 'injury' | 'equipment' | 'time' | 'other' | null; reasonDetails: string | null }>()
+        skipRows.forEach((r) => {
+          m.set(r.workout_exercise_id, {
+            reasonCategory: (r.reason_category as 'injury' | 'equipment' | 'time' | 'other' | null) ?? null,
+            reasonDetails: r.reason_details ?? null,
+          })
+        })
+        setSkips(m)
       }
     }
   }
@@ -640,6 +663,17 @@ export default function WorkoutClient({ workoutId, exercises, oneRMs, personalBe
         onLogUpdate={handleLogUpdate}
         onExerciseSwap={handleExerciseSwap}
         workoutExerciseId={exercise.id}
+        workoutId={workoutId}
+        scheduledDate={scheduledDate || formatDateToString(new Date())}
+        existingSkip={skips.get(exercise.id) ?? null}
+        onSkipChange={(exId, next) => {
+          setSkips((prev) => {
+            const m = new Map(prev)
+            if (next === null) m.delete(exId)
+            else m.set(exId, next)
+            return m
+          })
+        }}
       />
     )
   }
