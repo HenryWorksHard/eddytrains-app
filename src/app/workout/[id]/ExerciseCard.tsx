@@ -1,7 +1,7 @@
 'use client'
 
 import { memo, useState, useEffect, useCallback, useRef } from 'react'
-import { ChevronDown, ChevronUp, RefreshCw, X, Check, Trophy, Search, ArrowLeftRight, History, Loader2 } from 'lucide-react'
+import { ChevronDown, ChevronUp, RefreshCw, X, Check, Trophy, Search, ArrowLeftRight, History, Loader2, Ban, RotateCcw } from 'lucide-react'
 import TutorialModal from './TutorialModal'
 import { createClient } from '../../lib/supabase/client'
 import WheelPicker from '../../components/WheelPicker'
@@ -40,6 +40,13 @@ interface PersonalBest {
   reps: number
 }
 
+type SkipReasonCategory = 'injury' | 'equipment' | 'time' | 'other'
+
+interface SkipState {
+  reasonCategory: SkipReasonCategory | null
+  reasonDetails: string | null
+}
+
 interface ExerciseCardProps {
   exerciseId: string
   exerciseName: string
@@ -57,6 +64,12 @@ interface ExerciseCardProps {
   onLogUpdate: (exerciseId: string, setNumber: number, weight: number | null, reps: number | null) => void
   onExerciseSwap?: (exerciseId: string, newExerciseName: string, isCustom: boolean) => void
   workoutExerciseId?: string
+  // Skip plumbing — passed down from WorkoutClient so the per-exercise
+  // skip API calls have enough context to find or create the workout_log.
+  workoutId?: string
+  scheduledDate?: string
+  existingSkip?: SkipState | null
+  onSkipChange?: (exerciseId: string, skip: SkipState | null) => void
 }
 
 // Exercise Swap Modal Component
@@ -269,6 +282,112 @@ function SwapExerciseModal({
   )
 }
 
+// Skip Exercise Modal — bottom sheet with reason chips + optional details.
+// Mirrors the swap modal styling.
+function SkipExerciseModal({
+  exerciseName,
+  initial,
+  submitting,
+  onConfirm,
+  onClose,
+}: {
+  exerciseName: string
+  initial: SkipState | null
+  submitting: boolean
+  onConfirm: (skip: SkipState) => void
+  onClose: () => void
+}) {
+  const [category, setCategory] = useState<SkipReasonCategory | null>(initial?.reasonCategory ?? null)
+  const [details, setDetails] = useState(initial?.reasonDetails ?? '')
+
+  const chips: { value: SkipReasonCategory; label: string }[] = [
+    { value: 'injury', label: 'Injury' },
+    { value: 'equipment', label: 'Equipment' },
+    { value: 'time', label: 'Short on time' },
+    { value: 'other', label: 'Other' },
+  ]
+
+  return (
+    <div
+      className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-end justify-center"
+      onClick={onClose}
+    >
+      <div
+        className="bg-zinc-900 border-t border-zinc-700 rounded-t-3xl w-full max-w-md max-h-[85dvh] overflow-hidden pb-[env(safe-area-inset-bottom)] flex flex-col"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="flex justify-center pt-2.5 pb-1 shrink-0">
+          <div className="w-10 h-1 bg-zinc-700 rounded-full" />
+        </div>
+        <div className="p-4 border-b border-zinc-800 shrink-0">
+          <div className="flex items-center justify-between mb-1">
+            <h3 className="text-lg font-semibold text-white">Skip exercise</h3>
+            <button onClick={onClose} className="p-2 -mr-1 text-zinc-400 hover:text-white">
+              <X className="w-5 h-5" />
+            </button>
+          </div>
+          <p className="text-sm text-zinc-400 truncate">
+            <span className="text-white">{exerciseName}</span>
+          </p>
+        </div>
+
+        <div className="p-4 overflow-y-auto flex-1 space-y-4">
+          <div>
+            <label className="block text-xs text-zinc-500 uppercase tracking-wider mb-2">Reason (optional)</label>
+            <div className="flex flex-wrap gap-2">
+              {chips.map((c) => {
+                const selected = category === c.value
+                return (
+                  <button
+                    key={c.value}
+                    onClick={() => setCategory(selected ? null : c.value)}
+                    className={`px-3 py-2 rounded-xl text-sm font-medium transition-colors ${
+                      selected
+                        ? 'bg-yellow-400 text-black'
+                        : 'bg-zinc-800 text-zinc-300 hover:bg-zinc-700'
+                    }`}
+                  >
+                    {c.label}
+                  </button>
+                )
+              })}
+            </div>
+          </div>
+
+          <div>
+            <label className="block text-xs text-zinc-500 uppercase tracking-wider mb-2">Details (optional)</label>
+            <textarea
+              value={details}
+              onChange={(e) => setDetails(e.target.value.slice(0, 500))}
+              placeholder="What happened? (visible to your coach)"
+              rows={3}
+              className="w-full px-3 py-2 bg-zinc-800 border border-zinc-700 rounded-xl text-white text-sm placeholder-zinc-500 focus:outline-none focus:ring-2 focus:ring-yellow-400 resize-none"
+            />
+            <p className="text-[11px] text-zinc-600 mt-1">{details.length}/500</p>
+          </div>
+        </div>
+
+        <div className="p-4 border-t border-zinc-800 flex gap-2 shrink-0">
+          <button
+            onClick={onClose}
+            className="flex-1 px-4 py-3 bg-zinc-800 hover:bg-zinc-700 text-white font-medium rounded-xl transition-colors"
+          >
+            Cancel
+          </button>
+          <button
+            onClick={() => onConfirm({ reasonCategory: category, reasonDetails: details.trim() || null })}
+            disabled={submitting}
+            className="flex-1 inline-flex items-center justify-center gap-2 px-4 py-3 bg-yellow-400 hover:bg-yellow-500 disabled:bg-yellow-400/50 text-black font-bold rounded-xl transition-colors"
+          >
+            {submitting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Ban className="w-4 h-4" />}
+            Skip exercise
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 function ExerciseCardInner({
   exerciseId,
   exerciseName,
@@ -285,9 +404,16 @@ function ExerciseCardInner({
   personalBest,
   onLogUpdate,
   onExerciseSwap,
-  workoutExerciseId
+  workoutExerciseId,
+  workoutId,
+  scheduledDate,
+  existingSkip,
+  onSkipChange,
 }: ExerciseCardProps) {
   const [expanded, setExpanded] = useState(false)
+  const [skip, setSkip] = useState<SkipState | null>(existingSkip ?? null)
+  const [showSkipModal, setShowSkipModal] = useState(false)
+  const [skipSubmitting, setSkipSubmitting] = useState(false)
 
   // Seed localLogs from existingLogs (saved data for this session) on
   // first mount. This lets "View Workout" on a completed day show the
@@ -554,6 +680,115 @@ function ExerciseCardInner({
 
   const hasTutorial = tutorialUrl || (tutorialSteps && tutorialSteps.length > 0)
 
+  // ---------- Skip handlers ----------
+  const handleConfirmSkip = async (next: SkipState) => {
+    if (!workoutId || !scheduledDate || !workoutExerciseId) {
+      console.warn('[skip] missing workoutId/scheduledDate/workoutExerciseId — cannot persist skip')
+      return
+    }
+    setSkipSubmitting(true)
+    try {
+      const res = await fetch('/api/workouts/skip-exercise', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          workoutId,
+          scheduledDate,
+          workoutExerciseId,
+          exerciseName: currentExerciseName,
+          reasonCategory: next.reasonCategory,
+          reasonDetails: next.reasonDetails,
+        }),
+      })
+      if (!res.ok) throw new Error('skip failed')
+      setSkip(next)
+      onSkipChange?.(exerciseId, next)
+      setShowSkipModal(false)
+    } catch (e) {
+      console.error('[skip] save failed:', e)
+      alert('Could not save skip — please try again.')
+    } finally {
+      setSkipSubmitting(false)
+    }
+  }
+
+  const handleUndoSkip = async () => {
+    if (!workoutId || !scheduledDate || !workoutExerciseId) return
+    setSkipSubmitting(true)
+    try {
+      const res = await fetch('/api/workouts/skip-exercise', {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ workoutId, scheduledDate, workoutExerciseId }),
+      })
+      if (!res.ok) throw new Error('undo skip failed')
+      setSkip(null)
+      onSkipChange?.(exerciseId, null)
+    } catch (e) {
+      console.error('[skip] undo failed:', e)
+    } finally {
+      setSkipSubmitting(false)
+    }
+  }
+
+  // Skipped card — slim, distinct, with undo. Bypasses the normal sets UI.
+  if (skip) {
+    const categoryLabel =
+      skip.reasonCategory === 'time'
+        ? 'Short on time'
+        : skip.reasonCategory
+        ? skip.reasonCategory.charAt(0).toUpperCase() + skip.reasonCategory.slice(1)
+        : null
+    return (
+      <>
+        <div className="bg-zinc-900/60 border border-zinc-800 rounded-xl p-3">
+          <div className="flex items-start gap-2">
+            <span className="w-7 h-7 rounded-lg bg-zinc-800 text-zinc-500 flex items-center justify-center font-bold text-xs flex-shrink-0">
+              {index + 1}
+            </span>
+            <div className="flex-1 min-w-0">
+              <div className="flex items-center gap-1.5 flex-wrap">
+                <h3 className="font-semibold text-sm text-zinc-400 line-through decoration-zinc-600 break-words">
+                  {currentExerciseName}
+                </h3>
+                <span className="px-1.5 py-0.5 bg-orange-500/20 text-orange-400 text-[10px] rounded shrink-0 inline-flex items-center gap-1">
+                  <Ban className="w-3 h-3" />
+                  Skipped
+                </span>
+              </div>
+              {(categoryLabel || skip.reasonDetails) && (
+                <p className="text-xs text-zinc-500 mt-1">
+                  {categoryLabel && <span className="text-zinc-400">{categoryLabel}</span>}
+                  {categoryLabel && skip.reasonDetails && <span className="text-zinc-600"> · </span>}
+                  {skip.reasonDetails && <span className="italic">{skip.reasonDetails}</span>}
+                </p>
+              )}
+            </div>
+            <button
+              onClick={handleUndoSkip}
+              disabled={skipSubmitting}
+              className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg bg-zinc-800 hover:bg-zinc-700 text-zinc-300 hover:text-white text-xs font-medium transition-colors shrink-0 disabled:opacity-50"
+              aria-label="Undo skip"
+            >
+              {skipSubmitting ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <RotateCcw className="w-3.5 h-3.5" />}
+              Undo
+            </button>
+          </div>
+        </div>
+
+        {showSkipModal && (
+          <SkipExerciseModal
+            exerciseName={currentExerciseName}
+            initial={skip}
+            submitting={skipSubmitting}
+            onConfirm={handleConfirmSkip}
+            onClose={() => setShowSkipModal(false)}
+          />
+        )}
+      </>
+    )
+  }
+
   return (
     <>
       <div className="bg-zinc-900 border border-zinc-800 rounded-xl overflow-hidden">
@@ -633,7 +868,21 @@ function ExerciseCardInner({
               <ArrowLeftRight className="w-3 h-3" />
               <span className="hidden sm:inline">Swap</span>
             </button>
-            
+
+            {/* Skip Button — "I can't / didn't do this exercise today" */}
+            <button
+              onClick={(e) => {
+                e.stopPropagation()
+                setShowSkipModal(true)
+              }}
+              className="flex items-center gap-1 px-2 py-1 rounded-md bg-zinc-800 hover:bg-zinc-700 text-zinc-300 hover:text-orange-400 text-[10px] font-medium transition-colors flex-shrink-0"
+              title="Skip this exercise (e.g. injury, equipment, time)"
+              aria-label="Skip exercise"
+            >
+              <Ban className="w-3 h-3" />
+              <span className="hidden sm:inline">Skip</span>
+            </button>
+
             {/* Tutorial Icon Button */}
             <div onClick={e => e.stopPropagation()}>
               <TutorialModal
@@ -948,6 +1197,17 @@ function ExerciseCardInner({
           onSelect={handleExerciseSwap}
           onClose={() => setShowSwapModal(false)}
           clientId={clientId}
+        />
+      )}
+
+      {/* Skip Exercise Modal */}
+      {showSkipModal && (
+        <SkipExerciseModal
+          exerciseName={currentExerciseName}
+          initial={skip}
+          submitting={skipSubmitting}
+          onConfirm={handleConfirmSkip}
+          onClose={() => setShowSkipModal(false)}
         />
       )}
       

@@ -3,11 +3,11 @@
 import { useState, useEffect, useRef } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import { createClient } from '@/app/lib/supabase/client'
-import { 
-  ArrowLeft, 
-  Dumbbell, 
-  Check, 
-  ChevronDown, 
+import {
+  ArrowLeft,
+  Dumbbell,
+  Check,
+  ChevronDown,
   ChevronUp,
   Loader2,
   Trophy,
@@ -17,7 +17,8 @@ import {
   Calendar,
   ChevronLeft,
   ChevronRight,
-  X
+  X,
+  Ban,
 } from 'lucide-react'
 import Link from 'next/link'
 import AppLoading from '@/components/AppLoading'
@@ -74,6 +75,10 @@ export default function CoachSessionPage() {
   const [exercises, setExercises] = useState<WorkoutExercise[]>([])
   const [client1RMs, setClient1RMs] = useState<Map<string, number>>(new Map())
   const [lastWeights, setLastWeights] = useState<Map<string, number>>(new Map()) // key: exerciseId-setNumber
+  // Skips for the most recent session of this workout — keyed by
+  // workout_exercise_id (= exercise.id). If present, the trainer should
+  // see the exercise marked Skipped with the reason.
+  const [skips, setSkips] = useState<Map<string, { reasonCategory: string | null; reasonDetails: string | null }>>(new Map())
   const [clientName, setClientName] = useState('')
   const [expandedExercise, setExpandedExercise] = useState<string | null>(null)
   const [setLogs, setSetLogs] = useState<Map<string, SetLog>>(new Map()) // key: exerciseId-setNumber
@@ -257,6 +262,25 @@ export default function CoachSessionPage() {
           }
         })
         setLastWeights(weightsMap)
+      }
+
+      // Skipped exercises from the same session — surfaced as a badge +
+      // reason on each exercise card so the trainer knows what was opted
+      // out of and why.
+      const { data: skipRows } = await supabase
+        .from('workout_exercise_skips')
+        .select('workout_exercise_id, reason_category, reason_details')
+        .eq('workout_log_id', lastWorkoutLog.id)
+
+      if (skipRows && skipRows.length > 0) {
+        const m = new Map<string, { reasonCategory: string | null; reasonDetails: string | null }>()
+        skipRows.forEach((r) => {
+          m.set(r.workout_exercise_id, {
+            reasonCategory: r.reason_category ?? null,
+            reasonDetails: r.reason_details ?? null,
+          })
+        })
+        setSkips(m)
       }
     }
 
@@ -611,6 +635,8 @@ export default function CoachSessionPage() {
           {exercises.map((exercise, index) => {
             const isExpanded = expandedExercise === exercise.id
             const isComplete = completedExercises.has(exercise.id)
+            const skip = skips.get(exercise.id)
+            const isSkipped = !!skip
             const suggested = calculateSuggestedWeight(
               exercise.exercise_name,
               exercise.exercise_sets[0]?.intensity_type || '',
@@ -618,29 +644,55 @@ export default function CoachSessionPage() {
             )
 
             return (
-              <div 
-                key={exercise.id} 
-                className={`card overflow-hidden transition-all ${isComplete ? 'opacity-60' : ''}`}
+              <div
+                key={exercise.id}
+                className={`card overflow-hidden transition-all ${isComplete && !isSkipped ? 'opacity-60' : ''} ${isSkipped ? 'opacity-75' : ''}`}
               >
                 {/* Exercise Header */}
                 <button
                   onClick={() => setExpandedExercise(isExpanded ? null : exercise.id)}
                   className="w-full flex items-center justify-between p-4 hover:bg-zinc-800/50 transition-colors touch-feedback"
                 >
-                  <div className="flex items-center gap-3">
-                    <div className={`w-8 h-8 rounded-lg flex items-center justify-center font-bold text-sm ${
-                      isComplete 
-                        ? 'bg-green-500/20 text-green-400' 
+                  <div className="flex items-center gap-3 min-w-0">
+                    <div className={`w-8 h-8 rounded-lg flex items-center justify-center font-bold text-sm shrink-0 ${
+                      isSkipped
+                        ? 'bg-zinc-800 text-zinc-500'
+                        : isComplete
+                        ? 'bg-green-500/20 text-green-400'
                         : 'bg-yellow-400/10 text-yellow-400'
                     }`}>
-                      {isComplete ? <Check className="w-4 h-4" /> : index + 1}
+                      {isSkipped ? <Ban className="w-4 h-4" /> : isComplete ? <Check className="w-4 h-4" /> : index + 1}
                     </div>
-                    <div className="text-left">
-                      <p className="font-medium text-foreground">{exercise.exercise_name}</p>
-                      <p className="text-xs text-zinc-500">
-                        {exercise.exercise_sets.length} sets
-                        {suggested && ` • Suggested: ${suggested}kg`}
-                      </p>
+                    <div className="text-left min-w-0">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <p className={`font-medium ${isSkipped ? 'text-zinc-400 line-through decoration-zinc-600' : 'text-foreground'}`}>
+                          {exercise.exercise_name}
+                        </p>
+                        {isSkipped && (
+                          <span className="px-1.5 py-0.5 bg-orange-500/20 text-orange-400 text-[10px] rounded inline-flex items-center gap-1">
+                            <Ban className="w-3 h-3" />
+                            Skipped
+                          </span>
+                        )}
+                      </div>
+                      {isSkipped && (skip?.reasonCategory || skip?.reasonDetails) ? (
+                        <p className="text-xs text-zinc-500 mt-0.5">
+                          {skip?.reasonCategory && (
+                            <span className="text-zinc-400">
+                              {skip.reasonCategory === 'time'
+                                ? 'Short on time'
+                                : skip.reasonCategory.charAt(0).toUpperCase() + skip.reasonCategory.slice(1)}
+                            </span>
+                          )}
+                          {skip?.reasonCategory && skip?.reasonDetails && <span className="text-zinc-600"> · </span>}
+                          {skip?.reasonDetails && <span className="italic">{skip.reasonDetails}</span>}
+                        </p>
+                      ) : (
+                        <p className="text-xs text-zinc-500">
+                          {exercise.exercise_sets.length} sets
+                          {suggested && ` • Suggested: ${suggested}kg`}
+                        </p>
+                      )}
                     </div>
                   </div>
                   {isExpanded ? (
