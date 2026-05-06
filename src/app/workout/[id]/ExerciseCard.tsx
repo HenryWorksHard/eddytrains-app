@@ -184,7 +184,6 @@ function SwapExerciseModal({
                 onChange={(e) => setSearchQuery(e.target.value)}
                 placeholder="Search exercises..."
                 className="w-full pl-10 pr-4 py-2.5 bg-zinc-800 border border-zinc-700 rounded-xl text-white placeholder-zinc-500 focus:outline-none focus:ring-2 focus:ring-yellow-400"
-                autoFocus
               />
             </div>
           )}
