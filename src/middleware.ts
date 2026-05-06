@@ -77,7 +77,11 @@ export async function middleware(request: NextRequest) {
 
   const pathname = request.nextUrl.pathname
 
-  const publicRoutes = ['/login', '/signup', '/reset-password', '/auth/callback', '/join', '/api/exercises', '/accept-invite', '/api/accept-invite', '/privacy', '/access-paused']
+  // /update-password is public so the recovery-link landing page can
+  // load while the Supabase JS client processes the recovery token from
+  // the URL hash. Without this, the server-side check sees no auth
+  // cookie yet and bounces to /login before the token is consumed.
+  const publicRoutes = ['/login', '/signup', '/reset-password', '/update-password', '/auth/callback', '/join', '/api/exercises', '/accept-invite', '/api/accept-invite', '/privacy', '/access-paused']
   const isPublicRoute = publicRoutes.some(route => pathname.startsWith(route))
 
   if (!user && !isPublicRoute) {

@@ -98,6 +98,15 @@ function LoginInner() {
 
         const role = profile?.role || 'client'
 
+        // Reset the sidebar role cache. If a previous user logged in
+        // with a different role, the cached state would briefly flash
+        // the wrong nav items (e.g. super_admin seeing trainer nav).
+        try {
+          localStorage.removeItem('cmpd:sidebar-cache')
+        } catch {
+          // localStorage may be unavailable (private mode); skip silently.
+        }
+
         // Show redirecting state
         setRedirecting(true)
 
@@ -225,6 +234,14 @@ function LoginInner() {
                 >
                   {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
                 </button>
+              </div>
+              <div className="mt-2 text-right">
+                <Link
+                  href="/reset-password"
+                  className="text-sm text-zinc-400 hover:text-yellow-400 transition-colors"
+                >
+                  Forgot password?
+                </Link>
               </div>
             </div>
 
