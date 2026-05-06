@@ -58,6 +58,11 @@ export default function ProfilePage() {
   const [goals, setGoals] = useState('')
   const [presentingCondition, setPresentingCondition] = useState('')
   const [medicalHistory, setMedicalHistory] = useState('')
+  // Account deletion state — Apple Guideline 5.1.1(v) requires in-app deletion.
+  const [showDeleteModal, setShowDeleteModal] = useState(false)
+  const [deleteConfirmText, setDeleteConfirmText] = useState('')
+  const [deleting, setDeleting] = useState(false)
+  const [deleteError, setDeleteError] = useState<string | null>(null)
   const pfpInputRef = useRef<HTMLInputElement>(null)
   const router = useRouter()
   const supabase = createClient()
@@ -258,6 +263,25 @@ export default function ProfilePage() {
     await supabase.auth.signOut()
     router.push('/login')
     router.refresh()
+  }
+
+  const handleDeleteAccount = async () => {
+    setDeleting(true)
+    setDeleteError(null)
+    try {
+      const res = await fetch('/api/auth/delete-account', { method: 'DELETE' })
+      if (!res.ok) {
+        const j = await res.json().catch(() => ({}))
+        throw new Error(j.error || 'Failed to delete account')
+      }
+      // Sign the client out and bounce to the login screen.
+      await supabase.auth.signOut()
+      router.replace('/login?deleted=1')
+      router.refresh()
+    } catch (e) {
+      setDeleteError(e instanceof Error ? e.message : 'Failed to delete account')
+      setDeleting(false)
+    }
   }
 
   if (loading) {
@@ -582,10 +606,85 @@ export default function ProfilePage() {
           Sign Out
         </button>
 
+        {/* Danger zone — self-service account deletion (Apple 5.1.1(v)) */}
+        <section className="mt-8 pt-6 border-t border-zinc-900">
+          <h2 className="text-xs uppercase tracking-wider text-zinc-600 mb-2">Danger zone</h2>
+          <p className="text-sm text-zinc-500 mb-3">
+            Permanently delete your account and all associated data — workouts, progress photos, goals, history. This cannot be undone.
+          </p>
+          <button
+            onClick={() => {
+              setDeleteConfirmText('')
+              setDeleteError(null)
+              setShowDeleteModal(true)
+            }}
+            className="w-full py-3 bg-red-500/10 hover:bg-red-500/20 border border-red-500/30 text-red-400 font-medium rounded-xl transition-colors"
+          >
+            Delete my account
+          </button>
+        </section>
+
         <p className="text-center text-zinc-600 text-xs mt-8">
           CMPD v1.0.0
         </p>
       </main>
+
+      {/* Delete-account confirmation modal */}
+      {showDeleteModal && (
+        <div
+          className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-end sm:items-center justify-center"
+          onClick={() => !deleting && setShowDeleteModal(false)}
+        >
+          <div
+            className="bg-zinc-900 border-t sm:border border-zinc-700 rounded-t-3xl sm:rounded-3xl w-full sm:max-w-md max-h-[calc(100dvh-env(safe-area-inset-top)-1rem)] overflow-hidden pb-[env(safe-area-inset-bottom)] flex flex-col"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex justify-center pt-2.5 pb-1 shrink-0 sm:hidden">
+              <div className="w-10 h-1 bg-zinc-700 rounded-full" />
+            </div>
+            <div className="p-5 border-b border-zinc-800">
+              <h3 className="text-lg font-semibold text-white">Delete your account?</h3>
+              <p className="text-sm text-zinc-400 mt-1">
+                This is permanent. We&apos;ll erase your workouts, progress photos, goals, history, and your sign-in. There&apos;s no recovery.
+              </p>
+            </div>
+            <div className="p-5 space-y-3">
+              <label className="block text-xs uppercase tracking-wider text-zinc-500">
+                Type DELETE to confirm
+              </label>
+              <input
+                type="text"
+                value={deleteConfirmText}
+                onChange={(e) => setDeleteConfirmText(e.target.value)}
+                placeholder="DELETE"
+                autoCapitalize="characters"
+                className="w-full px-3 py-2.5 bg-zinc-800 border border-zinc-700 rounded-xl text-white placeholder-zinc-600 focus:outline-none focus:ring-2 focus:ring-red-500"
+              />
+              {deleteError && (
+                <div className="text-sm text-red-400 bg-red-500/10 border border-red-500/30 rounded-lg px-3 py-2">
+                  {deleteError}
+                </div>
+              )}
+            </div>
+            <div className="p-5 border-t border-zinc-800 flex gap-2">
+              <button
+                onClick={() => setShowDeleteModal(false)}
+                disabled={deleting}
+                className="flex-1 py-3 bg-zinc-800 hover:bg-zinc-700 disabled:opacity-50 text-white font-medium rounded-xl transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleDeleteAccount}
+                disabled={deleting || deleteConfirmText.trim() !== 'DELETE'}
+                className="flex-1 py-3 bg-red-500 hover:bg-red-600 disabled:bg-red-500/30 disabled:text-red-300/50 text-white font-bold rounded-xl transition-colors"
+              >
+                {deleting ? 'Deleting…' : 'Delete'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       <BottomNav />
     </div>
