@@ -79,9 +79,9 @@ export async function middleware(request: NextRequest) {
 
   // /update-password is public so the recovery-link landing page can
   // load while the Supabase JS client processes the recovery token from
-  // the URL hash. Without this, the server-side check sees no auth
-  // cookie yet and bounces to /login before the token is consumed.
-  const publicRoutes = ['/login', '/signup', '/reset-password', '/update-password', '/auth/callback', '/join', '/api/exercises', '/accept-invite', '/api/accept-invite', '/privacy', '/access-paused']
+  // the URL hash. /api/auth/send-password-reset must also be public —
+  // a forgotten-password submission obviously runs while logged out.
+  const publicRoutes = ['/login', '/signup', '/reset-password', '/update-password', '/auth/callback', '/join', '/api/exercises', '/accept-invite', '/api/accept-invite', '/api/auth/send-password-reset', '/privacy', '/access-paused']
   const isPublicRoute = publicRoutes.some(route => pathname.startsWith(route))
 
   if (!user && !isPublicRoute) {
