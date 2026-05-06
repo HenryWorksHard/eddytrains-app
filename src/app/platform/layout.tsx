@@ -48,10 +48,14 @@ export default function PlatformLayout({
 
   if (!isSuperAdmin) return null
 
+  // Note: Sidebar renders its own mobile-header spacer + the desktop
+  // sidebar at lg:ml-64. Don't add a top padding to <main> on mobile —
+  // that would double-stack with the spacer. Don't use `flex` here
+  // either; the desktop sidebar is fixed-positioned, not a flex sibling.
   return (
-    <div className="flex min-h-screen bg-zinc-950">
+    <div className="min-h-screen bg-zinc-950">
       <Sidebar />
-      <main className="flex-1 p-4 lg:p-8 pt-20 lg:pt-8 lg:ml-64">
+      <main className="p-4 lg:p-8 lg:ml-64">
         {children}
       </main>
     </div>
