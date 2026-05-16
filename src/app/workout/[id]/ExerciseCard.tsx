@@ -494,6 +494,23 @@ function ExerciseCardInner({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [existingLogs])
 
+  // Sync `skip` from the existingSkip prop. useState only takes the
+  // initial value on first mount — when WorkoutClient loads skips async
+  // after mount, the prop updates but local state stayed null, so the
+  // card never rendered as Skipped on revisit. Always-sync is safe here
+  // because the user's skip/undo actions immediately call onSkipChange,
+  // which round-trips through parent state and back into the prop.
+  useEffect(() => {
+    setSkip(existingSkip ?? null)
+  }, [existingSkip?.reasonCategory, existingSkip?.reasonDetails])
+
+  // Same fix for swap: the swap restore from workout_exercise_swaps is
+  // async; without this, a swap done in a previous visit wouldn't show
+  // when the user reopens the workout.
+  useEffect(() => {
+    setCurrentExerciseName(existingSwap?.newName || exerciseName)
+  }, [existingSwap?.newName, exerciseName])
+
   // NOTE: We intentionally do NOT copy previousLogs into localLogs
   // previousLogs is historical data (last session) - for "Last: Xkg" display only
   // localLogs should only contain data entered in THIS session
