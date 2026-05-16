@@ -25,9 +25,14 @@ export async function GET() {
 
     const workoutLogIds = workoutLogs.map((l) => l.id)
 
+    // Pull set_logs along with their swapped_exercise_name. The
+    // dropdown needs to surface what the user actually did, which is
+    // COALESCE(swapped_exercise_name, original program slot name).
+    // Otherwise a swapped exercise (e.g. "Dumbbell Press" swapped in
+    // for Bench Press) never appears in the progress dropdown.
     const { data: setLogs } = await supabase
       .from('set_logs')
-      .select('exercise_id')
+      .select('exercise_id, swapped_exercise_name')
       .in('workout_log_id', workoutLogIds)
       .not('weight_kg', 'is', null)
       .not('reps_completed', 'is', null)
@@ -36,20 +41,28 @@ export async function GET() {
       return NextResponse.json({ exercises: [] })
     }
 
-    const exerciseIds = [...new Set(setLogs.map((s) => s.exercise_id).filter(Boolean))]
-    if (exerciseIds.length === 0) {
-      return NextResponse.json({ exercises: [] })
+    const exerciseNames = new Set<string>()
+    const slotIdsNeedingNames = new Set<string>()
+
+    for (const s of setLogs) {
+      if (s.swapped_exercise_name) {
+        const name = String(s.swapped_exercise_name).trim()
+        if (name) exerciseNames.add(name)
+      } else if (s.exercise_id) {
+        slotIdsNeedingNames.add(s.exercise_id)
+      }
     }
 
-    const { data: loggedExercises } = await supabase
-      .from('workout_exercises')
-      .select('exercise_name')
-      .in('id', exerciseIds)
+    if (slotIdsNeedingNames.size > 0) {
+      const { data: loggedExercises } = await supabase
+        .from('workout_exercises')
+        .select('exercise_name')
+        .in('id', Array.from(slotIdsNeedingNames))
 
-    const exerciseNames = new Set<string>()
-    loggedExercises?.forEach((e) => {
-      if (e.exercise_name) exerciseNames.add(e.exercise_name)
-    })
+      loggedExercises?.forEach((e) => {
+        if (e.exercise_name) exerciseNames.add(e.exercise_name)
+      })
+    }
 
     const exercises = Array.from(exerciseNames)
       .sort((a, b) => a.localeCompare(b))

@@ -1129,13 +1129,10 @@ function ExerciseCardInner({
             {/* Regular Set Rows (non-cardio) */}
             {!isCardioExercise && sets.map((set) => {
               const log = localLogs.get(set.set_number)
-              // When the user has swapped the exercise, the previousLogs
-              // array still belongs to the ORIGINAL exercise — showing
-              // those weights as "Last week" would be misleading. Suppress
-              // them entirely; the History drawer (which queries by the
-              // current exercise name) is the right place for past data.
-              const isSwapped = currentExerciseName !== exerciseName
-              const prevLog = isSwapped ? undefined : previousLogs.find(p => p.set_number === set.set_number)
+              // previousLogs is keyed by the EFFECTIVE exercise name in
+              // WorkoutClient (swap-aware), so this prop already reflects
+              // the swapped exercise's history when applicable.
+              const prevLog = previousLogs.find(p => p.set_number === set.set_number)
               const isLogged = isStepsExercise
                 ? (log?.steps_completed !== null && log?.steps_completed !== undefined)
                 : (log?.reps_completed !== null && log?.reps_completed !== undefined)

@@ -319,76 +319,74 @@ export default function WorkoutClient({ workoutId, exercises, oneRMs, personalBe
     const viewingDateStr = scheduledDate || formatDateToString(new Date())
     const viewingDateStart = new Date(viewingDateStr + 'T00:00:00')
 
-    const logsByExercise = new Map<string, PreviousSetLog[]>()
+    // Swap-aware: load recent set_logs joined to workout_exercises, group
+    // by the EFFECTIVE exercise name (swapped_exercise_name if present,
+    // else the original program slot's exercise_name). After a swap, the
+    // card looks up by the currently-displayed name, so the "Last week"
+    // hint reflects the swapped exercise's history — not the original.
+    const logsByExerciseName = new Map<string, PreviousSetLog[]>()
 
-    // Get exercise UUIDs for cross-workout lookup
-    const exerciseUuids = exercises
-      .map(e => e.exercise_uuid)
-      .filter((uuid): uuid is string => !!uuid)
-
-    if (exerciseUuids.length === 0) {
-      console.log('[loadPreviousLogs] No exercise UUIDs found')
-      setPreviousLogs(logsByExercise)
-      return
-    }
-
-    console.log('[loadPreviousLogs] Querying by exercise_uuid:', exerciseUuids.length, 'exercises')
-
-    // Query most recent logs for each exercise_uuid (across ANY workout)
     const { data: prevSetLogs, error } = await supabase
       .from('set_logs')
-      .select('exercise_uuid, set_number, weight_kg, reps_completed, created_at')
+      .select(`
+        set_number,
+        weight_kg,
+        reps_completed,
+        created_at,
+        swapped_exercise_name,
+        workout_exercises!inner(exercise_name)
+      `)
       .eq('user_id', user.id)
-      .in('exercise_uuid', exerciseUuids)
       .lt('created_at', viewingDateStart.toISOString())
       .not('weight_kg', 'is', null)
       .order('created_at', { ascending: false })
+      .limit(1000)
 
     if (error) {
       console.error('[loadPreviousLogs] Query error:', error.message)
-      setPreviousLogs(logsByExercise)
+      setPreviousLogs(logsByExerciseName)
       return
     }
 
     console.log('[loadPreviousLogs] Found', prevSetLogs?.length || 0, 'previous logs')
 
     if (prevSetLogs && prevSetLogs.length > 0) {
-      // Group by exercise_uuid, keep most recent per set_number
-      const mostRecentByUuid = new Map<string, Map<number, PreviousSetLog>>()
-      
-      prevSetLogs.forEach(log => {
-        if (!log.exercise_uuid) return
-        
-        const setMap = mostRecentByUuid.get(log.exercise_uuid) || new Map()
-        // Only keep the first (most recent due to ordering)
+      // For each unique effective name, keep the MOST RECENT set per
+      // set_number (rows ordered desc by created_at, so first wins).
+      const mostRecentByName = new Map<string, Map<number, PreviousSetLog>>()
+
+      for (const log of prevSetLogs as unknown as Array<{
+        set_number: number
+        weight_kg: number
+        reps_completed: number
+        swapped_exercise_name: string | null
+        workout_exercises: { exercise_name: string | null } | null
+      }>) {
+        const effective = (log.swapped_exercise_name ||
+          log.workout_exercises?.exercise_name ||
+          '').trim().toLowerCase()
+        if (!effective) continue
+
+        const setMap = mostRecentByName.get(effective) || new Map<number, PreviousSetLog>()
         if (!setMap.has(log.set_number)) {
           setMap.set(log.set_number, {
-            exercise_id: '', // Will be mapped below
+            exercise_id: '',
             set_number: log.set_number,
             weight_kg: log.weight_kg,
-            reps_completed: log.reps_completed
+            reps_completed: log.reps_completed,
           })
         }
-        mostRecentByUuid.set(log.exercise_uuid, setMap)
-      })
+        mostRecentByName.set(effective, setMap)
+      }
 
-      // Map back to current exercise IDs
-      exercises.forEach(exercise => {
-        if (exercise.exercise_uuid) {
-          const setMap = mostRecentByUuid.get(exercise.exercise_uuid)
-          if (setMap) {
-            const logs = Array.from(setMap.values()).map(log => ({
-              ...log,
-              exercise_id: exercise.id
-            }))
-            logsByExercise.set(exercise.id, logs)
-          }
-        }
+      mostRecentByName.forEach((setMap, name) => {
+        const sets = Array.from(setMap.values()).sort((a, b) => a.set_number - b.set_number)
+        logsByExerciseName.set(name, sets)
       })
     }
 
-    console.log('[loadPreviousLogs] Loaded previous logs for', logsByExercise.size, 'exercises')
-    setPreviousLogs(logsByExercise)
+    console.log('[loadPreviousLogs] Loaded previous logs for', logsByExerciseName.size, 'exercise names')
+    setPreviousLogs(logsByExerciseName)
   }
 
   // Handle log updates from exercise cards
@@ -672,7 +670,10 @@ export default function WorkoutClient({ workoutId, exercises, oneRMs, personalBe
     const intensityType = exercise.sets[0]?.intensity_type || 'rir'
     const intensityValue = exercise.sets[0]?.intensity_value || '2'
     const calculatedWeight = calculateWeight(intensityType, intensityValue, oneRM)
-    const prevLogs = previousLogs.get(exercise.id) || []
+    // Look up previous logs by EFFECTIVE exercise name so a swapped slot
+    // shows the swapped exercise's last-week data, not the original's.
+    // previousLogs is keyed by lowercased name (see loadPreviousLogs).
+    const prevLogs = previousLogs.get(displayName.trim().toLowerCase()) || []
     const swap = swappedExercises.get(exercise.id)
 
     // Find personal best for this exercise
