@@ -27,6 +27,9 @@ interface SetLog {
   weight_kg: number | null
   reps_completed: number | null
   steps_completed?: number | null
+  // Per-set skip: distinct from the per-exercise Skip button in the
+  // card header (which marks the whole exercise opted-out).
+  is_skipped?: boolean
 }
 
 interface Exercise {
@@ -62,6 +65,7 @@ interface ExerciseCardProps {
   existingLogs?: SetLog[]  // Saved logs from THIS session (e.g. resuming a completed workout)
   personalBest?: PersonalBest | null
   onLogUpdate: (exerciseId: string, setNumber: number, weight: number | null, reps: number | null) => void
+  onSetSkipToggle?: (exerciseId: string, setNumber: number, skipped: boolean) => void
   onExerciseSwap?: (exerciseId: string, newExerciseName: string, isCustom: boolean) => void
   workoutExerciseId?: string
   // Skip plumbing — passed down from WorkoutClient so the per-exercise
@@ -407,6 +411,7 @@ function ExerciseCardInner({
   existingLogs,
   personalBest,
   onLogUpdate,
+  onSetSkipToggle,
   onExerciseSwap,
   workoutExerciseId,
   workoutId,
@@ -1150,9 +1155,10 @@ function ExerciseCardInner({
               // WorkoutClient (swap-aware), so this prop already reflects
               // the swapped exercise's history when applicable.
               const prevLog = previousLogs.find(p => p.set_number === set.set_number)
-              const isLogged = isStepsExercise
+              const setSkipped = log?.is_skipped === true
+              const isLogged = !setSkipped && (isStepsExercise
                 ? (log?.steps_completed !== null && log?.steps_completed !== undefined)
-                : (log?.reps_completed !== null && log?.reps_completed !== undefined)
+                : (log?.reps_completed !== null && log?.reps_completed !== undefined))
 
               // Display values: logged > previous > calculated > placeholder
               const displayWeight = log?.weight_kg ?? prevLog?.weight_kg ?? calculatedWeight ?? null
@@ -1160,73 +1166,102 @@ function ExerciseCardInner({
               const displaySteps = log?.steps_completed ?? null
 
               // Has previous data to show (but not logged yet)
-              const hasPreviousData = !isLogged && (prevLog?.weight_kg || prevLog?.reps_completed)
-              
+              const hasPreviousData = !isLogged && !setSkipped && (prevLog?.weight_kg || prevLog?.reps_completed)
+
               return (
-                <div 
+                <div
                   key={set.set_number}
-                  className={`px-3 py-2 border-t border-zinc-800/50 first:border-t-0 ${isLogged ? 'bg-green-500/5' : ''}`}
+                  className={`px-3 py-2 border-t border-zinc-800/50 first:border-t-0 ${
+                    setSkipped ? 'bg-orange-500/5' : isLogged ? 'bg-green-500/5' : ''
+                  }`}
                 >
                   <div className="flex items-center justify-between gap-2">
                     {/* Set number + status */}
                     <div className="flex items-center gap-1.5 min-w-[40px]">
-                      <span className="w-6 h-6 rounded-md bg-zinc-800 text-white flex items-center justify-center font-semibold text-xs">
+                      <span className={`w-6 h-6 rounded-md flex items-center justify-center font-semibold text-xs ${
+                        setSkipped ? 'bg-zinc-800 text-zinc-500 line-through decoration-zinc-600' : 'bg-zinc-800 text-white'
+                      }`}>
                         {set.set_number}
                       </span>
                       {isLogged && <Check className="w-3.5 h-3.5 text-green-500" />}
+                      {setSkipped && <Ban className="w-3.5 h-3.5 text-orange-400" />}
                     </div>
-                    
-                    {/* Target info */}
-                    <div className="text-zinc-500 text-[10px] flex-1">
+
+                    {/* Target info — dimmed when skipped */}
+                    <div className={`text-[10px] flex-1 ${setSkipped ? 'text-zinc-600 line-through decoration-zinc-700' : 'text-zinc-500'}`}>
                       {isStepsExercise ? `${set.reps} steps` : `${set.reps} @ ${formatIntensity(set.intensity_type, set.intensity_value)}`}
                     </div>
-                    
-                    {/* Tappable log button with last weight */}
-                    <div className="flex flex-col items-end">
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation()
-                          openWheelPicker(set.set_number, set.reps, set.rest_bracket)
-                        }}
-                        className={`flex items-center gap-2 px-3 py-2 rounded-lg transition-all active:scale-95 ${
-                          isLogged 
-                            ? 'bg-green-500/20 border border-green-500/30' 
-                            : 'bg-zinc-700/50 border border-zinc-600/50 hover:bg-zinc-700'
-                        }`}
-                      >
-                      {isStepsExercise ? (
-                        /* Steps display */
-                        <div className="text-center min-w-[60px]">
-                          <span className={`font-bold text-sm ${isLogged ? 'text-green-400' : 'text-zinc-400'}`}>
-                            {displaySteps ?? '—'}
-                          </span>
-                          <span className="text-zinc-500 text-[10px] ml-0.5">steps</span>
-                        </div>
-                      ) : (
-                        <>
-                          {/* Weight display */}
-                          <div className="text-center min-w-[40px]">
-                            <span className={`font-bold text-sm ${isLogged ? 'text-green-400' : 'text-zinc-400'}`}>
-                              {displayWeight ?? '—'}
-                            </span>
-                            <span className="text-zinc-500 text-[10px] ml-0.5">kg</span>
-                          </div>
-                          
-                          <span className="text-zinc-600 text-xs">×</span>
-                          
-                          {/* Reps display */}
-                          <div className="text-center min-w-[24px]">
-                            <span className={`font-bold text-sm ${isLogged ? 'text-green-400' : 'text-zinc-400'}`}>
-                              {displayReps ?? '—'}
-                            </span>
-                          </div>
-                        </>
+
+                    {/* Right cluster: per-set Skip button + log/skipped state */}
+                    <div className="flex items-center gap-1.5">
+                      {/* Per-set skip toggle. Logging a value clears it; tapping
+                          this clears any logged value. Mutually exclusive. */}
+                      {onSetSkipToggle && (
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            onSetSkipToggle(exerciseId, set.set_number, !setSkipped)
+                          }}
+                          aria-label={setSkipped ? 'Undo skip set' : 'Skip set'}
+                          title={setSkipped ? 'Undo skip' : 'Skip this set'}
+                          className={`p-2 rounded-md transition-colors ${
+                            setSkipped
+                              ? 'bg-orange-500/20 text-orange-400'
+                              : 'text-zinc-500 hover:text-orange-400 hover:bg-zinc-800'
+                          }`}
+                        >
+                          {setSkipped ? <RotateCcw className="w-3.5 h-3.5" /> : <Ban className="w-3.5 h-3.5" />}
+                        </button>
                       )}
-                      </button>
-                      {/* Show "Last:" hint only if showing previous data and not logged */}
-                      {hasPreviousData && (
-                        <span className="text-[9px] text-zinc-500 mt-0.5">Last week</span>
-                      )}
+
+                      {/* Tappable log button / skipped state with last weight */}
+                      <div className="flex flex-col items-end">
+                        {setSkipped ? (
+                          <div className="flex items-center gap-1.5 px-3 py-2 rounded-lg bg-orange-500/10 border border-orange-500/30">
+                            <Ban className="w-3.5 h-3.5 text-orange-400" />
+                            <span className="text-xs font-medium text-orange-400">Skipped</span>
+                          </div>
+                        ) : (
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation()
+                              openWheelPicker(set.set_number, set.reps, set.rest_bracket)
+                            }}
+                            className={`flex items-center gap-2 px-3 py-2 rounded-lg transition-all active:scale-95 ${
+                              isLogged
+                                ? 'bg-green-500/20 border border-green-500/30'
+                                : 'bg-zinc-700/50 border border-zinc-600/50 hover:bg-zinc-700'
+                            }`}
+                          >
+                            {isStepsExercise ? (
+                              <div className="text-center min-w-[60px]">
+                                <span className={`font-bold text-sm ${isLogged ? 'text-green-400' : 'text-zinc-400'}`}>
+                                  {displaySteps ?? '—'}
+                                </span>
+                                <span className="text-zinc-500 text-[10px] ml-0.5">steps</span>
+                              </div>
+                            ) : (
+                              <>
+                                <div className="text-center min-w-[40px]">
+                                  <span className={`font-bold text-sm ${isLogged ? 'text-green-400' : 'text-zinc-400'}`}>
+                                    {displayWeight ?? '—'}
+                                  </span>
+                                  <span className="text-zinc-500 text-[10px] ml-0.5">kg</span>
+                                </div>
+                                <span className="text-zinc-600 text-xs">×</span>
+                                <div className="text-center min-w-[24px]">
+                                  <span className={`font-bold text-sm ${isLogged ? 'text-green-400' : 'text-zinc-400'}`}>
+                                    {displayReps ?? '—'}
+                                  </span>
+                                </div>
+                              </>
+                            )}
+                          </button>
+                        )}
+                        {hasPreviousData && (
+                          <span className="text-[9px] text-zinc-500 mt-0.5">Last week</span>
+                        )}
+                      </div>
                     </div>
                   </div>
                 </div>
