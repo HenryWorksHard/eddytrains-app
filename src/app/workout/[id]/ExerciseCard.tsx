@@ -654,24 +654,49 @@ function ExerciseCardInner({
 
   const handleExerciseSwap = async (newExerciseName: string, isCustom: boolean, customExerciseId?: string) => {
     if (!clientId) return
-    
-    // Log substitution (workout_log_id will be null - can be linked later if needed)
-    await supabase
+
+    // Optimistically flip the UI so the user sees the swap immediately.
+    setCurrentExerciseName(newExerciseName)
+    setShowSwapModal(false)
+    if (onExerciseSwap) onExerciseSwap(exerciseId, newExerciseName, isCustom)
+
+    // Audit log — independent of session persistence.
+    supabase
       .from('exercise_substitutions')
       .insert({
         original_exercise_id: workoutExerciseId || null,
         original_exercise_name: exerciseName,
         substituted_exercise_name: newExerciseName,
         is_custom: isCustom,
-        custom_exercise_id: customExerciseId || null
+        custom_exercise_id: customExerciseId || null,
       })
-    
-    setCurrentExerciseName(newExerciseName)
-    setShowSwapModal(false)
-    
-    // Notify parent if callback exists
-    if (onExerciseSwap) {
-      onExerciseSwap(exerciseId, newExerciseName, isCustom)
+      .then(({ error }) => {
+        if (error) console.error('[swap] audit-log insert failed:', error)
+      })
+
+    // Persist the per-session swap so it survives a page reload, even if
+    // no sets are logged afterward. Without this, the swap only survived
+    // if at least one set_log got written carrying swapped_exercise_name.
+    if (workoutId && scheduledDate && workoutExerciseId) {
+      try {
+        const res = await fetch('/api/workouts/swap-exercise', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            workoutId,
+            scheduledDate,
+            workoutExerciseId,
+            substitutedExerciseName: newExerciseName,
+            isCustom,
+            customExerciseId: customExerciseId || null,
+          }),
+        })
+        if (!res.ok) {
+          console.error('[swap] persist failed:', await res.text())
+        }
+      } catch (e) {
+        console.error('[swap] persist threw:', e)
+      }
     }
   }
 

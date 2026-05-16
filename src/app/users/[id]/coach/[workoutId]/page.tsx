@@ -292,6 +292,25 @@ export default function CoachSessionPage() {
         })
         setSkips(m)
       }
+
+      // Authoritative swap source — workout_exercise_swaps is written
+      // immediately when the user picks a swap, so it reflects swaps for
+      // sessions where the client hasn't logged any sets yet. Merges
+      // with whatever set_logs.swapped_exercise_name already populated.
+      const { data: sessionSwaps } = await supabase
+        .from('workout_exercise_swaps')
+        .select('workout_exercise_id, substituted_exercise_name')
+        .eq('workout_log_id', lastWorkoutLog.id)
+
+      if (sessionSwaps && sessionSwaps.length > 0) {
+        setSwaps((prev) => {
+          const m = new Map(prev)
+          sessionSwaps.forEach((s) => {
+            m.set(s.workout_exercise_id, s.substituted_exercise_name)
+          })
+          return m
+        })
+      }
     }
 
     // Get client's active program assignment for this workout
