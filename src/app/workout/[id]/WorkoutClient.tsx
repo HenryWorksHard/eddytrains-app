@@ -44,6 +44,11 @@ interface SetLog {
   weight_kg: number | null
   reps_completed: number | null
   swapped_exercise_name?: string | null
+  // Per-set skip flag. Distinct from per-exercise skip
+  // (workout_exercise_skips, whole exercise). On a per-set skip,
+  // weight_kg + reps_completed stay null; is_skipped=true tells the
+  // UI to render "Skipped" instead of "not yet logged".
+  is_skipped?: boolean
 }
 
 interface PreviousSetLog {
@@ -233,11 +238,11 @@ export default function WorkoutClient({ workoutId, exercises, oneRMs, personalBe
       workoutLogIdRef.current = todayLog.id
 
       // Load today's set_logs into setLogs state (these are CONFIRMED logs).
-      // Also pull swapped_exercise_name so a previously-recorded swap survives
-      // a page reload — the card needs to re-mount in the swapped state.
+      // Also pull swapped_exercise_name + is_skipped so per-session swap
+      // and per-set skip state survive a page reload.
       const { data: todaySets } = await supabase
         .from('set_logs')
-        .select('exercise_id, set_number, weight_kg, reps_completed, swapped_exercise_name')
+        .select('exercise_id, set_number, weight_kg, reps_completed, swapped_exercise_name, is_skipped')
         .eq('workout_log_id', todayLog.id)
 
       if (todaySets && todaySets.length > 0) {
@@ -250,7 +255,8 @@ export default function WorkoutClient({ workoutId, exercises, oneRMs, personalBe
             exercise_id: s.exercise_id,
             set_number: s.set_number,
             weight_kg: s.weight_kg,
-            reps_completed: s.reps_completed
+            reps_completed: s.reps_completed,
+            is_skipped: !!s.is_skipped,
           })
           if (s.swapped_exercise_name && !swapMap.has(s.exercise_id)) {
             // isCustom isn't stored on set_logs — default to false; only the
@@ -395,8 +401,36 @@ export default function WorkoutClient({ workoutId, exercises, oneRMs, personalBe
     const key = `${exerciseId}-${setNumber}`
     setSetLogs(prev => {
       const updated = new Map(prev)
-      updated.set(key, { exercise_id: exerciseId, set_number: setNumber, weight_kg: weight, reps_completed: reps })
+      const existing = prev.get(key)
+      // Logging a value clears the skip — they're mutually exclusive.
+      updated.set(key, {
+        exercise_id: exerciseId,
+        set_number: setNumber,
+        weight_kg: weight,
+        reps_completed: reps,
+        is_skipped: false,
+        swapped_exercise_name: existing?.swapped_exercise_name ?? null,
+      })
       console.log('📝 [handleLogUpdate] Updated setLogs, total entries:', updated.size)
+      return updated
+    })
+  }, [])
+
+  // Per-set skip toggle. weight/reps cleared when skipping. Autosave
+  // picks this up because setLogs changed.
+  const handleSetSkipToggle = useCallback((exerciseId: string, setNumber: number, skipped: boolean) => {
+    const key = `${exerciseId}-${setNumber}`
+    setSetLogs(prev => {
+      const updated = new Map(prev)
+      const existing = prev.get(key)
+      updated.set(key, {
+        exercise_id: exerciseId,
+        set_number: setNumber,
+        weight_kg: skipped ? null : (existing?.weight_kg ?? null),
+        reps_completed: skipped ? null : (existing?.reps_completed ?? null),
+        is_skipped: skipped,
+        swapped_exercise_name: existing?.swapped_exercise_name ?? null,
+      })
       return updated
     })
   }, [])
@@ -576,9 +610,11 @@ export default function WorkoutClient({ workoutId, exercises, oneRMs, personalBe
         workoutLogIdRef.current = logId
       }
 
-      // Build set logs for upsert
+      // Build set logs for upsert. Include rows that are either logged
+      // (have weight/reps) OR deliberately skipped (is_skipped=true);
+      // skip purely-empty rows so we don't insert blanks.
       const logsToSave = Array.from(logsToProcess.values())
-        .filter(log => log.weight_kg !== null || log.reps_completed !== null)
+        .filter(log => log.weight_kg !== null || log.reps_completed !== null || log.is_skipped === true)
         .map(log => {
           // Check if this exercise was swapped
           const swapped = swappedExercisesRef.current.get(log.exercise_id)
@@ -592,7 +628,8 @@ export default function WorkoutClient({ workoutId, exercises, oneRMs, personalBe
             set_number: log.set_number,
             weight_kg: log.weight_kg,
             reps_completed: log.reps_completed,
-            swapped_exercise_name: swapped?.newName || null
+            swapped_exercise_name: swapped?.newName || null,
+            is_skipped: log.is_skipped === true,
           }
         })
 
@@ -655,10 +692,15 @@ export default function WorkoutClient({ workoutId, exercises, oneRMs, personalBe
   // Extract per-exercise logs from the session-level setLogs map so we
   // can pass them down to ExerciseCard as existingLogs.
   const getExistingLogsForExercise = (exerciseId: string) => {
-    const logs: { set_number: number; weight_kg: number | null; reps_completed: number | null }[] = []
+    const logs: { set_number: number; weight_kg: number | null; reps_completed: number | null; is_skipped?: boolean }[] = []
     setLogs.forEach((log, key) => {
       if (key.startsWith(`${exerciseId}-`)) {
-        logs.push({ set_number: log.set_number, weight_kg: log.weight_kg, reps_completed: log.reps_completed })
+        logs.push({
+          set_number: log.set_number,
+          weight_kg: log.weight_kg,
+          reps_completed: log.reps_completed,
+          is_skipped: log.is_skipped === true,
+        })
       }
     })
     return logs.length > 0 ? logs : undefined
@@ -698,6 +740,7 @@ export default function WorkoutClient({ workoutId, exercises, oneRMs, personalBe
         existingLogs={getExistingLogsForExercise(exercise.id)}
         personalBest={pb ? { weight_kg: pb.weight_kg, reps: pb.reps } : null}
         onLogUpdate={handleLogUpdate}
+        onSetSkipToggle={handleSetSkipToggle}
         onExerciseSwap={handleExerciseSwap}
         workoutExerciseId={exercise.id}
         workoutId={workoutId}
