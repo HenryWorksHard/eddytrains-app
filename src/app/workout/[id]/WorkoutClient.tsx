@@ -283,6 +283,29 @@ export default function WorkoutClient({ workoutId, exercises, oneRMs, personalBe
         })
         setSkips(m)
       }
+
+      // Load per-session swaps. This is the authoritative source — written
+      // immediately when the user picks a swap, even if they leave without
+      // logging any sets. The set_logs fallback above only covers sessions
+      // where at least one set was saved after the swap.
+      const { data: swapRows } = await supabase
+        .from('workout_exercise_swaps')
+        .select('workout_exercise_id, substituted_exercise_name, is_custom')
+        .eq('workout_log_id', todayLog.id)
+
+      if (swapRows && swapRows.length > 0) {
+        setSwappedExercises((prev) => {
+          const m = new Map(prev)
+          swapRows.forEach((r) => {
+            m.set(r.workout_exercise_id, {
+              exerciseId: r.workout_exercise_id,
+              newName: r.substituted_exercise_name,
+              isCustom: !!r.is_custom,
+            })
+          })
+          return m
+        })
+      }
     }
   }
 
