@@ -72,26 +72,41 @@ export async function GET(
     if (workoutLogs && workoutLogs.length > 0) {
       const logIds = workoutLogs.map(wl => wl.id)
 
-      // Get set_logs for these workout_logs (not exercise_logs - that table doesn't exist)
+      // Get set_logs for these workout_logs. Pull swapped_exercise_name
+      // so swapped exercises show up in the trainer's dropdown too —
+      // they're what the client actually did, even if the program slot
+      // was named something else.
       const { data: setLogs } = await adminClient
         .from('set_logs')
-        .select('exercise_id')
+        .select('exercise_id, swapped_exercise_name')
         .in('workout_log_id', logIds)
 
       if (setLogs && setLogs.length > 0) {
-        const exerciseIds = [...new Set(setLogs.map(sl => sl.exercise_id))]
-
-        const { data: exercises } = await adminClient
-          .from('workout_exercises')
-          .select('id, exercise_name')
-          .in('id', exerciseIds)
-
-        if (exercises) {
-          exercises.forEach(ex => {
-            if (!exerciseMap.has(ex.exercise_name)) {
-              exerciseMap.set(ex.exercise_name, ex.id)
+        // Surface swapped names directly.
+        for (const sl of setLogs) {
+          if (sl.swapped_exercise_name) {
+            const name = String(sl.swapped_exercise_name).trim()
+            if (name && !exerciseMap.has(name)) {
+              exerciseMap.set(name, sl.exercise_id || '')
             }
-          })
+          }
+        }
+
+        // Fall back to original slot names for un-swapped logs.
+        const exerciseIds = [...new Set(setLogs.map(sl => sl.exercise_id).filter(Boolean))]
+        if (exerciseIds.length > 0) {
+          const { data: exercises } = await adminClient
+            .from('workout_exercises')
+            .select('id, exercise_name')
+            .in('id', exerciseIds)
+
+          if (exercises) {
+            exercises.forEach(ex => {
+              if (!exerciseMap.has(ex.exercise_name)) {
+                exerciseMap.set(ex.exercise_name, ex.id)
+              }
+            })
+          }
         }
       }
     }

@@ -108,28 +108,31 @@ export async function GET(
 
     const workoutLogIds = workoutLogs.map(log => log.id)
 
-    // Get workout_exercises that match the exercise name
+    // Swap-aware lookup mirrors the client-side route: include logs
+    // whose swapped_exercise_name matches AND logs in any slot named
+    // like the requested exercise (where no swap was made).
     const { data: matchingExercises } = await adminClient
       .from('workout_exercises')
       .select('id')
       .ilike('exercise_name', exerciseName)
 
-    if (!matchingExercises || matchingExercises.length === 0) {
-      return NextResponse.json({ progression: [] })
-    }
+    const matchingSlotIds = new Set((matchingExercises || []).map((e) => e.id))
+    const nameLower = exerciseName.toLowerCase().trim()
 
-    const exerciseIds = matchingExercises.map(e => e.id)
-
-    // Get set_logs for these exercises and workout_logs
     const { data: setLogs } = await adminClient
       .from('set_logs')
-      .select('workout_log_id, weight_kg, reps_completed')
+      .select('workout_log_id, weight_kg, reps_completed, exercise_id, swapped_exercise_name')
       .in('workout_log_id', workoutLogIds)
-      .in('exercise_id', exerciseIds)
       .not('weight_kg', 'is', null)
       .order('created_at', { ascending: true })
 
-    if (!setLogs || setLogs.length === 0) {
+    const filteredLogs = (setLogs || []).filter((log) => {
+      const swapped = log.swapped_exercise_name?.toLowerCase().trim()
+      if (swapped) return swapped === nameLower
+      return log.exercise_id ? matchingSlotIds.has(log.exercise_id) : false
+    })
+
+    if (filteredLogs.length === 0) {
       return NextResponse.json({ progression: [] })
     }
 
@@ -137,7 +140,7 @@ export async function GET(
     const workoutLogMap = new Map(workoutLogs.map(log => [log.id, log]))
     const sessionWeights = new Map<string, { date: string; maxWeight: number; maxReps: number }>()
 
-    setLogs.forEach(log => {
+    filteredLogs.forEach(log => {
       const workoutLog = workoutLogMap.get(log.workout_log_id)
       if (!workoutLog) return
 
