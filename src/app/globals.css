@@ -579,10 +579,11 @@ a[role="button"]:active,
     height: 2.5rem !important;
   }
   
-  /* Mobile nav compact */
-  nav.fixed.bottom-0 {
-    padding-bottom: env(safe-area-inset-bottom, 0.5rem);
-  }
+  /* BottomNav handles its own safe-area padding inline (see
+     src/app/components/BottomNav.tsx). The previous global rule here
+     added the full safe-area inset on TOP of the inline value, stacking
+     two layers of padding and leaving a big dead band below the icons
+     on iPhone. Removed so the component is the single source of truth. */
 }
 
 /* ====================================
