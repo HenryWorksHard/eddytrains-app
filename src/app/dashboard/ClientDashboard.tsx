@@ -77,6 +77,8 @@ export default function ClientDashboard() {
         streak={data.streak ?? 0}
         longestStreak={data.longestStreak ?? 0}
         lastProgressPhotoDate={data.lastProgressPhotoDate ?? null}
+        pascalName={data.pascalName ?? null}
+        pascalColor={data.pascalColor ?? null}
       />
       <BottomNav />
     </div>
