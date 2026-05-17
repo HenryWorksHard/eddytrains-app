@@ -44,13 +44,38 @@ export const PASCAL_COLOR_KEYS: PascalColorTheme[] = ['yellow', 'blue', 'red', '
 
 /** Read-only swatch colour for the customizer UI. */
 export function getPascalSwatch(theme: PascalColorTheme | null | undefined): string {
-  return PALETTES[theme || 'yellow'].skin
+  return PALETTES[theme || 'yellow'].accent
 }
+
+export type PascalSkinTone = 'light' | 'medium' | 'tan' | 'dark' | 'deep'
+
+const SKIN_TONES: Record<PascalSkinTone, { skin: string; skinShade: string; skinHi: string }> = {
+  light:  { skin: '#f5dbcb', skinShade: '#c89d83', skinHi: '#fbeada' },
+  medium: { skin: '#deb887', skinShade: '#a07b54', skinHi: '#ecd5b3' },
+  tan:    { skin: '#c08458', skinShade: '#825632', skinHi: '#d8a47f' },
+  dark:   { skin: '#8d5524', skinShade: '#5d3617', skinHi: '#a87044' },
+  deep:   { skin: '#5a3318', skinShade: '#3a200e', skinHi: '#7a4828' },
+}
+
+export const PASCAL_SKIN_KEYS: PascalSkinTone[] = ['light', 'medium', 'tan', 'dark', 'deep']
+
+export function getPascalSkinSwatch(tone: PascalSkinTone | null | undefined): string {
+  return tone ? SKIN_TONES[tone].skin : SKIN_TONES.tan.skin
+}
+
+export type PascalOutfit = 'none' | 'cap' | 'headband' | 'sunglasses' | 'beanie'
+export const PASCAL_OUTFIT_KEYS: PascalOutfit[] = ['none', 'cap', 'headband', 'sunglasses', 'beanie']
+
+export type PascalCharacter = 'classic' | 'robot'
+export const PASCAL_CHARACTER_KEYS: PascalCharacter[] = ['classic', 'robot']
 
 type Props = {
   score: number
   size?: number
   colorTheme?: PascalColorTheme | null
+  skinTone?: PascalSkinTone | null
+  outfit?: PascalOutfit | null
+  character?: PascalCharacter | null
 }
 
 const OUTFIT = '#27272a'
@@ -60,13 +85,30 @@ const MOUTH = '#78350f'
 const SWEAT = '#60a5fa'
 const TEAR = '#93c5fd'
 
-function PascalInner({ score, size = 120, colorTheme }: Props) {
-  const palette = PALETTES[colorTheme || 'yellow'] || PALETTES.yellow
+function PascalInner({ score, size = 120, colorTheme, skinTone, outfit, character }: Props) {
+  const accentPalette = PALETTES[colorTheme || 'yellow'] || PALETTES.yellow
+  // Skin colours come from skinTone when set, else fall back to the
+  // colorTheme's skin (preserves the old all-coloured look for users
+  // who haven't picked a tone yet).
+  const skinPalette = skinTone ? SKIN_TONES[skinTone] : {
+    skin: accentPalette.skin,
+    skinShade: accentPalette.skinShade,
+    skinHi: accentPalette.skinHi,
+  }
+  const palette: Palette = {
+    skin: skinPalette.skin,
+    skinShade: skinPalette.skinShade,
+    skinHi: skinPalette.skinHi,
+    accent: accentPalette.accent,
+    accentHi: accentPalette.accentHi,
+  }
   const SKIN = palette.skin
   const SKIN_SHADE = palette.skinShade
   const SKIN_HI = palette.skinHi
   const ACCENT = palette.accent
   const ACCENT_HI = palette.accentHi
+  const activeOutfit: PascalOutfit = outfit || 'none'
+  const activeCharacter: PascalCharacter = character || 'classic'
 
   const stage = scoreToStage(score)
   const tier = stageToTier(stage)
@@ -150,6 +192,8 @@ function PascalInner({ score, size = 120, colorTheme }: Props) {
               showSweat={showSweat}
               mouthOffset={mouthOffset}
               palette={palette}
+              character={activeCharacter}
+              outfit={activeOutfit}
             />
 
             {/* NECK */}
@@ -321,6 +365,8 @@ function Head({
   showSweat,
   mouthOffset,
   palette,
+  character = 'classic',
+  outfit = 'none',
 }: {
   stage: number
   showSadEyes: boolean
@@ -328,28 +374,51 @@ function Head({
   showSweat: boolean
   mouthOffset: number
   palette: Palette
+  character?: PascalCharacter
+  outfit?: PascalOutfit
 }) {
-  const { skin: SKIN, skinShade: SKIN_SHADE, accent: ACCENT } = palette
-  // Head gets slightly narrower at high stages (leaner face)
+  const { skin: SKIN, skinShade: SKIN_SHADE, accent: ACCENT, accentHi: ACCENT_HI } = palette
   const headW = stage >= 14 ? 10 : 11
   const headLeft = 24 - headW / 2
   const eyesY = 11
   const mouthY = 14
+  const isRobot = character === 'robot'
 
   return (
     <g>
-      {/* Head block */}
+      {/* Head block — robot skips jaw shading for a flatter look */}
       <rect x={headLeft} y="6" width={headW} height="10" fill={SKIN} />
-      {/* Jaw shadow */}
-      <rect x={headLeft} y="15" width={headW} height="1" fill={SKIN_SHADE} />
-      {/* Hair / top shade */}
+      {!isRobot && <rect x={headLeft} y="15" width={headW} height="1" fill={SKIN_SHADE} />}
       <rect x={headLeft} y="6" width={headW} height="1" fill={SKIN_SHADE} />
+
+      {/* Robot: side rivets + antenna with accent-coloured tip */}
+      {isRobot && (
+        <>
+          <rect x={headLeft - 1} y="9" width="1" height="2" fill={SKIN_SHADE} />
+          <rect x={headLeft + headW} y="9" width="1" height="2" fill={SKIN_SHADE} />
+          <rect x="23" y="2" width="2" height="4" fill={SKIN_SHADE} />
+          <rect x="22" y="1" width="4" height="2" fill={ACCENT} />
+          {stage >= 18 && <rect x="22" y="1" width="4" height="1" fill={ACCENT_HI} />}
+        </>
+      )}
 
       {/* Eyes */}
       <g className="pascal-eye">
-        {showSadEyes ? (
+        {isRobot ? (
+          // Robot: visor band that lights up brighter with stage
           <>
-            {/* Sad closed eyes */}
+            <rect x="19" y={eyesY} width="10" height="2" fill={EYE} />
+            <rect x="20" y={eyesY} width="2" height="1" fill={stage >= 11 ? ACCENT : ACCENT_HI} opacity={0.9} />
+            <rect x="26" y={eyesY} width="2" height="1" fill={stage >= 11 ? ACCENT : ACCENT_HI} opacity={0.9} />
+            {stage >= 15 && (
+              <>
+                <rect x="20" y={eyesY} width="1" height="1" fill="#ffffff" />
+                <rect x="26" y={eyesY} width="1" height="1" fill="#ffffff" />
+              </>
+            )}
+          </>
+        ) : showSadEyes ? (
+          <>
             <rect x="20" y={eyesY} width="2" height="1" fill={EYE} />
             <rect x="26" y={eyesY} width="2" height="1" fill={EYE} />
           </>
@@ -357,7 +426,6 @@ function Head({
           <>
             <rect x="20" y={eyesY} width="2" height="2" fill={EYE} />
             <rect x="26" y={eyesY} width="2" height="2" fill={EYE} />
-            {/* Eye highlight at higher stages */}
             {stage >= 15 && (
               <>
                 <rect x="20" y={eyesY} width="1" height="1" fill="#ffffff" />
@@ -400,11 +468,42 @@ function Head({
       {/* Sweat drop */}
       {showSweat && <rect className="pascal-sweat" x={headLeft + headW + 1} y="6" width="2" height="3" fill={SWEAT} />}
 
-      {/* Headband at top tier */}
-      {stage >= 19 && (
+      {/* Stage-19 default headband only when user picked no outfit */}
+      {outfit === 'none' && stage >= 19 && (
         <>
           <rect x={headLeft} y="7" width={headW} height="1" fill={ACCENT} />
           <rect x={headLeft + 2} y="6" width="2" height="2" fill={ACCENT} />
+        </>
+      )}
+
+      {/* User-picked outfit — layer on top of the head */}
+      {outfit === 'headband' && (
+        <>
+          <rect x={headLeft - 1} y="7" width={headW + 2} height="2" fill={ACCENT} />
+          <rect x={headLeft - 1} y="7" width={headW + 2} height="1" fill={ACCENT_HI} opacity={0.7} />
+        </>
+      )}
+      {outfit === 'cap' && (
+        <>
+          <rect x={headLeft - 1} y="4" width={headW + 2} height="3" fill={ACCENT} />
+          <rect x={headLeft - 1} y="4" width={headW + 2} height="1" fill={ACCENT_HI} opacity={0.7} />
+          <rect x={headLeft + headW} y="6" width="3" height="1" fill={ACCENT} />
+        </>
+      )}
+      {outfit === 'beanie' && (
+        <>
+          <rect x={headLeft - 1} y="3" width={headW + 2} height="5" fill={ACCENT} />
+          <rect x={headLeft - 1} y="3" width={headW + 2} height="1" fill={ACCENT_HI} opacity={0.6} />
+          <rect x="23" y="1" width="2" height="2" fill={ACCENT_HI} />
+        </>
+      )}
+      {outfit === 'sunglasses' && (
+        <>
+          <rect x="22" y={eyesY} width="4" height="1" fill="#000" />
+          <rect x="19" y={eyesY} width="4" height="2" fill="#000" />
+          <rect x="25" y={eyesY} width="4" height="2" fill="#000" />
+          <rect x="20" y={eyesY} width="1" height="1" fill="#fff" opacity={0.6} />
+          <rect x="26" y={eyesY} width="1" height="1" fill="#fff" opacity={0.6} />
         </>
       )}
     </g>

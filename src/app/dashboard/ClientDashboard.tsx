@@ -79,6 +79,9 @@ export default function ClientDashboard() {
         lastProgressPhotoDate={data.lastProgressPhotoDate ?? null}
         pascalName={data.pascalName ?? null}
         pascalColor={data.pascalColor ?? null}
+        pascalSkin={data.pascalSkin ?? null}
+        pascalOutfit={data.pascalOutfit ?? null}
+        pascalCharacter={data.pascalCharacter ?? null}
       />
       <BottomNav />
     </div>
