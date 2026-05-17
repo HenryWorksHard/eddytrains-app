@@ -8,8 +8,9 @@ import { useTheme } from '../lib/ThemeContext'
 import BottomNav from '../components/BottomNav'
 import { SlideOutMenu, HamburgerButton } from '../components/SlideOutMenu'
 import Image from 'next/image'
-import { Sun, Moon } from 'lucide-react'
+import { Sun, Moon, Sparkles } from 'lucide-react'
 import AppLoading from '@/components/AppLoading'
+import Pascal, { type PascalColorTheme, PASCAL_COLOR_KEYS, getPascalSwatch } from '@/components/Pascal'
 
 // NB: Progress pictures live on the dedicated /progress-pictures page.
 // The profile page used to duplicate that section; removed to avoid drift.
@@ -23,6 +24,8 @@ interface Profile {
   goals: string | null
   presenting_condition: string | null
   medical_history: string | null
+  pascal_name: string | null
+  pascal_color: PascalColorTheme | null
 }
 
 interface Client1RM {
@@ -63,6 +66,11 @@ export default function ProfilePage() {
   const [deleteConfirmText, setDeleteConfirmText] = useState('')
   const [deleting, setDeleting] = useState(false)
   const [deleteError, setDeleteError] = useState<string | null>(null)
+  // Pascal customizer state
+  const [pascalName, setPascalName] = useState('')
+  const [pascalColor, setPascalColor] = useState<PascalColorTheme>('yellow')
+  const [pascalSavedAt, setPascalSavedAt] = useState<number | null>(null)
+  const pascalSaveTimeoutRef = useRef<NodeJS.Timeout | null>(null)
   const pfpInputRef = useRef<HTMLInputElement>(null)
   const router = useRouter()
   const supabase = createClient()
@@ -83,6 +91,9 @@ export default function ProfilePage() {
         .eq('id', user.id)
         .single()
 
+      const initialPascalColor = (data?.pascal_color && PASCAL_COLOR_KEYS.includes(data.pascal_color as PascalColorTheme))
+        ? (data.pascal_color as PascalColorTheme)
+        : null
       setProfile({
         id: user.id,
         full_name: data?.full_name || null,
@@ -92,7 +103,11 @@ export default function ProfilePage() {
         goals: data?.goals || null,
         presenting_condition: data?.presenting_condition || null,
         medical_history: data?.medical_history || null,
+        pascal_name: data?.pascal_name || null,
+        pascal_color: initialPascalColor,
       })
+      setPascalName(data?.pascal_name || '')
+      setPascalColor(initialPascalColor || 'yellow')
       
       // Set client info state
       setGoals(data?.goals || '')
@@ -257,6 +272,43 @@ export default function ProfilePage() {
     } finally {
       setSavingInfo(false)
     }
+  }
+
+  // Debounce-save Pascal customization. The user types or taps a swatch,
+  // we wait 500ms, then UPSERT to profiles. Optimistic UI — the preview
+  // updates instantly because pascalName/pascalColor are local state.
+  const savePascalCustomization = async (nextName: string, nextColor: PascalColorTheme) => {
+    if (!profile) return
+    const trimmed = nextName.trim().slice(0, 20)
+    try {
+      const { data: { user } } = await supabase.auth.getUser()
+      if (!user) return
+      const { error } = await supabase
+        .from('profiles')
+        .update({
+          pascal_name: trimmed || null,
+          pascal_color: nextColor,
+        })
+        .eq('id', user.id)
+      if (error) throw error
+      setProfile((prev) => prev ? { ...prev, pascal_name: trimmed || null, pascal_color: nextColor } : prev)
+      setPascalSavedAt(Date.now())
+      setTimeout(() => setPascalSavedAt(null), 2000)
+    } catch (e) {
+      console.error('[pascal-customize] save failed:', e)
+    }
+  }
+
+  const onPascalNameChange = (next: string) => {
+    setPascalName(next)
+    if (pascalSaveTimeoutRef.current) clearTimeout(pascalSaveTimeoutRef.current)
+    pascalSaveTimeoutRef.current = setTimeout(() => savePascalCustomization(next, pascalColor), 500)
+  }
+
+  const onPascalColorChange = (next: PascalColorTheme) => {
+    setPascalColor(next)
+    if (pascalSaveTimeoutRef.current) clearTimeout(pascalSaveTimeoutRef.current)
+    savePascalCustomization(pascalName, next)
   }
 
   const handleLogout = async () => {
@@ -537,6 +589,59 @@ export default function ProfilePage() {
             </div>
           </section>
         )}
+
+        {/* Pascal Customizer */}
+        <section>
+          <h2 className="text-sm font-medium text-zinc-500 uppercase tracking-wider mb-3 flex items-center gap-2">
+            <Sparkles className="w-4 h-4 text-yellow-400" />
+            Customize your buddy
+          </h2>
+          <div className="bg-zinc-900 border border-zinc-800 rounded-2xl p-5 space-y-5">
+            {/* Live preview */}
+            <div className="flex items-center justify-center py-2">
+              <Pascal score={110} size={140} colorTheme={pascalColor} />
+            </div>
+
+            {/* Name input */}
+            <div>
+              <label className="block text-xs text-zinc-500 uppercase tracking-wider mb-2">Name</label>
+              <input
+                type="text"
+                value={pascalName}
+                onChange={(e) => onPascalNameChange(e.target.value)}
+                placeholder="Pascal"
+                maxLength={20}
+                className="w-full px-4 py-3 bg-zinc-800 border border-zinc-700 rounded-xl text-white placeholder-zinc-500 focus:outline-none focus:ring-2 focus:ring-yellow-400"
+              />
+              <p className="text-[11px] text-zinc-600 mt-1">{pascalName.length}/20 — leave blank for &quot;Pascal&quot;</p>
+            </div>
+
+            {/* Color swatches */}
+            <div>
+              <label className="block text-xs text-zinc-500 uppercase tracking-wider mb-2">Colour</label>
+              <div className="flex flex-wrap gap-2">
+                {PASCAL_COLOR_KEYS.map((key) => {
+                  const selected = pascalColor === key
+                  return (
+                    <button
+                      key={key}
+                      onClick={() => onPascalColorChange(key)}
+                      aria-label={`Pascal colour: ${key}`}
+                      className={`w-10 h-10 rounded-full border-2 transition-all ${
+                        selected ? 'border-white scale-110' : 'border-zinc-700 hover:border-zinc-500'
+                      }`}
+                      style={{ backgroundColor: getPascalSwatch(key) }}
+                    />
+                  )
+                })}
+              </div>
+            </div>
+
+            {pascalSavedAt && (
+              <p className="text-xs text-green-400">Saved</p>
+            )}
+          </div>
+        </section>
 
         {/* Settings Section */}
         <section>

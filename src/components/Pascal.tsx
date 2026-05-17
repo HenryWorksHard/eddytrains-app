@@ -15,24 +15,59 @@ import { scoreToStage, stageToTier, PASCAL_MAX } from '@/app/lib/pascal'
  * give each tier group a different personality, but within a tier the
  * body progressively tightens up and muscles emerge.
  */
+export type PascalColorTheme =
+  | 'yellow'
+  | 'blue'
+  | 'red'
+  | 'green'
+  | 'purple'
+  | 'orange'
+
+type Palette = {
+  skin: string
+  skinShade: string
+  skinHi: string
+  accent: string
+  accentHi: string
+}
+
+const PALETTES: Record<PascalColorTheme, Palette> = {
+  yellow: { skin: '#fbbf24', skinShade: '#d97706', skinHi: '#fde68a', accent: '#facc15', accentHi: '#fef08a' },
+  blue:   { skin: '#60a5fa', skinShade: '#1d4ed8', skinHi: '#bfdbfe', accent: '#38bdf8', accentHi: '#bae6fd' },
+  red:    { skin: '#f87171', skinShade: '#b91c1c', skinHi: '#fecaca', accent: '#ef4444', accentHi: '#fca5a5' },
+  green:  { skin: '#4ade80', skinShade: '#15803d', skinHi: '#bbf7d0', accent: '#22c55e', accentHi: '#86efac' },
+  purple: { skin: '#a78bfa', skinShade: '#6d28d9', skinHi: '#ddd6fe', accent: '#c084fc', accentHi: '#e9d5ff' },
+  orange: { skin: '#fb923c', skinShade: '#c2410c', skinHi: '#fed7aa', accent: '#f97316', accentHi: '#fdba74' },
+}
+
+export const PASCAL_COLOR_KEYS: PascalColorTheme[] = ['yellow', 'blue', 'red', 'green', 'purple', 'orange']
+
+/** Read-only swatch colour for the customizer UI. */
+export function getPascalSwatch(theme: PascalColorTheme | null | undefined): string {
+  return PALETTES[theme || 'yellow'].skin
+}
+
 type Props = {
   score: number
   size?: number
+  colorTheme?: PascalColorTheme | null
 }
 
-const SKIN = '#fbbf24'
-const SKIN_SHADE = '#d97706'
-const SKIN_HI = '#fde68a'
 const OUTFIT = '#27272a'
 const OUTFIT_SHADE = '#18181b'
-const ACCENT = '#facc15'
-const ACCENT_HI = '#fef08a'
 const EYE = '#111111'
 const MOUTH = '#78350f'
 const SWEAT = '#60a5fa'
 const TEAR = '#93c5fd'
 
-function PascalInner({ score, size = 120 }: Props) {
+function PascalInner({ score, size = 120, colorTheme }: Props) {
+  const palette = PALETTES[colorTheme || 'yellow'] || PALETTES.yellow
+  const SKIN = palette.skin
+  const SKIN_SHADE = palette.skinShade
+  const SKIN_HI = palette.skinHi
+  const ACCENT = palette.accent
+  const ACCENT_HI = palette.accentHi
+
   const stage = scoreToStage(score)
   const tier = stageToTier(stage)
 
@@ -114,6 +149,7 @@ function PascalInner({ score, size = 120 }: Props) {
               showTear={showTear}
               showSweat={showSweat}
               mouthOffset={mouthOffset}
+              palette={palette}
             />
 
             {/* NECK */}
@@ -184,7 +220,7 @@ function PascalInner({ score, size = 120 }: Props) {
 
             {/* ARMS */}
             {flexArms ? (
-              <FlexedArms armW={armW} shoulderLeft={shoulderLeft} shoulderW={shoulderW} showBicepDef={showBicepDef} />
+              <FlexedArms armW={armW} shoulderLeft={shoulderLeft} shoulderW={shoulderW} showBicepDef={showBicepDef} palette={palette} />
             ) : (
               <RelaxedArms
                 armW={armW}
@@ -193,11 +229,12 @@ function PascalInner({ score, size = 120 }: Props) {
                 showBicepPeak={showBicepPeak}
                 showTricepLine={showTricepLine}
                 stage={stage}
+                palette={palette}
               />
             )}
 
             {/* LEGS */}
-            <Legs stage={stage} waistLeft={waistLeft} waistW={waistW} torsoBottomY={torsoBottomY} />
+            <Legs stage={stage} waistLeft={waistLeft} waistW={waistW} torsoBottomY={torsoBottomY} palette={palette} />
           </g>
         </svg>
       </div>
@@ -283,13 +320,16 @@ function Head({
   showTear,
   showSweat,
   mouthOffset,
+  palette,
 }: {
   stage: number
   showSadEyes: boolean
   showTear: boolean
   showSweat: boolean
   mouthOffset: number
+  palette: Palette
 }) {
+  const { skin: SKIN, skinShade: SKIN_SHADE, accent: ACCENT } = palette
   // Head gets slightly narrower at high stages (leaner face)
   const headW = stage >= 14 ? 10 : 11
   const headLeft = 24 - headW / 2
@@ -465,6 +505,7 @@ function RelaxedArms({
   showBicepPeak,
   showTricepLine,
   stage,
+  palette,
 }: {
   armW: number
   shoulderLeft: number
@@ -472,7 +513,9 @@ function RelaxedArms({
   showBicepPeak: boolean
   showTricepLine: boolean
   stage: number
+  palette: Palette
 }) {
+  const { skin: SKIN, skinShade: SKIN_SHADE, skinHi: SKIN_HI } = palette
   const leftX = shoulderLeft - armW
   const rightX = shoulderLeft + shoulderW
   const topY = 19
@@ -517,12 +560,15 @@ function FlexedArms({
   shoulderLeft,
   shoulderW,
   showBicepDef,
+  palette,
 }: {
   armW: number
   shoulderLeft: number
   shoulderW: number
   showBicepDef: boolean
+  palette: Palette
 }) {
+  const { skin: SKIN, skinShade: SKIN_SHADE, skinHi: SKIN_HI } = palette
   // Upper (forearm) goes up, lower (bicep) goes across. Two-segment L shape on each side.
   const leftShoulderX = shoulderLeft
   const rightShoulderX = shoulderLeft + shoulderW - armW
@@ -561,12 +607,15 @@ function Legs({
   waistLeft,
   waistW,
   torsoBottomY,
+  palette,
 }: {
   stage: number
   waistLeft: number
   waistW: number
   torsoBottomY: number
+  palette: Palette
 }) {
+  const { skin: SKIN, skinHi: SKIN_HI } = palette
   const gap = stage <= 4 ? 2 : stage >= 16 ? 4 : 3
   const legW = Math.max(3, Math.floor((waistW - gap) / 2))
   const leftX = waistLeft
