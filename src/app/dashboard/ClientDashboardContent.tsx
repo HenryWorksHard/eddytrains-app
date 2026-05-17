@@ -5,7 +5,16 @@ import Link from 'next/link'
 import useSWR from 'swr'
 import { SlideOutMenu, HamburgerButton } from '../components/SlideOutMenu'
 import WorkoutCalendar from '../components/WorkoutCalendar'
-import Pascal, { type PascalColorTheme } from '@/components/Pascal'
+import Pascal, {
+  type PascalColorTheme,
+  type PascalSkinTone,
+  type PascalOutfit,
+  type PascalCharacter,
+  PASCAL_COLOR_KEYS,
+  PASCAL_SKIN_KEYS,
+  PASCAL_OUTFIT_KEYS,
+  PASCAL_CHARACTER_KEYS,
+} from '@/components/Pascal'
 
 interface Workout {
   workoutId: string
@@ -41,6 +50,9 @@ interface DashboardClientProps {
   lastProgressPhotoDate?: string | null
   pascalName?: string | null
   pascalColor?: string | null
+  pascalSkin?: string | null
+  pascalOutfit?: string | null
+  pascalCharacter?: string | null
 }
 
 type PascalData = { score: number; max: number; stage: number; tier: 1 | 2 | 3 | 4 }
@@ -195,13 +207,21 @@ function greetingFor(tier: 1 | 2 | 3 | 4): string {
   }
 }
 
-export default function DashboardClient({ firstName, workoutsByDay, programCount, completedWorkouts, scheduleByDay, scheduleByWeekAndDay, calendarCompletions, completionsByDate, programStartDate, maxWeek = 1, streak = 0, lastProgressPhotoDate = null, pascalName = null, pascalColor = null }: DashboardClientProps) {
+export default function DashboardClient({ firstName, workoutsByDay, programCount, completedWorkouts, scheduleByDay, scheduleByWeekAndDay, calendarCompletions, completionsByDate, programStartDate, maxWeek = 1, streak = 0, lastProgressPhotoDate = null, pascalName = null, pascalColor = null, pascalSkin = null, pascalOutfit = null, pascalCharacter = null }: DashboardClientProps) {
   // Customizable mascot — fall back to defaults if user hasn't set values.
   const buddyName = (pascalName && pascalName.trim()) || 'Pascal'
-  const ALLOWED_COLORS: PascalColorTheme[] = ['yellow', 'blue', 'red', 'green', 'purple', 'orange']
-  const buddyColor: PascalColorTheme = (pascalColor && (ALLOWED_COLORS as string[]).includes(pascalColor))
+  const buddyColor: PascalColorTheme = (pascalColor && (PASCAL_COLOR_KEYS as string[]).includes(pascalColor))
     ? (pascalColor as PascalColorTheme)
     : 'yellow'
+  const buddySkin: PascalSkinTone | null = (pascalSkin && (PASCAL_SKIN_KEYS as string[]).includes(pascalSkin))
+    ? (pascalSkin as PascalSkinTone)
+    : null
+  const buddyOutfit: PascalOutfit = (pascalOutfit && (PASCAL_OUTFIT_KEYS as string[]).includes(pascalOutfit))
+    ? (pascalOutfit as PascalOutfit)
+    : 'none'
+  const buddyCharacter: PascalCharacter = (pascalCharacter && (PASCAL_CHARACTER_KEYS as string[]).includes(pascalCharacter))
+    ? (pascalCharacter as PascalCharacter)
+    : 'classic'
   const completedSet = new Set(completedWorkouts)
   const [mounted, setMounted] = useState(false)
   const [greeting, setGreeting] = useState('Hello')
@@ -356,7 +376,13 @@ export default function DashboardClient({ firstName, workoutsByDay, programCount
           <div className="flex flex-col items-center mb-4 pt-8">
             <div className="relative w-[120px] h-[120px] flex items-center justify-center">
               {pascalData ? (
-                <Pascal score={pascalData.score} colorTheme={buddyColor} />
+                <Pascal
+                  score={pascalData.score}
+                  colorTheme={buddyColor}
+                  skinTone={buddySkin}
+                  outfit={buddyOutfit}
+                  character={buddyCharacter}
+                />
               ) : (
                 <div className="w-[96px] h-[96px] rounded-2xl bg-zinc-800/40 animate-pulse" />
               )}

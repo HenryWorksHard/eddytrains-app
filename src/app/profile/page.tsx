@@ -10,7 +10,18 @@ import { SlideOutMenu, HamburgerButton } from '../components/SlideOutMenu'
 import Image from 'next/image'
 import { Sun, Moon, Sparkles } from 'lucide-react'
 import AppLoading from '@/components/AppLoading'
-import Pascal, { type PascalColorTheme, PASCAL_COLOR_KEYS, getPascalSwatch } from '@/components/Pascal'
+import Pascal, {
+  type PascalColorTheme,
+  type PascalSkinTone,
+  type PascalOutfit,
+  type PascalCharacter,
+  PASCAL_COLOR_KEYS,
+  PASCAL_SKIN_KEYS,
+  PASCAL_OUTFIT_KEYS,
+  PASCAL_CHARACTER_KEYS,
+  getPascalSwatch,
+  getPascalSkinSwatch,
+} from '@/components/Pascal'
 
 // NB: Progress pictures live on the dedicated /progress-pictures page.
 // The profile page used to duplicate that section; removed to avoid drift.
@@ -26,6 +37,9 @@ interface Profile {
   medical_history: string | null
   pascal_name: string | null
   pascal_color: PascalColorTheme | null
+  pascal_skin: PascalSkinTone | null
+  pascal_outfit: PascalOutfit | null
+  pascal_character: PascalCharacter | null
 }
 
 interface Client1RM {
@@ -69,6 +83,9 @@ export default function ProfilePage() {
   // Pascal customizer state
   const [pascalName, setPascalName] = useState('')
   const [pascalColor, setPascalColor] = useState<PascalColorTheme>('yellow')
+  const [pascalSkin, setPascalSkin] = useState<PascalSkinTone>('tan')
+  const [pascalOutfit, setPascalOutfit] = useState<PascalOutfit>('none')
+  const [pascalCharacter, setPascalCharacter] = useState<PascalCharacter>('classic')
   const [pascalSavedAt, setPascalSavedAt] = useState<number | null>(null)
   const pascalSaveTimeoutRef = useRef<NodeJS.Timeout | null>(null)
   const pfpInputRef = useRef<HTMLInputElement>(null)
@@ -94,6 +111,15 @@ export default function ProfilePage() {
       const initialPascalColor = (data?.pascal_color && PASCAL_COLOR_KEYS.includes(data.pascal_color as PascalColorTheme))
         ? (data.pascal_color as PascalColorTheme)
         : null
+      const initialPascalSkin = (data?.pascal_skin && PASCAL_SKIN_KEYS.includes(data.pascal_skin as PascalSkinTone))
+        ? (data.pascal_skin as PascalSkinTone)
+        : null
+      const initialPascalOutfit = (data?.pascal_outfit && PASCAL_OUTFIT_KEYS.includes(data.pascal_outfit as PascalOutfit))
+        ? (data.pascal_outfit as PascalOutfit)
+        : null
+      const initialPascalCharacter = (data?.pascal_character && PASCAL_CHARACTER_KEYS.includes(data.pascal_character as PascalCharacter))
+        ? (data.pascal_character as PascalCharacter)
+        : null
       setProfile({
         id: user.id,
         full_name: data?.full_name || null,
@@ -105,9 +131,15 @@ export default function ProfilePage() {
         medical_history: data?.medical_history || null,
         pascal_name: data?.pascal_name || null,
         pascal_color: initialPascalColor,
+        pascal_skin: initialPascalSkin,
+        pascal_outfit: initialPascalOutfit,
+        pascal_character: initialPascalCharacter,
       })
       setPascalName(data?.pascal_name || '')
       setPascalColor(initialPascalColor || 'yellow')
+      setPascalSkin(initialPascalSkin || 'tan')
+      setPascalOutfit(initialPascalOutfit || 'none')
+      setPascalCharacter(initialPascalCharacter || 'classic')
       
       // Set client info state
       setGoals(data?.goals || '')
@@ -274,12 +306,17 @@ export default function ProfilePage() {
     }
   }
 
-  // Debounce-save Pascal customization. The user types or taps a swatch,
-  // we wait 500ms, then UPSERT to profiles. Optimistic UI — the preview
-  // updates instantly because pascalName/pascalColor are local state.
-  const savePascalCustomization = async (nextName: string, nextColor: PascalColorTheme) => {
+  // Debounce-save Pascal customization. Optimistic UI — preview updates
+  // instantly via local state; queueSave persists all five dimensions.
+  const savePascalCustomization = async (next: {
+    name: string
+    color: PascalColorTheme
+    skin: PascalSkinTone
+    outfit: PascalOutfit
+    character: PascalCharacter
+  }) => {
     if (!profile) return
-    const trimmed = nextName.trim().slice(0, 20)
+    const trimmed = next.name.trim().slice(0, 20)
     try {
       const { data: { user } } = await supabase.auth.getUser()
       if (!user) return
@@ -287,11 +324,21 @@ export default function ProfilePage() {
         .from('profiles')
         .update({
           pascal_name: trimmed || null,
-          pascal_color: nextColor,
+          pascal_color: next.color,
+          pascal_skin: next.skin,
+          pascal_outfit: next.outfit,
+          pascal_character: next.character,
         })
         .eq('id', user.id)
       if (error) throw error
-      setProfile((prev) => prev ? { ...prev, pascal_name: trimmed || null, pascal_color: nextColor } : prev)
+      setProfile((prev) => prev ? {
+        ...prev,
+        pascal_name: trimmed || null,
+        pascal_color: next.color,
+        pascal_skin: next.skin,
+        pascal_outfit: next.outfit,
+        pascal_character: next.character,
+      } : prev)
       setPascalSavedAt(Date.now())
       setTimeout(() => setPascalSavedAt(null), 2000)
     } catch (e) {
@@ -299,16 +346,47 @@ export default function ProfilePage() {
     }
   }
 
-  const onPascalNameChange = (next: string) => {
-    setPascalName(next)
+  const queueSave = (next: {
+    name?: string
+    color?: PascalColorTheme
+    skin?: PascalSkinTone
+    outfit?: PascalOutfit
+    character?: PascalCharacter
+  }, immediate = false) => {
+    const payload = {
+      name: next.name ?? pascalName,
+      color: next.color ?? pascalColor,
+      skin: next.skin ?? pascalSkin,
+      outfit: next.outfit ?? pascalOutfit,
+      character: next.character ?? pascalCharacter,
+    }
     if (pascalSaveTimeoutRef.current) clearTimeout(pascalSaveTimeoutRef.current)
-    pascalSaveTimeoutRef.current = setTimeout(() => savePascalCustomization(next, pascalColor), 500)
+    if (immediate) {
+      savePascalCustomization(payload)
+    } else {
+      pascalSaveTimeoutRef.current = setTimeout(() => savePascalCustomization(payload), 500)
+    }
   }
 
+  const onPascalNameChange = (next: string) => {
+    setPascalName(next)
+    queueSave({ name: next })
+  }
   const onPascalColorChange = (next: PascalColorTheme) => {
     setPascalColor(next)
-    if (pascalSaveTimeoutRef.current) clearTimeout(pascalSaveTimeoutRef.current)
-    savePascalCustomization(pascalName, next)
+    queueSave({ color: next }, true)
+  }
+  const onPascalSkinChange = (next: PascalSkinTone) => {
+    setPascalSkin(next)
+    queueSave({ skin: next }, true)
+  }
+  const onPascalOutfitChange = (next: PascalOutfit) => {
+    setPascalOutfit(next)
+    queueSave({ outfit: next }, true)
+  }
+  const onPascalCharacterChange = (next: PascalCharacter) => {
+    setPascalCharacter(next)
+    queueSave({ character: next }, true)
   }
 
   const handleLogout = async () => {
@@ -599,7 +677,14 @@ export default function ProfilePage() {
           <div className="bg-zinc-900 border border-zinc-800 rounded-2xl p-5 space-y-5">
             {/* Live preview */}
             <div className="flex items-center justify-center py-2">
-              <Pascal score={110} size={140} colorTheme={pascalColor} />
+              <Pascal
+                score={110}
+                size={140}
+                colorTheme={pascalColor}
+                skinTone={pascalSkin}
+                outfit={pascalOutfit}
+                character={pascalCharacter}
+              />
             </div>
 
             {/* Name input */}
@@ -616,9 +701,53 @@ export default function ProfilePage() {
               <p className="text-[11px] text-zinc-600 mt-1">{pascalName.length}/20 — leave blank for &quot;Pascal&quot;</p>
             </div>
 
-            {/* Color swatches */}
+            {/* Character picker */}
             <div>
-              <label className="block text-xs text-zinc-500 uppercase tracking-wider mb-2">Colour</label>
+              <label className="block text-xs text-zinc-500 uppercase tracking-wider mb-2">Character</label>
+              <div className="grid grid-cols-2 gap-2">
+                {PASCAL_CHARACTER_KEYS.map((key) => {
+                  const selected = pascalCharacter === key
+                  const label = key === 'classic' ? 'Classic' : 'Robot'
+                  return (
+                    <button
+                      key={key}
+                      onClick={() => onPascalCharacterChange(key)}
+                      className={`flex flex-col items-center gap-1 p-3 rounded-xl border-2 transition-all ${
+                        selected ? 'border-yellow-400 bg-zinc-800' : 'border-zinc-700 hover:border-zinc-600'
+                      }`}
+                    >
+                      <Pascal score={120} size={60} colorTheme={pascalColor} skinTone={pascalSkin} outfit="none" character={key} />
+                      <span className={`text-xs font-medium ${selected ? 'text-yellow-400' : 'text-zinc-400'}`}>{label}</span>
+                    </button>
+                  )
+                })}
+              </div>
+            </div>
+
+            {/* Skin tone swatches */}
+            <div>
+              <label className="block text-xs text-zinc-500 uppercase tracking-wider mb-2">Skin tone</label>
+              <div className="flex flex-wrap gap-2">
+                {PASCAL_SKIN_KEYS.map((key) => {
+                  const selected = pascalSkin === key
+                  return (
+                    <button
+                      key={key}
+                      onClick={() => onPascalSkinChange(key)}
+                      aria-label={`Skin tone: ${key}`}
+                      className={`w-10 h-10 rounded-full border-2 transition-all ${
+                        selected ? 'border-white scale-110' : 'border-zinc-700 hover:border-zinc-500'
+                      }`}
+                      style={{ backgroundColor: getPascalSkinSwatch(key) }}
+                    />
+                  )
+                })}
+              </div>
+            </div>
+
+            {/* Accent colour swatches */}
+            <div>
+              <label className="block text-xs text-zinc-500 uppercase tracking-wider mb-2">Accent colour</label>
               <div className="flex flex-wrap gap-2">
                 {PASCAL_COLOR_KEYS.map((key) => {
                   const selected = pascalColor === key
@@ -626,12 +755,40 @@ export default function ProfilePage() {
                     <button
                       key={key}
                       onClick={() => onPascalColorChange(key)}
-                      aria-label={`Pascal colour: ${key}`}
+                      aria-label={`Accent colour: ${key}`}
                       className={`w-10 h-10 rounded-full border-2 transition-all ${
                         selected ? 'border-white scale-110' : 'border-zinc-700 hover:border-zinc-500'
                       }`}
                       style={{ backgroundColor: getPascalSwatch(key) }}
                     />
+                  )
+                })}
+              </div>
+              <p className="text-[11px] text-zinc-600 mt-1">Shows on outfits, sparkles, robot visor.</p>
+            </div>
+
+            {/* Outfit picker */}
+            <div>
+              <label className="block text-xs text-zinc-500 uppercase tracking-wider mb-2">Outfit</label>
+              <div className="flex flex-wrap gap-2">
+                {PASCAL_OUTFIT_KEYS.map((key) => {
+                  const selected = pascalOutfit === key
+                  const label =
+                    key === 'none' ? 'None'
+                    : key === 'cap' ? 'Cap'
+                    : key === 'headband' ? 'Headband'
+                    : key === 'sunglasses' ? 'Shades'
+                    : 'Beanie'
+                  return (
+                    <button
+                      key={key}
+                      onClick={() => onPascalOutfitChange(key)}
+                      className={`px-3 py-2 rounded-xl text-xs font-medium transition-colors ${
+                        selected ? 'bg-yellow-400 text-black' : 'bg-zinc-800 text-zinc-300 hover:bg-zinc-700'
+                      }`}
+                    >
+                      {label}
+                    </button>
                   )
                 })}
               </div>
