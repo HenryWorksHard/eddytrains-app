@@ -364,27 +364,29 @@ export default function DashboardClient({ firstName, workoutsByDay, programCount
       {/* Header - pure black to seamlessly meet the iOS status bar safe-area strip (body bg = #000). */}
       <header className="relative bg-black border-b border-zinc-800">
         <div className="px-4 pt-14 pb-4">
-          {/* Greeting - Top */}
-          <div className="text-center mb-4">
-            <p className="text-zinc-500 text-sm">{greeting},</p>
-            <h1 className="text-2xl font-bold text-white">{firstName}</h1>
+          {/* Greeting - Top. Tighter spacing than before so Pascal + workout
+             card sit closer to the fold. */}
+          <div className="text-center mb-2">
+            <p className="text-zinc-500 text-xs">{greeting},</p>
+            <h1 className="text-xl font-bold text-white leading-tight">{firstName}</h1>
           </div>
 
-          {/* Pascal — fitness-consistency mascot. Extra top padding leaves
-             room for the speech bubble above his head without shifting
-             the greeting when the bubble appears. */}
-          <div className="flex flex-col items-center mb-4 pt-8">
-            <div className="relative w-[120px] h-[120px] flex items-center justify-center">
+          {/* Pascal — fitness-consistency mascot. Compact 96px hero with
+             enough top padding for the speech bubble (-top-7) to sit above
+             his head without colliding with the greeting. */}
+          <div className="flex flex-col items-center mb-3 pt-6">
+            <div className="relative w-[96px] h-[96px] flex items-center justify-center">
               {pascalData ? (
                 <Pascal
                   score={pascalData.score}
+                  size={96}
                   colorTheme={buddyColor}
                   skinTone={buddySkin}
                   outfit={buddyOutfit}
                   character={buddyCharacter}
                 />
               ) : (
-                <div className="w-[96px] h-[96px] rounded-2xl bg-zinc-800/40 animate-pulse" />
+                <div className="w-[80px] h-[80px] rounded-2xl bg-zinc-800/40 animate-pulse" />
               )}
               {/* Speech bubble — floats directly above Pascal's head with a
                  downward-pointing tail. Centered horizontally and capped at
@@ -394,7 +396,7 @@ export default function DashboardClient({ firstName, workoutsByDay, programCount
                 <button
                   type="button"
                   onClick={() => setShowPascalGreeting(false)}
-                  className="pascal-bubble absolute left-1/2 -translate-x-1/2 -top-8 max-w-[80vw] whitespace-nowrap text-center bg-white text-black text-xs font-medium leading-snug rounded-full px-3 py-1.5 shadow-lg"
+                  className="pascal-bubble absolute left-1/2 -translate-x-1/2 -top-7 max-w-[80vw] whitespace-nowrap text-center bg-white text-black text-xs font-medium leading-snug rounded-full px-3 py-1.5 shadow-lg"
                   aria-label="Dismiss Pascal's greeting"
                 >
                   <span>
@@ -411,10 +413,10 @@ export default function DashboardClient({ firstName, workoutsByDay, programCount
             </div>
             {pascalData && (
               <div className="text-center mt-1">
-                <p className="text-white text-sm font-semibold truncate max-w-[160px] mx-auto">
+                <p className="text-white text-sm font-semibold truncate max-w-[160px] mx-auto leading-tight">
                   {buddyName}
                 </p>
-                <p className="text-zinc-500 text-xs tabular-nums mt-0.5">
+                <p className="text-zinc-500 text-[11px] tabular-nums mt-0.5">
                   {pascalData.score} / {pascalData.max} · Stage {pascalData.stage}
                 </p>
               </div>

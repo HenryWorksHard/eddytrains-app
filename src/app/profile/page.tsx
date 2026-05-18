@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useRef } from 'react'
 import { useRouter } from 'next/navigation'
+import { mutate as swrMutate } from 'swr'
 import { createClient } from '../lib/supabase/client'
 import { compressImage } from '../lib/imageUtils'
 import { useTheme } from '../lib/ThemeContext'
@@ -339,6 +340,16 @@ export default function ProfilePage() {
         pascal_outfit: next.outfit,
         pascal_character: next.character,
       } : prev)
+      // Bust the dashboard SWR cache so Pascal updates instantly on next
+      // visit. The dashboard key is `/api/dashboard?today=YYYY-MM-DD`, and
+      // dedupingInterval (5 min) + revalidateOnFocus:false would otherwise
+      // hold a stale response. Match any key starting with the dashboard
+      // path so the right entry is invalidated regardless of date stamp.
+      swrMutate(
+        (key) => typeof key === 'string' && key.startsWith('/api/dashboard'),
+        undefined,
+        { revalidate: true },
+      )
       setPascalSavedAt(Date.now())
       setTimeout(() => setPascalSavedAt(null), 2000)
     } catch (e) {
