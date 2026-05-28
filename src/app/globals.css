@@ -288,20 +288,51 @@ body {
   background-color: #000; /* matches dashboard bg-black so the safe-area strip is seamless */
 }
 
+/* iOS-only floor for safe-area insets.
+   Why this exists: under iOS (Safari + Capacitor WKWebView), env() can
+   transiently return 0 during route transitions — the WebView's safe-area
+   calc races against React/Next layout. That makes headers / back buttons
+   land flush against the Dynamic Island for a frame, sometimes longer.
+   The `max()` floors the inset at 2.75rem (44px) so even in that race
+   condition the status bar always has clearance.
+   `@supports (-webkit-touch-callout: none)` is the canonical iOS-only
+   feature query (does not match Android, desktop, or other browsers).
+   On iPhones WITH a notch/Dynamic Island, env() reports 47-59px so max()
+   picks env() — the floor only kicks in for the race-condition case OR
+   on older non-notched iPhones (where 44px is still appropriate above
+   the 20px status bar). */
+@supports (-webkit-touch-callout: none) {
+  body {
+    padding-top: max(env(safe-area-inset-top, 0px), 2.75rem);
+  }
+}
+
 .safe-area-top {
   padding-top: env(safe-area-inset-top, 0);
 }
 
 /* Bottom-nav clearance helpers.
    BottomNav is fixed bottom-0, 4rem tall, with additional padding-bottom =
-   env(safe-area-inset-bottom). Pages must reserve space below their content
-   so nothing is hidden behind the nav. Use .pb-nav on the outer wrapper.
-   Use .bottom-nav-button for any fixed floating button (like Complete Workout). */
+   env(safe-area-inset-bottom). The yellow centre FAB also has -mt-6 (~24px
+   overhang above the bar). Pages must reserve space below their content
+   so nothing is hidden behind the nav OR the FAB. Use .pb-nav on the outer
+   wrapper. Use .bottom-nav-button for any fixed floating button (like
+   Complete Workout).
+   Breakdown: 4rem nav + 1.5rem FAB overhang + safe-area-inset-bottom
+   (floored at 0.5rem in standalone) + 1rem visual buffer. */
 .pb-nav {
-  padding-bottom: calc(4rem + env(safe-area-inset-bottom, 0px) + 1rem);
+  padding-bottom: calc(4rem + 1.5rem + env(safe-area-inset-bottom, 0px) + 1rem);
 }
 .bottom-nav-button {
-  bottom: calc(4rem + env(safe-area-inset-bottom, 0px) + 0.5rem);
+  bottom: calc(4rem + 1.5rem + env(safe-area-inset-bottom, 0px) + 0.5rem);
+}
+@supports (-webkit-touch-callout: none) {
+  .pb-nav {
+    padding-bottom: calc(4rem + 1.5rem + max(env(safe-area-inset-bottom, 0px), 0.5rem) + 1rem);
+  }
+  .bottom-nav-button {
+    bottom: calc(4rem + 1.5rem + max(env(safe-area-inset-bottom, 0px), 0.5rem) + 0.5rem);
+  }
 }
 
 /* Animations */
