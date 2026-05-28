@@ -91,8 +91,23 @@ async function handleCheckoutComplete(session: Stripe.Checkout.Session) {
   const subscriptionId = session.subscription as string;
   const organizationId = session.metadata?.organization_id;
 
+  // Provisioning model (post 2026-05-28 self-serve signup):
+  //   1. Trainer self-signs at /signup  → /api/signup creates the auth user
+  //      + organization + profile + Stripe customer (with metadata.signup=true)
+  //      + invite_token. Org has stripe_customer_id but NO subscription.
+  //   2. Day 14 trial-end: trainer adds a card via /api/stripe/trial-checkout
+  //      which creates a Checkout session with metadata.organization_id.
+  //   3. Stripe fires checkout.session.completed → this handler runs and
+  //      attaches the resulting subscription to the existing org.
+  // So organization_id will ALWAYS be present in metadata for legitimate
+  // checkout sessions originating from our app. If it's missing, the session
+  // was triggered some other way (manual Stripe dashboard test, etc.) — log
+  // and ignore.
   if (!organizationId) {
-    console.error('No organization_id in checkout session metadata');
+    console.error('[webhook] checkout.session.completed without organization_id metadata — ignoring', {
+      sessionId: session.id,
+      customerId,
+    });
     return;
   }
 
@@ -138,7 +153,12 @@ async function handleSubscriptionUpdate(subscription: Stripe.Subscription) {
   // Get tier config from price
   const tierConfig = TIER_CONFIG[priceId] || { tier: 'starter', clientLimit: 10 };
 
-  // Find organization by stripe_customer_id
+  // Find organization by stripe_customer_id. We expect this to exist
+  // because /api/signup creates the Stripe customer + sets the org's
+  // stripe_customer_id BEFORE any subscription event can fire. If it's
+  // missing, the customer was created externally (manual Stripe dashboard,
+  // legacy data, etc.) — log loudly and ignore so we don't accidentally
+  // create a phantom org.
   const { data: org, error: findError } = await getSupabaseAdmin()
     .from('organizations')
     .select('id')
@@ -146,7 +166,11 @@ async function handleSubscriptionUpdate(subscription: Stripe.Subscription) {
     .single();
 
   if (findError || !org) {
-    console.error('Organization not found for customer:', customerId);
+    console.error('[webhook] subscription update for unknown customer — ignoring', {
+      customerId,
+      subscriptionId: subscription.id,
+      status,
+    });
     return;
   }
 
