@@ -51,8 +51,12 @@ export async function POST(req: Request) {
         .eq('id', organizationId);
     }
 
-    const successUrl = 'https://eddytrains-admin.vercel.app/dashboard?welcome=true';
-    const cancelUrl = 'https://eddytrains-admin.vercel.app/signup?canceled=true';
+    // Post-checkout redirects must land on the main app (where the
+    // dashboard + onboarding banner live), NOT cmpd-admin which is Louis's
+    // internal portal and has no /dashboard or /signup route.
+    const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://app.cmpdcollective.com';
+    const successUrl = `${appUrl}/dashboard?welcome=true`;
+    const cancelUrl = `${appUrl}/signup?canceled=true`;
 
     const session = await stripe.checkout.sessions.create({
       customer: customerId,
