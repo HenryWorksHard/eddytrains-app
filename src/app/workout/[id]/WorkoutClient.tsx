@@ -518,7 +518,27 @@ export default function WorkoutClient({ workoutId, exercises, oneRMs, personalBe
       }
       saveWorkoutLogs()
     }
-    
+
+    // Awaitable force-save. CompleteWorkoutButton calls this before
+    // POSTing /api/workouts/complete so the last debounced set never
+    // races the completion (Halley bug, 2026-06-29).
+    // Strategy: clear pending debounce → wait for any in-flight save
+    // to settle → save the latest pending snapshot. Capped at timeoutMs
+    // so a stuck save never blocks the complete flow indefinitely.
+    const flushPendingSaves = async (timeoutMs = 3000): Promise<void> => {
+      if (saveTimeoutRef.current) {
+        clearTimeout(saveTimeoutRef.current)
+      }
+      const start = Date.now()
+      while (isSavingRef.current && Date.now() - start < timeoutMs) {
+        await new Promise((r) => setTimeout(r, 50))
+      }
+      if (pendingLogsRef.current.size > 0) {
+        await saveWorkoutLogs()
+      }
+    }
+    ;(window as unknown as { __cmpdFlushWorkoutSaves?: () => Promise<void> }).__cmpdFlushWorkoutSaves = flushPendingSaves
+
     // Handle phone lock, app switch, tab switch
     document.addEventListener('visibilitychange', handleVisibilityChange)
     window.addEventListener('beforeunload', handleBeforeUnload)
@@ -529,11 +549,12 @@ export default function WorkoutClient({ workoutId, exercises, oneRMs, personalBe
         saveWorkoutLogs()
       }
     })
-    
+
     return () => {
       document.removeEventListener('visibilitychange', handleVisibilityChange)
       window.removeEventListener('beforeunload', handleBeforeUnload)
       window.removeEventListener('forceSaveWorkout', handleForceSave)
+      delete (window as unknown as { __cmpdFlushWorkoutSaves?: () => Promise<void> }).__cmpdFlushWorkoutSaves
       // Force save on unmount
       if (saveTimeoutRef.current) {
         clearTimeout(saveTimeoutRef.current)
@@ -568,18 +589,26 @@ export default function WorkoutClient({ workoutId, exercises, oneRMs, personalBe
 
       let logId = workoutLogIdRef.current
 
-      // Create or get workout log
+      // Create or get workout log.
+      // CRITICAL: this lookup MUST use the same key as loadTodaySession
+      // — (client_id, workout_id, scheduled_date) — or we end up with
+      // sets scattered across two workout_log rows. The previous lookup
+      // used `completed_at >= now-24h` which mismatched on workouts the
+      // user came back to finish >24h later (Halley bug, 2026-06-29).
+      // The DB-side UNIQUE constraint added in the same PR is the
+      // belt-and-braces.
       if (!logId) {
-        // Use upsert to handle race condition - find existing or create new
+        const effectiveScheduledDate = scheduledDate || formatDateToString(new Date())
+
         const { data: existingLog, error: existingLogError } = await supabase
           .from('workout_logs')
           .select('id')
           .eq('client_id', user.id)
           .eq('workout_id', workoutId)
-          .gte('completed_at', new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString()) // Within last 24h
-          .order('completed_at', { ascending: false })
+          .eq('scheduled_date', effectiveScheduledDate)
+          .order('created_at', { ascending: false })
           .limit(1)
-          .single()
+          .maybeSingle()
 
         console.log('[saveWorkoutLogs] Existing log check:', existingLog, 'Error:', existingLogError?.message)
 
@@ -590,10 +619,10 @@ export default function WorkoutClient({ workoutId, exercises, oneRMs, personalBe
             client_id: user.id,
             workout_id: workoutId,
             completed_at: new Date().toISOString(),
-            scheduled_date: scheduledDate || formatDateToString(new Date())
+            scheduled_date: effectiveScheduledDate
           }
           console.log('[saveWorkoutLogs] Creating new workout_log:', insertData)
-          
+
           const { data: newLog, error: logError } = await supabase
             .from('workout_logs')
             .insert(insertData)
@@ -601,11 +630,26 @@ export default function WorkoutClient({ workoutId, exercises, oneRMs, personalBe
             .single()
 
           console.log('[saveWorkoutLogs] Created workout_log:', newLog, 'Error:', logError?.message)
-          
-          if (logError) throw logError
-          logId = newLog.id
+
+          if (logError) {
+            // If the unique index trips, the row was just created by a
+            // concurrent save — re-query and use the winner.
+            const { data: raceWinner } = await supabase
+              .from('workout_logs')
+              .select('id')
+              .eq('client_id', user.id)
+              .eq('workout_id', workoutId)
+              .eq('scheduled_date', effectiveScheduledDate)
+              .order('created_at', { ascending: false })
+              .limit(1)
+              .maybeSingle()
+            if (!raceWinner) throw logError
+            logId = raceWinner.id
+          } else {
+            logId = newLog.id
+          }
         }
-        
+
         setWorkoutLogId(logId)
         workoutLogIdRef.current = logId
       }
@@ -637,8 +681,15 @@ export default function WorkoutClient({ workoutId, exercises, oneRMs, personalBe
       
       if (logsToSave.length > 0) {
         console.log('[saveWorkoutLogs] Set logs data:', logsToSave)
-        
-        // Use upsert instead of delete+insert for atomicity
+
+        // Upsert against the unique constraint (workout_log_id, exercise_id,
+        // set_number) added in migration 20260225. The previous code had a
+        // delete+insert fallback for "constraint might not exist yet" — that
+        // fallback was a data-loss footgun: if the delete succeeded but the
+        // insert failed (network drop, 5xx, JWT expiry mid-call), every
+        // saved set for the workout was gone. Removed 2026-06-29 as part
+        // of the Halley fix. The upsert is the only path now; on error we
+        // surface to the user via saveError so they can retry.
         const { data: upsertResult, error: setError } = await supabase
           .from('set_logs')
           .upsert(logsToSave, {
@@ -649,27 +700,8 @@ export default function WorkoutClient({ workoutId, exercises, oneRMs, personalBe
 
         console.log('[saveWorkoutLogs] Upsert result:', upsertResult, 'Error:', setError?.message)
 
-        if (setError) {
-          // Fallback to delete+insert if upsert fails (constraint might not exist yet)
-          console.warn('[saveWorkoutLogs] Upsert failed, falling back to delete+insert:', setError)
-          
-          const { error: deleteError } = await supabase
-            .from('set_logs')
-            .delete()
-            .eq('workout_log_id', logId)
-          
-          console.log('[saveWorkoutLogs] Delete result, Error:', deleteError?.message)
-          
-          const { data: insertResult, error: insertError } = await supabase
-            .from('set_logs')
-            .insert(logsToSave)
-            .select()
-          
-          console.log('[saveWorkoutLogs] Insert result:', insertResult, 'Error:', insertError?.message)
-          
-          if (insertError) throw insertError
-        }
-        
+        if (setError) throw setError
+
         console.log('[saveWorkoutLogs] ✅ Save complete!')
       }
     } catch (err) {
