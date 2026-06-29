@@ -219,13 +219,28 @@ export default function CompleteWorkoutButton({
       const { data: { user } } = await supabase.auth.getUser()
       if (!user) return
 
+      // Flush any pending set-log autosaves BEFORE marking the workout
+      // complete. Without this, a user tapping Complete while the last
+      // set's 500ms debounce is still pending would race: the completion
+      // POST fires immediately, navigation away tears down the WorkoutClient,
+      // and the debounced save never lands. Capped at 3s so a stuck save
+      // can't block completion indefinitely (Halley bug, 2026-06-29).
+      const flushFn = (window as unknown as { __cmpdFlushWorkoutSaves?: () => Promise<void> }).__cmpdFlushWorkoutSaves
+      if (flushFn) {
+        try {
+          await flushFn()
+        } catch (e) {
+          console.warn('[CompleteWorkout] flush before complete failed (continuing):', e)
+        }
+      }
+
       // Use provided scheduledDate or fallback to today in local timezone
       let scheduledDate = scheduledDateProp
       if (!scheduledDate) {
         const now = new Date()
         scheduledDate = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`
       }
-      
+
       // Complete the workout. The server returns the user's updated
       // Pascal score alongside the completion; we push it into SWR's
       // cache so the dashboard shows the bump instantly on navigation.
