@@ -529,10 +529,29 @@ export default function WorkoutClient({ workoutId, exercises, oneRMs, personalBe
       if (saveTimeoutRef.current) {
         clearTimeout(saveTimeoutRef.current)
       }
+      const pendingBefore = pendingLogsRef.current.size
+      const wasSaving = isSavingRef.current
       const start = Date.now()
       while (isSavingRef.current && Date.now() - start < timeoutMs) {
         await new Promise((r) => setTimeout(r, 50))
       }
+      const waitedMs = Date.now() - start
+      const pendingAfterWait = pendingLogsRef.current.size
+      // Log this critical decision point — did we have unsaved work at
+      // Complete-tap time? Did we successfully flush it? This tells us
+      // whether the "no set data on completed workouts" pattern is
+      // caused by users tapping Complete before any autosave happened.
+      postDiagnostic({
+        event_type: 'flush_before_complete',
+        workout_log_id: workoutLogIdRef.current,
+        n_pending_rows: pendingAfterWait,
+        context: {
+          pending_before_wait: pendingBefore,
+          was_saving_in_progress: wasSaving,
+          waited_ms: waitedMs,
+          timed_out: waitedMs >= timeoutMs,
+        },
+      })
       if (pendingLogsRef.current.size > 0) {
         await saveWorkoutLogs()
       }
@@ -565,16 +584,63 @@ export default function WorkoutClient({ workoutId, exercises, oneRMs, personalBe
     }
   }, [])
 
+  // Fire-and-forget client diagnostic. Shipped 2026-08-17 to investigate
+  // why ~88% of completed workouts land with zero set_logs. Never blocks
+  // the save path, never surfaces errors — pure observability. Rows go to
+  // the client_diagnostic_events table for super_admin analysis.
+  const postDiagnostic = (payload: {
+    event_type: 'save_attempt' | 'save_success' | 'save_failure' | 'flush_before_complete'
+    workout_log_id?: string | null
+    n_pending_rows?: number | null
+    n_rows_saved?: number | null
+    error_code?: string | null
+    error_message?: string | null
+    context?: Record<string, unknown>
+  }) => {
+    try {
+      fetch('/api/log/client-diagnostic', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        keepalive: true, // survives page unload / iOS backgrounding
+        body: JSON.stringify({
+          ...payload,
+          workout_id: workoutId,
+          scheduled_date: scheduledDate || null,
+          context: {
+            ...(payload.context || {}),
+            user_agent: typeof navigator !== 'undefined' ? navigator.userAgent : null,
+            online: typeof navigator !== 'undefined' ? navigator.onLine : null,
+          },
+        }),
+      }).catch(() => {})
+    } catch {
+      // Never let telemetry break the save flow
+    }
+  }
+
   const saveWorkoutLogs = async () => {
     // Prevent concurrent saves
     if (isSavingRef.current) return
-    
+
     const logsToProcess = pendingLogsRef.current
     if (logsToProcess.size === 0) return
-    
+
     isSavingRef.current = true
     setSaving(true)
-    setSaveError(false)
+    // Do NOT clear saveError here. If a previous save failed and the user
+    // types more data, they'd see the error flash away then reappear —
+    // easy to miss. We only clear on ACTUAL success (below). This is part
+    // of the Aug 2026 diagnostic push: silent save failures were the top
+    // theory for the 88% completed-with-no-sets rate.
+
+    // Snapshot pending size before we start — telemetry needs this even
+    // if we early-return on some downstream branch.
+    const nPending = logsToProcess.size
+    postDiagnostic({
+      event_type: 'save_attempt',
+      n_pending_rows: nPending,
+      workout_log_id: workoutLogIdRef.current,
+    })
 
     console.log('[saveWorkoutLogs] Starting save for workout:', workoutId)
     console.log('[saveWorkoutLogs] Logs to save:', Array.from(logsToProcess.values()))
@@ -583,6 +649,17 @@ export default function WorkoutClient({ workoutId, exercises, oneRMs, personalBe
       const { data: { user } } = await supabase.auth.getUser()
       if (!user) {
         console.log('[saveWorkoutLogs] No user found!')
+        // Silent JWT-expiry pattern — top hypothesis for the 88%
+        // completed-with-zero-sets failure rate. Report so we can measure
+        // how often this actually happens in the wild.
+        postDiagnostic({
+          event_type: 'save_failure',
+          workout_log_id: workoutLogIdRef.current,
+          n_pending_rows: nPending,
+          error_code: 'no_user',
+          error_message: 'supabase.auth.getUser() returned null — likely JWT expired or session lost',
+        })
+        setSaveError(true)
         return
       }
       console.log('[saveWorkoutLogs] User:', user.id)
@@ -678,7 +755,21 @@ export default function WorkoutClient({ workoutId, exercises, oneRMs, personalBe
         })
 
       console.log('[saveWorkoutLogs] Saving set_logs:', logsToSave.length, 'entries')
-      
+
+      // If we started with pending rows but they all got filtered out (no
+      // weight/reps/skip flag), that's diagnostic — user typed something
+      // that didn't pass the filter. Report as a success with 0 rows so we
+      // can distinguish "nothing to save" from "save silently dropped".
+      if (logsToSave.length === 0 && nPending > 0) {
+        postDiagnostic({
+          event_type: 'save_success',
+          workout_log_id: logId,
+          n_pending_rows: nPending,
+          n_rows_saved: 0,
+          context: { reason: 'all_pending_rows_filtered_out' },
+        })
+      }
+
       if (logsToSave.length > 0) {
         console.log('[saveWorkoutLogs] Set logs data:', logsToSave)
 
@@ -702,10 +793,37 @@ export default function WorkoutClient({ workoutId, exercises, oneRMs, personalBe
 
         if (setError) throw setError
 
+        // Report successful upsert with actual rows-saved count.
+        postDiagnostic({
+          event_type: 'save_success',
+          workout_log_id: logId,
+          n_pending_rows: nPending,
+          n_rows_saved: Array.isArray(upsertResult) ? upsertResult.length : logsToSave.length,
+        })
+
+        // Clear the saveError banner now that we've actually landed data.
+        // (See rationale near the top of this function — we intentionally
+        // don't clear on retry-attempt, only on real success.)
+        setSaveError(false)
+
         console.log('[saveWorkoutLogs] ✅ Save complete!')
       }
     } catch (err) {
       console.error('[saveWorkoutLogs] ❌ Failed to save workout logs:', err)
+      // Full failure telemetry — the whole point of this diagnostic pass.
+      // Extract Postgres error code if it's a Supabase error shape.
+      const errObj = err as { code?: string; message?: string; details?: string; hint?: string } | Error
+      postDiagnostic({
+        event_type: 'save_failure',
+        workout_log_id: workoutLogIdRef.current,
+        n_pending_rows: nPending,
+        error_code: (errObj as { code?: string })?.code || null,
+        error_message: errObj instanceof Error ? errObj.message : String((errObj as { message?: string })?.message || err),
+        context: {
+          details: (errObj as { details?: string })?.details || null,
+          hint: (errObj as { hint?: string })?.hint || null,
+        },
+      })
       setSaveError(true)
     } finally {
       isSavingRef.current = false
@@ -795,7 +913,22 @@ export default function WorkoutClient({ workoutId, exercises, oneRMs, personalBe
     <div className="space-y-3 relative">
       {/* Floating auto-save indicator */}
       <div className="sticky top-2 z-20 flex justify-end pointer-events-none">
-        <SaveIndicator saving={saving} error={saveError} />
+        <SaveIndicator
+          saving={saving}
+          error={saveError}
+          onRetry={() => {
+            // Manual retry — force-save any pending state. saveWorkoutLogs
+            // guards against concurrent runs on its own, so tapping while
+            // one is already in flight is safe.
+            if (pendingLogsRef.current.size > 0) {
+              saveWorkoutLogs()
+            } else {
+              // Nothing pending — user tapped retry but there's nothing to
+              // retry. Clear the error since state is actually clean.
+              setSaveError(false)
+            }
+          }}
+        />
       </div>
 
       {exerciseGroups.map((group, groupIndex) => {
