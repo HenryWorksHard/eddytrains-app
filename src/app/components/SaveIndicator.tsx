@@ -7,6 +7,8 @@ interface SaveIndicatorProps {
   error?: boolean
   /** Set during a recovery save (e.g., on pageshow / network reconnect). */
   recovering?: boolean
+  /** Optional retry callback — when supplied, the error pill becomes clickable. */
+  onRetry?: () => void
   /** CSS classes for positioning (e.g., "fixed bottom-20 right-4") */
   className?: string
 }
@@ -27,18 +29,29 @@ interface SaveIndicatorProps {
  * The `saving` prop is preserved (and accepted) so existing callers don't
  * break, but it deliberately produces no UI on its own.
  */
-export default function SaveIndicator({ error, recovering, className = '' }: SaveIndicatorProps) {
+export default function SaveIndicator({ error, recovering, onRetry, className = '' }: SaveIndicatorProps) {
   if (error) {
-    return (
-      <div
-        className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium bg-red-500/15 text-red-400 ${className}`}
-      >
-        <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+    // Clickable retry variant when a callback is supplied. Made the pill
+    // more prominent (border, background opacity) as part of the Aug 2026
+    // diagnostic push — clients (Halley, Nik) were completing workouts
+    // without noticing save failures because the pill was too subtle.
+    const content = (
+      <>
+        <svg className="w-3.5 h-3.5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
           <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v2m0 4h.01M5.07 19h13.86a2 2 0 001.74-3L13.74 4a2 2 0 00-3.48 0L3.33 16a2 2 0 001.74 3z" />
         </svg>
-        Save failed — check connection
-      </div>
+        <span>Save failed{onRetry ? ' — tap to retry' : ' — check connection'}</span>
+      </>
     )
+    const commonCls = `flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold bg-red-500/20 border border-red-500/40 text-red-300 ${className}`
+    if (onRetry) {
+      return (
+        <button type="button" onClick={onRetry} className={`${commonCls} pointer-events-auto hover:bg-red-500/30 transition-colors`}>
+          {content}
+        </button>
+      )
+    }
+    return <div className={commonCls}>{content}</div>
   }
 
   if (recovering) {
