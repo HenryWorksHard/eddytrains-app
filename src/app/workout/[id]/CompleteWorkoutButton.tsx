@@ -154,11 +154,41 @@ function WorkoutRatingModal({
   )
 }
 
-export default function CompleteWorkoutButton({ 
-  workoutId, 
+// Full-screen blocking overlay shown while /api/workouts/complete is in
+// flight. Prevents users from exiting the app mid-save (the top failure
+// mode observed in diagnostic data: users tapped Complete then swiped out
+// before the ~1-3s async chain finished, leaving the completion record
+// unwritten). No close button — the modal is intentionally undismissable
+// until the save completes or errors out.
+function SavingWorkoutOverlay({ label }: { label: string }) {
+  return (
+    <div
+      className="fixed inset-0 bg-black/85 backdrop-blur-sm z-[60] flex items-center justify-center px-6"
+      role="dialog"
+      aria-modal="true"
+      aria-live="polite"
+      // Block scroll + touch — belt-and-braces on top of the backdrop.
+      style={{ touchAction: 'none' }}
+    >
+      <div className="bg-zinc-900 border border-zinc-800 rounded-3xl p-8 max-w-xs w-full text-center">
+        <div className="w-14 h-14 mx-auto mb-4 relative">
+          <div className="absolute inset-0 rounded-full border-4 border-zinc-800" />
+          <div className="absolute inset-0 rounded-full border-4 border-yellow-400 border-t-transparent animate-spin" />
+        </div>
+        <h2 className="text-white text-lg font-semibold mb-1">Saving your workout</h2>
+        <p className="text-zinc-500 text-sm leading-relaxed">
+          {label}
+        </p>
+      </div>
+    </div>
+  )
+}
+
+export default function CompleteWorkoutButton({
+  workoutId,
   clientProgramId,
   scheduledDate: scheduledDateProp,
-  isCompleted: initialCompleted = false 
+  isCompleted: initialCompleted = false
 }: CompleteWorkoutButtonProps) {
   const [isCompleted, setIsCompleted] = useState(initialCompleted)
   const [optimisticComplete, setOptimisticComplete] = useState(false)
@@ -168,6 +198,14 @@ export default function CompleteWorkoutButton({
   const [isVisible, setIsVisible] = useState(false)
   const [showRatingModal, setShowRatingModal] = useState(false)
   const [isSubmittingRating, setIsSubmittingRating] = useState(false)
+  // Full-screen "Saving your workout" overlay. Shown from the moment the
+  // user taps Done on the rating modal until the completion POST resolves.
+  // Blocks accidental exit-mid-save — the top failure mode confirmed by
+  // diagnostic events (bd2c6c6d had 21 pending rows when tapping Complete,
+  // sets landed but is_completed sometimes stayed false because the user
+  // exited before the /api/workouts/complete POST returned).
+  const [showSavingOverlay, setShowSavingOverlay] = useState(false)
+  const [savingLabel, setSavingLabel] = useState('Just a moment...')
   // True between the moment a fresh completion lands and the dashboard
   // navigation firing. Keeps the green "Completed" pill visible across
   // that window so the UI doesn't flash through the gray "Update Workout"
@@ -210,11 +248,46 @@ export default function CompleteWorkoutButton({
 
   const submitWorkoutCompletion = async (rating?: WorkoutRating) => {
     setIsSubmittingRating(true)
+    // Full-screen overlay from the very first async boundary — prevents
+    // the user tapping around or exiting the app while save is in flight.
+    setSavingLabel('Just a moment...')
+    setShowSavingOverlay(true)
     // Optimistically flip to completed state IMMEDIATELY so the inline
     // button shows the green check + "Completed" without a spinner flash.
     // If the POST below errors we'll revert and surface the error.
     setOptimisticComplete(true)
     setOptimisticError(null)
+
+    // Prepare completion payload up-front so we can register a beacon
+    // fallback with the exact bytes that the fetch will send. The beacon
+    // fires if the user backgrounds the app (visibilitychange -> hidden)
+    // during the save — iOS WKWebView can kill in-flight fetches on
+    // backgrounding, and sendBeacon is the only mechanism the platform
+    // guarantees to deliver in that window. /api/workouts/complete
+    // upserts on (client_id, workout_id, scheduled_date) so it is
+    // idempotent — a beacon-fired duplicate is safe.
+    let completionPayload: string | null = null
+    let beaconSent = false
+    const sendCompletionBeacon = () => {
+      if (beaconSent || !completionPayload || typeof navigator === 'undefined' || !navigator.sendBeacon) return
+      try {
+        const blob = new Blob([completionPayload], { type: 'application/json' })
+        const ok = navigator.sendBeacon('/api/workouts/complete', blob)
+        if (ok) beaconSent = true
+      } catch (e) {
+        console.warn('[CompleteWorkout] beacon send failed:', e)
+      }
+    }
+    const onHiddenBeacon = () => {
+      if (document.visibilityState === 'hidden') sendCompletionBeacon()
+    }
+    // Register listeners immediately so a very early swipe-out is still
+    // covered by the beacon. Removed in the finally block below.
+    if (typeof document !== 'undefined') {
+      document.addEventListener('visibilitychange', onHiddenBeacon)
+      window.addEventListener('pagehide', sendCompletionBeacon)
+    }
+
     try {
       const { data: { user } } = await supabase.auth.getUser()
       if (!user) return
@@ -225,6 +298,7 @@ export default function CompleteWorkoutButton({
       // POST fires immediately, navigation away tears down the WorkoutClient,
       // and the debounced save never lands. Capped at 3s so a stuck save
       // can't block completion indefinitely (Halley bug, 2026-06-29).
+      setSavingLabel('Saving your sets...')
       const flushFn = (window as unknown as { __cmpdFlushWorkoutSaves?: () => Promise<void> }).__cmpdFlushWorkoutSaves
       if (flushFn) {
         try {
@@ -245,15 +319,22 @@ export default function CompleteWorkoutButton({
       // Pascal score alongside the completion; we push it into SWR's
       // cache so the dashboard shows the bump instantly on navigation.
       const tz = Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC'
+      setSavingLabel('Finishing up...')
+      completionPayload = JSON.stringify({
+        workoutId,
+        clientProgramId,
+        scheduledDate,
+        tz,
+      })
       const response = await fetch('/api/workouts/complete', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          workoutId,
-          clientProgramId,
-          scheduledDate,
-          tz,
-        })
+        // keepalive lets the fetch survive page unload / navigation for
+        // up to ~60s. Combined with the beacon fallback above, this
+        // gives us two independent guarantees that the completion write
+        // lands even if the user exits mid-save.
+        keepalive: true,
+        body: completionPayload,
       })
 
       if (!response.ok) {
@@ -320,10 +401,23 @@ export default function CompleteWorkoutButton({
       }, 600)
     } catch (error) {
       console.error('Failed to complete workout:', error)
+      // Try a beacon send as a last-ditch save attempt before we surface
+      // the error to the user. If iOS killed the primary fetch, the beacon
+      // may still land the completion write. Fire-and-forget — we don't
+      // know whether it succeeded, but it's better than nothing.
+      sendCompletionBeacon()
       // Revert optimistic state so the user can retry.
       setOptimisticComplete(false)
       setOptimisticError("Couldn't save — tap to retry")
     } finally {
+      // Clean up the beacon listeners — the flow has ended one way or
+      // another. Leaving them attached would fire a beacon on every
+      // future visibilitychange.
+      if (typeof document !== 'undefined') {
+        document.removeEventListener('visibilitychange', onHiddenBeacon)
+        window.removeEventListener('pagehide', sendCompletionBeacon)
+      }
+      setShowSavingOverlay(false)
       setIsSubmittingRating(false)
       setIsLoading(false)
     }
@@ -342,33 +436,36 @@ export default function CompleteWorkoutButton({
   // breathing room. Page wrapper has pb-nav so BottomNav clearance is OK.
   if (isCompleted && !showRatingModal && !navigatingHome) {
     return (
-      <div className="px-4 mt-6 mb-8">
-        <button
-          onClick={async () => {
-            // Trigger a save by dispatching a custom event that WorkoutClient listens to
-            window.dispatchEvent(new CustomEvent('forceSaveWorkout'))
-            // Show brief feedback
-            const btn = document.getElementById('update-workout-btn')
-            if (btn) {
-              btn.textContent = 'Saved!'
-              btn.classList.remove('bg-zinc-700')
-              btn.classList.add('bg-green-500')
-              setTimeout(() => {
-                btn.textContent = 'Update Workout'
-                btn.classList.remove('bg-green-500')
-                btn.classList.add('bg-zinc-700')
-              }, 1500)
-            }
-          }}
-          id="update-workout-btn"
-          className="w-full bg-zinc-700 hover:bg-zinc-600 text-white py-4 px-6 rounded-2xl font-semibold transition-colors flex items-center justify-center gap-2"
-        >
-          <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-          </svg>
-          Update Workout
-        </button>
-      </div>
+      <>
+        <div className="px-4 mt-6 mb-8">
+          <button
+            onClick={async () => {
+              // Trigger a save by dispatching a custom event that WorkoutClient listens to
+              window.dispatchEvent(new CustomEvent('forceSaveWorkout'))
+              // Show brief feedback
+              const btn = document.getElementById('update-workout-btn')
+              if (btn) {
+                btn.textContent = 'Saved!'
+                btn.classList.remove('bg-zinc-700')
+                btn.classList.add('bg-green-500')
+                setTimeout(() => {
+                  btn.textContent = 'Update Workout'
+                  btn.classList.remove('bg-green-500')
+                  btn.classList.add('bg-zinc-700')
+                }, 1500)
+              }
+            }}
+            id="update-workout-btn"
+            className="w-full bg-zinc-700 hover:bg-zinc-600 text-white py-4 px-6 rounded-2xl font-semibold transition-colors flex items-center justify-center gap-2"
+          >
+            <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+            </svg>
+            Update Workout
+          </button>
+        </div>
+        {showSavingOverlay && <SavingWorkoutOverlay label={savingLabel} />}
+      </>
     )
   }
 
@@ -378,17 +475,20 @@ export default function CompleteWorkoutButton({
   // flickers through the gray "Update Workout" state on the way out.
   if ((optimisticComplete && !isCompleted) || navigatingHome) {
     return (
-      <div className="px-4 mt-6 mb-8">
-        <button
-          disabled
-          className="w-full bg-green-500 text-black py-4 px-6 rounded-2xl font-semibold flex items-center justify-center gap-2 shadow-lg shadow-green-500/20"
-        >
-          <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7" />
-          </svg>
-          Completed
-        </button>
-      </div>
+      <>
+        <div className="px-4 mt-6 mb-8">
+          <button
+            disabled
+            className="w-full bg-green-500 text-black py-4 px-6 rounded-2xl font-semibold flex items-center justify-center gap-2 shadow-lg shadow-green-500/20"
+          >
+            <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7" />
+            </svg>
+            Completed
+          </button>
+        </div>
+        {showSavingOverlay && <SavingWorkoutOverlay label={savingLabel} />}
+      </>
     )
   }
 
@@ -439,6 +539,12 @@ export default function CompleteWorkoutButton({
           isFirstRating={isFirstRating}
         />
       )}
+
+      {/* Full-screen "Saving your workout" overlay. Rendered at the top
+          level (z-[60]) so it sits above the rating modal and any other
+          in-flight UI. Undismissable — the user cannot exit until the
+          save completes or errors out. */}
+      {showSavingOverlay && <SavingWorkoutOverlay label={savingLabel} />}
     </>
   )
 }
