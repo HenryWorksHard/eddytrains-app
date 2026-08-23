@@ -639,32 +639,69 @@ function ExerciseCardInner({
     return isCardioName && isBodyweight
   })()
 
-  // Get previous set's logged values to pre-fill next set
+  // Get previous set's logged values to pre-fill the wheel picker.
+  // Priority order:
+  //   1. This set's own log (re-editing)
+  //   2. The prior set in THIS session (most common — matches muscle memory)
+  //   3. Any earlier set in THIS session (fallback for gaps)
+  //   4. Last week's data for THE SAME set_number (previousLogs, keyed by
+  //      exercise name — swap-aware in WorkoutClient.loadPreviousLogs).
+  //      This is what "carries last week's weight forward" — the display
+  //      already SHOWED last week's number on the button as a placeholder,
+  //      but the picker used to open blank without this fallback. Client
+  //      report 2026-08-23: "no weights from last week carried over to the
+  //      current week" — this was the missing piece.
+  //   5. Any last-week set_number's data as a final fallback (e.g. if this
+  //      week has more sets than last week, use last week's final set).
   const getPreviousSetValues = (setNumber: number) => {
     if (!setNumber) return null
-    
-    // Try current set first (if re-editing)
+
+    // 1. Current set (if re-editing)
     const currentLog = localLogs.get(setNumber)
     if (currentLog && (currentLog.weight_kg !== null || currentLog.reps_completed !== null || currentLog.steps_completed !== null)) {
       return currentLog
     }
-    
-    // Try previous set (most common case - use same weight for next set)
+
+    // 2. Prior set in this session
     if (setNumber > 1) {
       const prevLog = localLogs.get(setNumber - 1)
       if (prevLog && (prevLog.weight_kg !== null || prevLog.reps_completed !== null || prevLog.steps_completed !== null)) {
         return prevLog
       }
     }
-    
-    // Try any logged set from most recent to oldest
+
+    // 3. Any earlier set in this session, most-recent first
     for (let i = setNumber - 1; i >= 1; i--) {
       const log = localLogs.get(i)
       if (log && (log.weight_kg !== null || log.reps_completed !== null || log.steps_completed !== null)) {
         return log
       }
     }
-    
+
+    // 4. Last week's SAME set_number
+    const historicalSameSet = previousLogs.find(p => p.set_number === setNumber)
+    if (historicalSameSet && (historicalSameSet.weight_kg !== null || historicalSameSet.reps_completed !== null)) {
+      return {
+        weight_kg: historicalSameSet.weight_kg,
+        reps_completed: historicalSameSet.reps_completed,
+        steps_completed: null,
+      }
+    }
+
+    // 5. Last week's LAST set (final fallback so a new set 4 gets last
+    //    week's set 3 weight when last week only did 3 sets)
+    if (previousLogs.length > 0) {
+      const sortedByNumber = [...previousLogs].sort((a, b) => b.set_number - a.set_number)
+      const withValue = sortedByNumber.find(p => p.weight_kg !== null || p.reps_completed !== null)
+      if (withValue) {
+        return {
+          weight_kg: withValue.weight_kg,
+          reps_completed: withValue.reps_completed,
+          steps_completed: null,
+        }
+      }
+    }
+
     return null
   }
 

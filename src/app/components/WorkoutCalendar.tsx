@@ -307,8 +307,51 @@ export default function WorkoutCalendar({ scheduleByDay, scheduleByWeekAndDay, c
         setLoadingDetails(false)
         return
       }
-      
-      // No logs found
+
+      // FINAL fallback: any workout_log for this client + scheduled_date,
+      // regardless of workout_id. Handles the case where the calendar's
+      // week-cycling logic computed a different workout_id than what
+      // actually got logged (e.g. trainer rearranged the program mid-
+      // week, or an ad-hoc workout was swapped in). Prefer the one WITH
+      // set_logs — the client's "no weights when viewing past workout"
+      // complaint (2026-08-23) sometimes hits when we found an empty
+      // shell instead of the row with real data.
+      console.log('[Calendar] Both scheduled_date + completed_at lookups missed. Trying date-only fallback.')
+      const { data: dateOnlyLogs, error: dateOnlyError } = await supabase
+        .from('workout_logs')
+        .select('id, workout_id, trainer_id, trainer:trainer_id (full_name)')
+        .eq('client_id', user.id)
+        .eq('scheduled_date', dateStr)
+        .order('completed_at', { ascending: false })
+
+      if (dateOnlyError) {
+        console.error('[Calendar] date-only fallback failed:', dateOnlyError)
+      }
+
+      if (dateOnlyLogs && dateOnlyLogs.length > 0) {
+        // Prefer the log that actually has set_logs attached.
+        const logIds = dateOnlyLogs.map((r) => r.id)
+        const { data: setCounts } = await supabase
+          .from('set_logs')
+          .select('workout_log_id')
+          .in('workout_log_id', logIds)
+        const countByLog = new Map<string, number>()
+        setCounts?.forEach((row: { workout_log_id: string }) => {
+          countByLog.set(row.workout_log_id, (countByLog.get(row.workout_log_id) || 0) + 1)
+        })
+        const bestLog =
+          dateOnlyLogs.find((r) => (countByLog.get(r.id) || 0) > 0) || dateOnlyLogs[0]
+        const wl = bestLog as { id: string; trainer_id: string | null; trainer?: { full_name: string | null } | { full_name: string | null }[] | null }
+        console.log('[Calendar] date-only fallback picked workout_log:', wl.id, 'with', countByLog.get(wl.id) || 0, 'sets')
+        const trainer = Array.isArray(wl.trainer) ? wl.trainer[0] : wl.trainer
+        setWorkoutMeta({ trainerId: wl.trainer_id, trainerName: trainer?.full_name ?? null })
+        await fetchSetLogs(wl.id)
+        setLoadingDetails(false)
+        return
+      }
+
+      // No logs found by any lookup path — this workout genuinely has
+      // no data. Show the empty-state UI (handled by workoutDetails=[]).
       setWorkoutDetails([])
     } catch (err) {
       console.error('Failed to fetch workout details:', err)
