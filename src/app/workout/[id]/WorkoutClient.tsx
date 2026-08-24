@@ -43,6 +43,11 @@ interface SetLog {
   set_number: number
   weight_kg: number | null
   reps_completed: number | null
+  // Steps-based exercises (e.g. an exercise literally named "steps")
+  // record a steps count instead of weight/reps. Persisted to
+  // set_logs.steps_completed via migration 20260823_set_logs_steps_completed.
+  // Before that migration this field was silently dropped on save.
+  steps_completed?: number | null
   swapped_exercise_name?: string | null
   // Per-set skip flag. Distinct from per-exercise skip
   // (workout_exercise_skips, whole exercise). On a per-set skip,
@@ -242,7 +247,7 @@ export default function WorkoutClient({ workoutId, exercises, oneRMs, personalBe
       // and per-set skip state survive a page reload.
       const { data: todaySets } = await supabase
         .from('set_logs')
-        .select('exercise_id, set_number, weight_kg, reps_completed, swapped_exercise_name, is_skipped')
+        .select('exercise_id, set_number, weight_kg, reps_completed, steps_completed, swapped_exercise_name, is_skipped')
         .eq('workout_log_id', todayLog.id)
 
       if (todaySets && todaySets.length > 0) {
@@ -256,6 +261,7 @@ export default function WorkoutClient({ workoutId, exercises, oneRMs, personalBe
             set_number: s.set_number,
             weight_kg: s.weight_kg,
             reps_completed: s.reps_completed,
+            steps_completed: s.steps_completed ?? null,
             is_skipped: !!s.is_skipped,
           })
           if (s.swapped_exercise_name && !swapMap.has(s.exercise_id)) {
@@ -395,9 +401,13 @@ export default function WorkoutClient({ workoutId, exercises, oneRMs, personalBe
     setPreviousLogs(logsByExerciseName)
   }
 
-  // Handle log updates from exercise cards
-  const handleLogUpdate = useCallback((exerciseId: string, setNumber: number, weight: number | null, reps: number | null) => {
-    console.log('📝 [handleLogUpdate] Logging set:', { exerciseId, setNumber, weight, reps })
+  // Handle log updates from exercise cards. Steps-based exercises pass
+  // steps via the 5th argument; weight/reps sit as null for those. Audit
+  // fix (2026-08-23): previously this signature had no steps param, so
+  // ExerciseCard's local steps state was orphaned and never made it into
+  // setLogs / the upsert.
+  const handleLogUpdate = useCallback((exerciseId: string, setNumber: number, weight: number | null, reps: number | null, steps: number | null = null) => {
+    console.log('📝 [handleLogUpdate] Logging set:', { exerciseId, setNumber, weight, reps, steps })
     const key = `${exerciseId}-${setNumber}`
     setSetLogs(prev => {
       const updated = new Map(prev)
@@ -408,6 +418,7 @@ export default function WorkoutClient({ workoutId, exercises, oneRMs, personalBe
         set_number: setNumber,
         weight_kg: weight,
         reps_completed: reps,
+        steps_completed: steps,
         is_skipped: false,
         swapped_exercise_name: existing?.swapped_exercise_name ?? null,
       })
@@ -448,6 +459,14 @@ export default function WorkoutClient({ workoutId, exercises, oneRMs, personalBe
   const saveTimeoutRef = useRef<NodeJS.Timeout | null>(null)
   const pendingLogsRef = useRef<Map<string, SetLog>>(new Map())
   const isSavingRef = useRef(false)
+  // Audit finding (2026-08-23): if saveWorkoutLogs is invoked while
+  // another save is in-flight, it early-returns — but the debounce timer
+  // that scheduled this call is already consumed. Without a requeue, sets
+  // typed during that window are stranded in pendingLogsRef forever. If
+  // the user then backgrounds/exits, they're lost. This flag captures
+  // "someone asked for another save while I was busy" so the finally
+  // block can re-fire once the current save completes.
+  const requeueSaveRef = useRef(false)
   const workoutLogIdRef = useRef<string | null>(null)
   const swappedExercisesRef = useRef<Map<string, SwappedExercise>>(new Map())
   
@@ -619,8 +638,14 @@ export default function WorkoutClient({ workoutId, exercises, oneRMs, personalBe
   }
 
   const saveWorkoutLogs = async () => {
-    // Prevent concurrent saves
-    if (isSavingRef.current) return
+    // Prevent concurrent saves. Set requeue flag so finally re-fires once
+    // the in-flight save completes — otherwise any set typed during the
+    // in-flight window would be stranded in pendingLogsRef with no debounce
+    // to pick it up (audit fix, 2026-08-23).
+    if (isSavingRef.current) {
+      requeueSaveRef.current = true
+      return
+    }
 
     const logsToProcess = pendingLogsRef.current
     if (logsToProcess.size === 0) return
@@ -732,10 +757,17 @@ export default function WorkoutClient({ workoutId, exercises, oneRMs, personalBe
       }
 
       // Build set logs for upsert. Include rows that are either logged
-      // (have weight/reps) OR deliberately skipped (is_skipped=true);
-      // skip purely-empty rows so we don't insert blanks.
+      // (have weight/reps/steps) OR deliberately skipped (is_skipped=true);
+      // skip purely-empty rows so we don't insert blanks. Audit fix
+      // (2026-08-23): steps_completed is now persisted — previously
+      // steps-based exercises were silently dropped by this filter.
       const logsToSave = Array.from(logsToProcess.values())
-        .filter(log => log.weight_kg !== null || log.reps_completed !== null || log.is_skipped === true)
+        .filter(log =>
+          log.weight_kg !== null ||
+          log.reps_completed !== null ||
+          (log.steps_completed !== null && log.steps_completed !== undefined) ||
+          log.is_skipped === true
+        )
         .map(log => {
           // Check if this exercise was swapped
           const swapped = swappedExercisesRef.current.get(log.exercise_id)
@@ -749,6 +781,7 @@ export default function WorkoutClient({ workoutId, exercises, oneRMs, personalBe
             set_number: log.set_number,
             weight_kg: log.weight_kg,
             reps_completed: log.reps_completed,
+            steps_completed: log.steps_completed ?? null,
             swapped_exercise_name: swapped?.newName || null,
             is_skipped: log.is_skipped === true,
           }
@@ -828,6 +861,17 @@ export default function WorkoutClient({ workoutId, exercises, oneRMs, personalBe
     } finally {
       isSavingRef.current = false
       setSaving(false)
+      // Consume the requeue flag. If someone tried to save while we were
+      // busy, kick another save now — otherwise their typing is stranded
+      // (audit fix, 2026-08-23). Uses setTimeout(0) so state settles first.
+      if (requeueSaveRef.current) {
+        requeueSaveRef.current = false
+        setTimeout(() => {
+          if (pendingLogsRef.current.size > 0 && !isSavingRef.current) {
+            saveWorkoutLogs()
+          }
+        }, 0)
+      }
     }
   }
 

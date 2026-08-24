@@ -64,7 +64,7 @@ interface ExerciseCardProps {
   previousLogs?: SetLog[]
   existingLogs?: SetLog[]  // Saved logs from THIS session (e.g. resuming a completed workout)
   personalBest?: PersonalBest | null
-  onLogUpdate: (exerciseId: string, setNumber: number, weight: number | null, reps: number | null) => void
+  onLogUpdate: (exerciseId: string, setNumber: number, weight: number | null, reps: number | null, steps?: number | null) => void
   onSetSkipToggle?: (exerciseId: string, setNumber: number, skipped: boolean) => void
   onExerciseSwap?: (exerciseId: string, newExerciseName: string, isCustom: boolean) => void
   workoutExerciseId?: string
@@ -600,8 +600,10 @@ function ExerciseCardInner({
     newMap.set(setNumber, updated)
     setLocalLogs(newMap)
 
-    onLogUpdate(exerciseId, setNumber, weight, reps)
-    
+    // Audit fix (2026-08-23): pass steps through so the parent can persist
+    // it. Steps-based exercises previously never made it past localLogs.
+    onLogUpdate(exerciseId, setNumber, weight, reps, steps ?? null)
+
     // PR celebration disabled for now (glitchy)
     // TODO: Re-enable when fixed
     // if (weight && reps && personalBest && isNewPR(weight, reps)) {
