@@ -1,7 +1,7 @@
 import { createClient } from '@/app/lib/supabase/server'
 import Link from 'next/link'
-import { Bell, AlertTriangle, Trophy, Flame, CheckCircle, Clock, X, RefreshCw, User } from 'lucide-react'
-import { DismissButton, MarkReadButton, RunCronButton, DismissAllButton } from './AlertButtons'
+import { Bell, AlertTriangle, Trophy, Flame, CheckCircle, Clock, X, User } from 'lucide-react'
+import { DismissButton, MarkReadButton, DismissAllButton } from './AlertButtons'
 
 export const dynamic = 'force-dynamic'
 
@@ -185,7 +185,6 @@ export default async function AlertsPage() {
         </div>
         <div className="flex gap-3">
           <DismissAllButton />
-          <RunCronButton />
         </div>
       </div>
 

@@ -258,18 +258,31 @@ export default function CompleteWorkoutButton({
     setOptimisticComplete(true)
     setOptimisticError(null)
 
-    // Prepare completion payload up-front so we can register a beacon
-    // fallback with the exact bytes that the fetch will send. The beacon
-    // fires if the user backgrounds the app (visibilitychange -> hidden)
-    // during the save — iOS WKWebView can kill in-flight fetches on
-    // backgrounding, and sendBeacon is the only mechanism the platform
-    // guarantees to deliver in that window. /api/workouts/complete
-    // upserts on (client_id, workout_id, scheduled_date) so it is
-    // idempotent — a beacon-fired duplicate is safe.
-    let completionPayload: string | null = null
+    // Build the completion payload SYNCHRONOUSLY, before we register the
+    // beacon listeners. Audit finding (2026-08-23): in PR #38 the payload
+    // was assigned only AFTER auth.getUser() + up to 3s of flushPending
+    // Saves — meaning if the user swiped out during that window, the
+    // beacon fired with `!completionPayload` and the fetch hadn't started
+    // yet, so nothing was written. Building it up-front means even a
+    // swipe-out on frame 1 gets a beacon send.
+    //
+    // scheduledDateProp is the authoritative source; fall back to local
+    // "today" only when the parent didn't provide one (rare).
+    const scheduledDateForBeacon = (() => {
+      if (scheduledDateProp) return scheduledDateProp
+      const now = new Date()
+      return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`
+    })()
+    const tz = Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC'
+    const completionPayload = JSON.stringify({
+      workoutId,
+      clientProgramId,
+      scheduledDate: scheduledDateForBeacon,
+      tz,
+    })
     let beaconSent = false
     const sendCompletionBeacon = () => {
-      if (beaconSent || !completionPayload || typeof navigator === 'undefined' || !navigator.sendBeacon) return
+      if (beaconSent || typeof navigator === 'undefined' || !navigator.sendBeacon) return
       try {
         const blob = new Blob([completionPayload], { type: 'application/json' })
         const ok = navigator.sendBeacon('/api/workouts/complete', blob)
@@ -308,24 +321,17 @@ export default function CompleteWorkoutButton({
         }
       }
 
-      // Use provided scheduledDate or fallback to today in local timezone
-      let scheduledDate = scheduledDateProp
-      if (!scheduledDate) {
-        const now = new Date()
-        scheduledDate = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`
-      }
+      // Use the pre-computed scheduledDate (already used for the beacon
+      // payload) so beacon and fetch send the same bytes.
+      const scheduledDate = scheduledDateForBeacon
 
       // Complete the workout. The server returns the user's updated
       // Pascal score alongside the completion; we push it into SWR's
       // cache so the dashboard shows the bump instantly on navigation.
-      const tz = Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC'
       setSavingLabel('Finishing up...')
-      completionPayload = JSON.stringify({
-        workoutId,
-        clientProgramId,
-        scheduledDate,
-        tz,
-      })
+      // Re-use the pre-built completionPayload (already contains
+      // workoutId, clientProgramId, scheduledDate, tz) — beacon and fetch
+      // now send the same bytes.
       const response = await fetch('/api/workouts/complete', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },

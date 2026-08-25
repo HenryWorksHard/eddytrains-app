@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 
 import { getSupabaseAdmin } from '@/lib/supabase-admin';
-import { getAuthContext, unauthorized, forbidden, isTrainerRole } from '@/app/lib/auth-guard';
+import { getAuthContext, unauthorized, forbidden } from '@/app/lib/auth-guard';
 
 // Generate URL-safe slug from business name
 function generateSlug(name: string): string {
@@ -16,7 +16,13 @@ export async function POST(req: Request) {
   try {
     const ctx = await getAuthContext();
     if (!ctx) return unauthorized();
-    if (!isTrainerRole(ctx.role)) return forbidden();
+    // Audit fix (2026-08-23): this endpoint hardcodes subscription_tier
+    // 'gym' + client_limit -1 with no Stripe check. Previously gated only
+    // by isTrainerRole → any trainer could spin up unlimited-tier orgs
+    // (free-tier bypass). Public trainer signup should go through
+    // /api/signup (Stripe-linked). Restrict this to super_admin who is
+    // provisioning trainers manually from /platform.
+    if (ctx.role !== 'super_admin') return forbidden();
 
     const { name } = await req.json();
 

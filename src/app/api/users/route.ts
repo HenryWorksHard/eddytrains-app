@@ -189,43 +189,52 @@ export async function DELETE(request: NextRequest) {
     // Delete related data first (foreign key constraints)
     // Order matters - delete child records before parent
     console.log('[DELETE user] Cleaning up related data for:', userId)
-    
-    // Get client_program IDs first for cascade deletes
+
+    // Audit fix (2026-08-23): every client-owned table uses `client_id`
+    // (verified via information_schema). Previously this used `user_id`,
+    // which silently no-op'd on every DELETE — leaving orphan workout_logs,
+    // set_logs (via cascade fail), completions, programs, PRs, progress
+    // photos. Real data-loss + App Store 5.1.1(v) "delete all my data"
+    // violation. Only invite_tokens uses user_id (references auth.users)
+    // so that filter stays.
     const { data: clientPrograms } = await adminClient
       .from('client_programs')
       .select('id')
-      .eq('user_id', userId)
-    
+      .eq('client_id', userId)
+
     const programIds = clientPrograms?.map(p => p.id) || []
-    
+
     if (programIds.length > 0) {
       // Delete client_exercise_sets linked to client_programs
       await adminClient.from('client_exercise_sets').delete().in('client_program_id', programIds)
     }
-    
+
     // Delete other related records
-    await adminClient.from('client_programs').delete().eq('user_id', userId)
+    await adminClient.from('client_programs').delete().eq('client_id', userId)
     await adminClient.from('client_nutrition').delete().eq('client_id', userId)
-    await adminClient.from('client_1rms').delete().eq('user_id', userId)
-    await adminClient.from('client_1rm_history').delete().eq('user_id', userId)
-    await adminClient.from('client_streaks').delete().eq('user_id', userId)
-    await adminClient.from('personal_records').delete().eq('user_id', userId)
-    // Get workout_log IDs first for set_logs deletion (set_logs doesn't have user_id column)
+    await adminClient.from('client_1rms').delete().eq('client_id', userId)
+    await adminClient.from('client_1rm_history').delete().eq('client_id', userId)
+    await adminClient.from('client_streaks').delete().eq('client_id', userId)
+    await adminClient.from('personal_records').delete().eq('client_id', userId)
+
+    // Get workout_log IDs first for set_logs deletion (set_logs has a
+    // user_id column but the parent workout_log_id is the canonical link;
+    // deleting by workout_log_id is cleaner than dealing with historical
+    // rows that pre-date the user_id column).
     const { data: workoutLogs } = await adminClient
       .from('workout_logs')
       .select('id')
-      .eq('user_id', userId)
-    
+      .eq('client_id', userId)
+
     const workoutLogIds = workoutLogs?.map(wl => wl.id) || []
-    
-    // Delete set_logs by workout_log_id (not user_id - that column doesn't exist)
+
     if (workoutLogIds.length > 0) {
       await adminClient.from('set_logs').delete().in('workout_log_id', workoutLogIds)
     }
-    
-    await adminClient.from('workout_logs').delete().eq('user_id', userId)
-    await adminClient.from('workout_completions').delete().eq('user_id', userId)
-    await adminClient.from('progress_images').delete().eq('user_id', userId)
+
+    await adminClient.from('workout_logs').delete().eq('client_id', userId)
+    await adminClient.from('workout_completions').delete().eq('client_id', userId)
+    await adminClient.from('progress_images').delete().eq('client_id', userId)
 
     // Explicitly clear invite_tokens so nothing is left pointing at the auth user
     await adminClient.from('invite_tokens').delete().eq('user_id', userId)

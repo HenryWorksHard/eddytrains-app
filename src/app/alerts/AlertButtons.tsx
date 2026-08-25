@@ -2,7 +2,7 @@
 
 import { useRouter } from 'next/navigation'
 import { useState } from 'react'
-import { X, Check, RefreshCw, Trash2 } from 'lucide-react'
+import { X, Check, Trash2 } from 'lucide-react'
 
 export function DismissButton({ notificationId }: { notificationId: string }) {
   const router = useRouter()
@@ -66,50 +66,12 @@ export function MarkReadButton({ notificationId }: { notificationId: string }) {
   )
 }
 
-export function RunCronButton() {
-  const router = useRouter()
-  const [loading, setLoading] = useState(false)
-  const [message, setMessage] = useState<string | null>(null)
-
-  const handleRunCron = async () => {
-    setLoading(true)
-    setMessage(null)
-    try {
-      const response = await fetch('/api/cron/notifications', {
-        method: 'POST',
-        headers: {
-          'Authorization': 'Bearer fitness-cron-secret-2026',
-        },
-      })
-      const data = await response.json()
-      setMessage(`Created ${data.results?.notificationsCreated || 0} new notifications`)
-      router.refresh()
-    } catch (error) {
-      setMessage('Failed to run check')
-      console.error('Failed to run cron:', error)
-    }
-    setLoading(false)
-    setTimeout(() => setMessage(null), 3000)
-  }
-
-  return (
-    <div className="relative">
-      <button
-        onClick={handleRunCron}
-        disabled={loading}
-        className="flex items-center gap-2 bg-zinc-800 hover:bg-zinc-700 text-white px-4 py-2 rounded-xl font-medium transition-colors disabled:opacity-50"
-      >
-        <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
-        {loading ? 'Checking...' : 'Run Check Now'}
-      </button>
-      {message && (
-        <div className="absolute top-full right-0 mt-2 px-3 py-2 bg-zinc-800 text-sm text-zinc-300 rounded-lg whitespace-nowrap">
-          {message}
-        </div>
-      )}
-    </div>
-  )
-}
+// Audit fix (2026-08-23): RunCronButton removed. It shipped with a
+// hardcoded bearer token in the client bundle ('fitness-cron-secret-2026')
+// AND the endpoint it hit (/api/cron/notifications) does not exist, so it
+// was doubly broken: dead + leaking a secret. If we ever want a manual
+// "run notifications check" trigger, do it as a server action gated by
+// super_admin, not a browser-side fetch with a static header.
 
 export function DismissAllButton() {
   const router = useRouter()

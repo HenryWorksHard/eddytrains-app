@@ -117,15 +117,17 @@ export async function POST(req: Request) {
       );
     }
 
-    // TODO: Send email with invite link
-    // For now, the invite link would be: 
-    // {app_url}/join?token={token}
-    const inviteUrl = `${process.env.NEXT_PUBLIC_APP_URL || 'https://app.cmpdcollective.com'}/join?token=${token}`;
-    
-    console.log('Invite created:', { email, inviteUrl });
-
-    // TODO: wire this trainer-invite flow through Resend (sendInviteEmail in @/app/lib/email)
-    // once we extend the invite_tokens pattern to non-client roles.
+    // Audit fix (2026-08-23): previously logged the token to stdout AND
+    // returned inviteUrl in the response body. Combined with the PUT bug
+    // (any signed-in user could accept any token → get flipped to trainer),
+    // any log-viewer or intercepted response became an org-takeover
+    // primitive. Return only invite metadata; the token must be
+    // delivered exclusively via email to the intended invitee.
+    //
+    // TODO (still not done): wire this trainer-invite flow through
+    // Resend (sendInviteEmail in @/app/lib/email) so the token actually
+    // reaches the invitee.
+    console.log('Invite created for:', email); // email only, never the token
 
     return NextResponse.json({
       success: true,
@@ -136,7 +138,6 @@ export async function POST(req: Request) {
         created_at: invite.created_at,
         expires_at: invite.expires_at,
       },
-      inviteUrl, // Remove this in production
     });
   } catch (error) {
     console.error('Invite error:', error);
@@ -180,6 +181,22 @@ export async function PUT(req: Request) {
       );
     }
 
+    // Audit fix (2026-08-23): CRITICAL — previously we accepted ANY signed-in
+    // caller for any live token. Combined with the log-leak in POST, that
+    // meant a token in Vercel logs = org takeover primitive for any user
+    // with any role. Now we require the accepting caller's email to match
+    // the invite's target email. Case-insensitive compare so gmail-style
+    // dot variations don't lock users out; strict equality would be too
+    // brittle for common typos.
+    const inviteEmail = (invite.email || '').trim().toLowerCase();
+    const callerEmail = (ctx.email || '').trim().toLowerCase();
+    if (!inviteEmail || inviteEmail !== callerEmail) {
+      return NextResponse.json(
+        { error: 'This invitation was not sent to your email address' },
+        { status: 403 }
+      );
+    }
+
     // Add user to organization_members
     const { error: memberError } = await getSupabaseAdmin()
       .from('organization_members')
@@ -201,12 +218,14 @@ export async function PUT(req: Request) {
       );
     }
 
-    // Update user's profile with organization_id
+    // Audit fix (2026-08-23): honour invite.role instead of hard-coding
+    // 'trainer'. Previously an admin invite silently downgraded the
+    // acceptor to trainer, so no admin invites actually worked.
     await getSupabaseAdmin()
       .from('profiles')
-      .update({ 
+      .update({
         organization_id: invite.organization_id,
-        role: 'trainer',
+        role: invite.role || 'trainer',
       })
       .eq('id', user_id);
 

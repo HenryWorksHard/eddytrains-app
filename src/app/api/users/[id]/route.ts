@@ -125,10 +125,26 @@ export async function PATCH(
       updateData.email = email
     }
 
-    // Role changes: only trainer-role+. (Still don't let a trainer escalate to super_admin.)
+    // Role changes: only trainer-role+. (Still don't let a trainer escalate
+    // to super_admin.) Audit fix (2026-08-23): previously the super_admin
+    // check was the ONLY escalation guard, so a trainer editing their own
+    // profile could set role='company_admin' or 'admin' — an intra-tier
+    // self-promotion. Also block any self-role-change entirely; role
+    // transitions must come from a different admin.
     if (newRole !== undefined) {
       if (!callerIsTrainer) return forbidden()
       if (newRole === 'super_admin' && ctx.role !== 'super_admin') return forbidden()
+      if (ctx.userId === userId) {
+        return NextResponse.json(
+          { error: 'You cannot change your own role. Ask another admin.' },
+          { status: 403 }
+        )
+      }
+      // Whitelist allowed roles so bogus values can't be written.
+      const allowedRoles = ['client', 'trainer', 'admin', 'company_admin', 'super_admin']
+      if (!allowedRoles.includes(newRole)) {
+        return NextResponse.json({ error: 'Invalid role' }, { status: 400 })
+      }
       updateData.role = newRole
     }
 
@@ -186,34 +202,41 @@ export async function DELETE(
 
     const userId = profile.id
 
+    // Audit fix (2026-08-23): every table below uses `client_id` as its
+    // owner column (verified via information_schema). This code used to
+    // filter by `user_id`, which silently no-op'd on every DELETE — leaving
+    // orphan workout_logs, set_logs (via cascade fail), completions,
+    // programs, PRs, progress photos. Real data-loss + App Store 5.1.1(v)
+    // "delete all my data" violation. Only invite_tokens uses user_id
+    // (references auth.users) so that filter stays.
     const { data: clientPrograms } = await adminClient
       .from('client_programs')
       .select('id')
-      .eq('user_id', userId)
+      .eq('client_id', userId)
     const programIds = clientPrograms?.map(p => p.id) || []
     if (programIds.length > 0) {
       await adminClient.from('client_exercise_sets').delete().in('client_program_id', programIds)
     }
 
-    await adminClient.from('client_programs').delete().eq('user_id', userId)
+    await adminClient.from('client_programs').delete().eq('client_id', userId)
     await adminClient.from('client_nutrition').delete().eq('client_id', userId)
-    await adminClient.from('client_1rms').delete().eq('user_id', userId)
-    await adminClient.from('client_1rm_history').delete().eq('user_id', userId)
-    await adminClient.from('client_streaks').delete().eq('user_id', userId)
-    await adminClient.from('personal_records').delete().eq('user_id', userId)
+    await adminClient.from('client_1rms').delete().eq('client_id', userId)
+    await adminClient.from('client_1rm_history').delete().eq('client_id', userId)
+    await adminClient.from('client_streaks').delete().eq('client_id', userId)
+    await adminClient.from('personal_records').delete().eq('client_id', userId)
 
     const { data: workoutLogs } = await adminClient
       .from('workout_logs')
       .select('id')
-      .eq('user_id', userId)
+      .eq('client_id', userId)
     const workoutLogIds = workoutLogs?.map(wl => wl.id) || []
     if (workoutLogIds.length > 0) {
       await adminClient.from('set_logs').delete().in('workout_log_id', workoutLogIds)
     }
 
-    await adminClient.from('workout_logs').delete().eq('user_id', userId)
-    await adminClient.from('workout_completions').delete().eq('user_id', userId)
-    await adminClient.from('progress_images').delete().eq('user_id', userId)
+    await adminClient.from('workout_logs').delete().eq('client_id', userId)
+    await adminClient.from('workout_completions').delete().eq('client_id', userId)
+    await adminClient.from('progress_images').delete().eq('client_id', userId)
     await adminClient.from('invite_tokens').delete().eq('user_id', userId)
 
     const { error: profileDeleteError } = await adminClient
