@@ -3,6 +3,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { getStripe } from '@/lib/stripe'
 import { getSupabaseAdmin } from '@/lib/supabase-admin'
 import { sendInviteEmail } from '@/app/lib/email'
+import { rateLimit, getClientIp } from '@/app/lib/rate-limit'
 
 // Trainer self-serve signup. Public endpoint — no auth required.
 //
@@ -57,6 +58,20 @@ async function uniqueSlug(base: string): Promise<string> {
 
 export async function POST(request: NextRequest) {
   try {
+    // Rate limit: max 5 signups per IP per hour, and max 3 attempts per
+    // email per hour (allow a small margin for retries after typos).
+    // Audit fix (2026-08-23): previously unbounded — attacker could
+    // create thousands of orphan orgs + Stripe customers via a script.
+    const ip = getClientIp(request)
+    const ipGate = rateLimit({ key: `signup:ip:${ip}`, limit: 5, windowMs: 60 * 60 * 1000 })
+    if (!ipGate.allowed) {
+      console.warn('[signup] rate limited by IP', { ip })
+      return NextResponse.json(
+        { error: 'Too many signups from this network. Please try again later.' },
+        { status: 429 },
+      )
+    }
+
     const body = await request.json()
     const email = typeof body.email === 'string' ? body.email.trim().toLowerCase() : ''
     const orgName = typeof body.orgName === 'string' ? body.orgName.trim().slice(0, 80) : ''
@@ -67,6 +82,15 @@ export async function POST(request: NextRequest) {
     }
     if (!orgName) {
       return NextResponse.json({ error: 'A business / studio name is required.' }, { status: 400 })
+    }
+
+    const emailGate = rateLimit({ key: `signup:email:${email}`, limit: 3, windowMs: 60 * 60 * 1000 })
+    if (!emailGate.allowed) {
+      console.warn('[signup] rate limited by email', { email })
+      return NextResponse.json(
+        { error: 'Too many signup attempts for this email. Please try again later.' },
+        { status: 429 },
+      )
     }
 
     const admin = getSupabaseAdmin()

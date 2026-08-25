@@ -18,6 +18,7 @@ import {
   Shield,
 } from 'lucide-react'
 import { createClient } from '../lib/supabase/client'
+import { signOutAndClear } from '../lib/auth-helpers'
 
 interface SlideOutMenuProps {
   isOpen: boolean
@@ -46,7 +47,10 @@ export function SlideOutMenu({ isOpen, onClose }: SlideOutMenuProps) {
   const supabase = createClient()
 
   const handleSignOut = async () => {
-    await supabase.auth.signOut()
+    // signOutAndClear also POSTs to /api/auth/sign-out-cleanup which
+    // deletes the impersonation + profile-cache cookies that
+    // supabase.auth.signOut() doesn't touch (audit fix, 2026-08-23).
+    await signOutAndClear(supabase)
     // Force a full navigation so middleware + SWR caches are cleared.
     router.push('/login')
     router.refresh()

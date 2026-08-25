@@ -3,13 +3,14 @@
 import { useRouter } from 'next/navigation'
 import { Lock, Mail } from 'lucide-react'
 import { createClient } from '@/app/lib/supabase/client'
+import { signOutAndClear } from '@/app/lib/auth-helpers'
 
 export default function AccessPausedPage() {
   const router = useRouter()
   const supabase = createClient()
 
   const handleLogout = async () => {
-    await supabase.auth.signOut()
+    await signOutAndClear(supabase)
     router.push('/login')
     router.refresh()
   }

@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
 import { sendPasswordResetEmail } from '@/app/lib/email'
+import { rateLimit, getClientIp } from '@/app/lib/rate-limit'
 
 function getAdminClient() {
   return createClient(
@@ -30,6 +31,18 @@ export async function POST(req: Request) {
   }
 
   if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+    return NextResponse.json({ ok: true })
+  }
+
+  // Rate limit: per-email 3/5min AND per-IP 20/hour. Audit fix
+  // (2026-08-23): previously unbounded — attacker could flood any user's
+  // inbox with recovery emails. Silently return the generic ok shape on
+  // over-quota so we don't leak whether the address exists.
+  const ip = getClientIp(req)
+  const emailGate = rateLimit({ key: `reset:email:${email}`, limit: 3, windowMs: 5 * 60 * 1000 })
+  const ipGate = rateLimit({ key: `reset:ip:${ip}`, limit: 20, windowMs: 60 * 60 * 1000 })
+  if (!emailGate.allowed || !ipGate.allowed) {
+    console.warn('[send-password-reset] rate limited', { email, ip, emailGate, ipGate })
     return NextResponse.json({ ok: true })
   }
 
