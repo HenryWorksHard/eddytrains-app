@@ -317,7 +317,12 @@ export default function ProgressPicturesClient({ initialImages }: Props) {
                 </button>
                 <button
                   onClick={(e) => { e.stopPropagation(); deleteImage(img.id, img.image_url); }}
-                  className="absolute top-1 right-1 w-6 h-6 bg-red-500 rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity z-10"
+                  aria-label="Delete photo"
+                  // Audit fix (2026-08-23): was opacity-0 group-hover:opacity-100
+                  // — invisible on touch devices, so grid delete was unreachable
+                  // on mobile (the primary platform). Now always shown at a
+                  // subtle opacity, full on tap/hover.
+                  className="absolute top-1 right-1 w-7 h-7 bg-red-500 rounded-full flex items-center justify-center opacity-70 active:opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity z-10"
                 >
                   <svg className="w-4 h-4 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 12H4" />
