@@ -47,6 +47,10 @@ export async function GET(request: NextRequest) {
   // in JS. Doing the OR on a relationship column in PostgREST is awkward,
   // and the per-user row count is small enough that client-side filtering
   // is fine.
+  // Cascade fix (2026-08-26): workout_exercises join is now LEFT (was
+  // !inner) + we read the save-time exercise_name snapshot. With !inner,
+  // rows whose template was deleted by a trainer program edit silently
+  // vanished from history.
   const { data, error } = await supabase
     .from('set_logs')
     .select(`
@@ -54,9 +58,10 @@ export async function GET(request: NextRequest) {
       weight_kg,
       reps_completed,
       workout_log_id,
+      exercise_name,
       swapped_exercise_name,
       workout_logs!inner(client_id, completed_at, scheduled_date),
-      workout_exercises!inner(exercise_name)
+      workout_exercises(exercise_name)
     `)
     .eq('workout_logs.client_id', user.id)
     .not('weight_kg', 'is', null)
@@ -71,10 +76,13 @@ export async function GET(request: NextRequest) {
   }
 
   // Swap-aware match: a set counts if it was logged as the requested
-  // exercise — either via the swap field or the original slot name.
+  // exercise — either via the swap field, the save-time snapshot, or the
+  // (still-live) original slot name.
   const matches = (data || []).filter((row) => {
     const swapped = row.swapped_exercise_name?.toLowerCase().trim()
     if (swapped) return swapped === nameLower
+    const snapshot = (row as { exercise_name?: string | null }).exercise_name?.toLowerCase().trim()
+    if (snapshot) return snapshot === nameLower
     const original = row.workout_exercises?.exercise_name?.toLowerCase().trim()
     return original === nameLower
   })

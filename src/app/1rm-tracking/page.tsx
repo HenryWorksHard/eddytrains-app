@@ -32,39 +32,48 @@ export default async function OneRMPage() {
 
   const workoutLogIds = workoutLogs?.map(log => log.id) || []
   
-  // Get set logs
+  // Get set logs (exercise_name = save-time snapshot; survives trainer
+  // program edits that null out exercise_id — cascade fix 2026-08-26)
   const { data: setLogs } = await supabase
     .from('set_logs')
     .select(`
       workout_log_id,
       exercise_id,
       weight_kg,
-      reps_completed
+      reps_completed,
+      exercise_name,
+      swapped_exercise_name
     `)
     .in('workout_log_id', workoutLogIds)
     .not('weight_kg', 'is', null)
     .not('reps_completed', 'is', null)
 
-  // Get exercise names
-  const exerciseIds = [...new Set(setLogs?.map(log => log.exercise_id) || [])]
-  
-  const { data: exercises } = await supabase
-    .from('workout_exercises')
-    .select('id, exercise_name')
-    .in('id', exerciseIds)
+  // Get exercise names for rows whose template still exists
+  const exerciseIds = [...new Set((setLogs?.map(log => log.exercise_id) || []).filter(Boolean))]
+
+  const { data: exercises } = exerciseIds.length > 0
+    ? await supabase
+        .from('workout_exercises')
+        .select('id, exercise_name')
+        .in('id', exerciseIds)
+    : { data: [] as { id: string; exercise_name: string }[] }
 
   // Build exercise lookup
   const exerciseLookup = new Map(exercises?.map(e => [e.id, e.exercise_name]) || [])
-  
+
   // Build workout date lookup
   const workoutDateLookup = new Map(workoutLogs?.map(w => [w.id, w.completed_at]) || [])
 
   // Calculate estimated 1RM for each set using Epley formula: 1RM = weight * (1 + reps/30)
   // Then group by exercise and date to get max estimated 1RM per workout
   const progressData: Record<string, { date: string; value: number }[]> = {}
-  
+
   setLogs?.forEach(log => {
-    const exerciseName = exerciseLookup.get(log.exercise_id)
+    // Name priority: swapped > snapshot > live template lookup.
+    const exerciseName =
+      (log as { swapped_exercise_name?: string | null }).swapped_exercise_name ||
+      (log as { exercise_name?: string | null }).exercise_name ||
+      exerciseLookup.get(log.exercise_id)
     const date = workoutDateLookup.get(log.workout_log_id)
     
     if (!exerciseName || !date || !log.weight_kg || !log.reps_completed) return

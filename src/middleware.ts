@@ -62,6 +62,23 @@ async function writeCache(response: NextResponse, data: CachedProfile) {
   })
 }
 
+// Timeout guard for the middleware's upstream calls (Supabase auth +
+// profile/org queries). Prod incident (observed ~Aug 18-25, 2026): when
+// Supabase was slow/unreachable, these awaited fetches hung until
+// Vercel's middleware limit → 504 MIDDLEWARE_INVOCATION_TIMEOUT on
+// EVERY route → whole site down. Now each upstream call races a timeout;
+// on timeout we FAIL OPEN (skip middleware gating and pass the request
+// through). Every role-sensitive page and API route re-checks auth
+// server-side (auth-guard.ts / per-page checks), so failing open here
+// degrades UX gates, not security.
+const TIMED_OUT = Symbol('timed_out')
+function withTimeout<T>(p: Promise<T>, ms: number): Promise<T | typeof TIMED_OUT> {
+  return Promise.race([
+    p,
+    new Promise<typeof TIMED_OUT>((resolve) => setTimeout(() => resolve(TIMED_OUT), ms)),
+  ])
+}
+
 export async function middleware(request: NextRequest) {
   let supabaseResponse = NextResponse.next({ request })
 
@@ -84,9 +101,14 @@ export async function middleware(request: NextRequest) {
     }
   )
 
+  const authResult = await withTimeout(supabase.auth.getUser(), 5000)
+  if (authResult === TIMED_OUT) {
+    console.error('[middleware] auth.getUser timed out — failing open')
+    return supabaseResponse
+  }
   const {
     data: { user },
-  } = await supabase.auth.getUser()
+  } = authResult
 
   const pathname = request.nextUrl.pathname
 
@@ -124,11 +146,20 @@ export async function middleware(request: NextRequest) {
   let profile = await readCache(request, user.id)
 
   if (!profile) {
-    const { data } = await supabase
-      .from('profiles')
-      .select('password_changed, role, organization_id, access_paused')
-      .eq('id', user.id)
-      .single()
+    const profileResult = await withTimeout(
+      (async () =>
+        await supabase
+          .from('profiles')
+          .select('password_changed, role, organization_id, access_paused')
+          .eq('id', user.id)
+          .single())(),
+      4000,
+    )
+    if (profileResult === TIMED_OUT) {
+      console.error('[middleware] profile fetch timed out — failing open')
+      return supabaseResponse
+    }
+    const { data } = profileResult
 
     if (!data) {
       return supabaseResponse
@@ -140,11 +171,20 @@ export async function middleware(request: NextRequest) {
     let subscription_status: string | null = null
     let trial_ends_at: string | null = null
     if (data.organization_id && adminRoles.includes(data.role || '')) {
-      const { data: org } = await supabase
-        .from('organizations')
-        .select('subscription_status, trial_ends_at')
-        .eq('id', data.organization_id)
-        .single()
+      const orgResult = await withTimeout(
+        (async () =>
+          await supabase
+            .from('organizations')
+            .select('subscription_status, trial_ends_at')
+            .eq('id', data.organization_id)
+            .single())(),
+        4000,
+      )
+      if (orgResult === TIMED_OUT) {
+        console.error('[middleware] org fetch timed out — failing open')
+        return supabaseResponse
+      }
+      const { data: org } = orgResult
       subscription_status = org?.subscription_status ?? null
       trial_ends_at = org?.trial_ends_at ?? null
     }
