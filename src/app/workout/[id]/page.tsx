@@ -4,6 +4,7 @@ import BottomNav from '../../components/BottomNav'
 import BackButton from '../../components/BackButton'
 import CompleteWorkoutButton from './CompleteWorkoutButton'
 import WorkoutClient from './WorkoutClient'
+import { estimateOneRm } from '../../lib/tonnage'
 
 // Cache for 30 seconds
 export const revalidate = 30
@@ -240,7 +241,10 @@ export default async function WorkoutDetailPage({
         exerciseNameLookup.get(log.exercise_id)
       if (!exerciseName || !log.weight_kg || !log.reps_completed) return
       
-      const estimated1RM = log.weight_kg * (1 + log.reps_completed / 30)
+      // Shared estimator so the in-workout PR badge matches /progress +
+      // /1rm-tracking exactly (audit fix 2026-08-26 — this was the third
+      // call site still inlining the raw formula).
+      const estimated1RM = estimateOneRm(log.weight_kg, log.reps_completed)
       const key = exerciseName.toLowerCase()
       
       const existing = personalBestsMap.get(key)

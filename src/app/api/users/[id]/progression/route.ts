@@ -121,14 +121,17 @@ export async function GET(
 
     const { data: setLogs } = await adminClient
       .from('set_logs')
-      .select('workout_log_id, weight_kg, reps_completed, exercise_id, swapped_exercise_name')
+      .select('workout_log_id, weight_kg, reps_completed, exercise_id, exercise_name, swapped_exercise_name')
       .in('workout_log_id', workoutLogIds)
       .not('weight_kg', 'is', null)
       .order('created_at', { ascending: true })
 
+    // Cascade fix (2026-08-26): snapshot-first match (see progress/progression).
     const filteredLogs = (setLogs || []).filter((log) => {
       const swapped = log.swapped_exercise_name?.toLowerCase().trim()
       if (swapped) return swapped === nameLower
+      const snapshot = (log as { exercise_name?: string | null }).exercise_name?.toLowerCase().trim()
+      if (snapshot) return snapshot === nameLower
       return log.exercise_id ? matchingSlotIds.has(log.exercise_id) : false
     })
 

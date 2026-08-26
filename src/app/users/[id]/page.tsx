@@ -641,16 +641,18 @@ export default function UserProfilePage() {
       
       const { data: setLogs } = await supabase
         .from('set_logs')
-        .select('workout_log_id, exercise_id, set_number, weight_kg, reps_completed')
+        .select('workout_log_id, exercise_id, set_number, weight_kg, reps_completed, exercise_name, swapped_exercise_name')
         .in('workout_log_id', workoutLogIds)
 
-      // Get exercise names
-      const exerciseIds = [...new Set(setLogs?.map(log => log.exercise_id) || [])]
-      
-      const { data: exercises } = await supabase
-        .from('workout_exercises')
-        .select('id, exercise_name')
-        .in('id', exerciseIds)
+      // Get exercise names for rows whose template still exists
+      const exerciseIds = [...new Set((setLogs?.map(log => log.exercise_id) || []).filter(Boolean))]
+
+      const { data: exercises } = exerciseIds.length > 0
+        ? await supabase
+            .from('workout_exercises')
+            .select('id, exercise_name')
+            .in('id', exerciseIds)
+        : { data: [] as { id: string; exercise_name: string }[] }
 
       const exerciseLookup = new Map(exercises?.map(e => [e.id, e.exercise_name]) || [])
 
@@ -658,16 +660,24 @@ export default function UserProfilePage() {
       const history = workoutLogs?.map(log => {
         const workout = log.program_workouts as unknown as { id: string; name: string; programs: { id: string; name: string } | null } | null
         const workoutSetLogs = setLogs?.filter(sl => sl.workout_log_id === log.id) || []
-        
-        // Group by exercise
+
+        // Group by exercise. Cascade fix (2026-08-26): name priority
+        // swapped > snapshot > live template; group by resolved name when
+        // exercise_id is null so tombstoned rows don't all collapse into
+        // one "Unknown Exercise" bucket.
         const exerciseMap = new Map<string, { name: string; sets: { set: number; weight: number; reps: number }[] }>()
-        
+
         workoutSetLogs.forEach(sl => {
-          const exerciseName = exerciseLookup.get(sl.exercise_id) || 'Unknown Exercise'
-          if (!exerciseMap.has(sl.exercise_id)) {
-            exerciseMap.set(sl.exercise_id, { name: exerciseName, sets: [] })
+          const exerciseName =
+            (sl as { swapped_exercise_name?: string | null }).swapped_exercise_name ||
+            (sl as { exercise_name?: string | null }).exercise_name ||
+            exerciseLookup.get(sl.exercise_id) ||
+            'Unknown Exercise'
+          const groupKey = sl.exercise_id || `name:${exerciseName.toLowerCase()}`
+          if (!exerciseMap.has(groupKey)) {
+            exerciseMap.set(groupKey, { name: exerciseName, sets: [] })
           }
-          exerciseMap.get(sl.exercise_id)!.sets.push({
+          exerciseMap.get(groupKey)!.sets.push({
             set: sl.set_number,
             weight: sl.weight_kg || 0,
             reps: sl.reps_completed || 0

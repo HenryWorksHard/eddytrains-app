@@ -200,6 +200,21 @@ export async function DELETE(
     const allowed = ctx.role === 'super_admin' || (callerIsTrainer && sameOrg)
     if (!allowed) return forbidden()
 
+    // Audit fix (2026-08-26): the comment above claimed self-delete was
+    // blocked but nothing enforced it, and there was no client-role guard —
+    // so a plain trainer could hard-delete a peer trainer / admin /
+    // company_admin in their own org, or themselves. Restrict targets to
+    // clients (staff deletion is a super_admin action) and reject self.
+    if (ctx.userId === profile.id) {
+      return NextResponse.json({ error: 'You cannot delete your own account here.' }, { status: 403 })
+    }
+    if (ctx.role !== 'super_admin' && profile.role !== 'client') {
+      return NextResponse.json(
+        { error: 'Only a super admin can delete non-client accounts.' },
+        { status: 403 },
+      )
+    }
+
     const userId = profile.id
 
     // Audit fix (2026-08-23): every table below uses `client_id` as its

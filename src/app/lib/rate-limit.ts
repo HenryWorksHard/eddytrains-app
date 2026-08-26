@@ -51,12 +51,18 @@ export function rateLimit(opts: {
   buckets.set(key, alive)
 
   // Best-effort cleanup so the Map doesn't grow unboundedly. Trigger
-  // occasionally (roughly every 100 hits) to avoid scanning on every call.
+  // occasionally to avoid scanning on every call.
+  // Audit fix (2026-08-26): only DELETE keys whose newest entry is older
+  // than the longest window any caller uses (1h). Do NOT prune individual
+  // timestamps with the current caller's `cutoff` — a cleanup fired from a
+  // 5-min gate used to strip still-valid entries from 1-hour buckets,
+  // silently resetting hourly limits early.
   if (buckets.size > 500 && Math.random() < 0.01) {
+    const MAX_WINDOW_MS = 60 * 60 * 1000
+    const staleBefore = now - MAX_WINDOW_MS
     for (const [k, entries] of buckets.entries()) {
-      const stillAlive = entries.filter((t) => t > cutoff)
-      if (stillAlive.length === 0) buckets.delete(k)
-      else buckets.set(k, stillAlive)
+      const newest = entries.length > 0 ? entries[entries.length - 1] : 0
+      if (newest <= staleBefore) buckets.delete(k)
     }
   }
 

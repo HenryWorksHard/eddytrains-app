@@ -71,7 +71,20 @@ export async function POST(
         .eq('is_active', true)
 
       if (!programsError && sourcePrograms) {
+        // Idempotency (audit fix 2026-08-26): a double-click on Clone used
+        // to duplicate every program assignment. Skip programs the target
+        // already has active.
+        const { data: existingTargetPrograms } = await supabase
+          .from('client_programs')
+          .select('program_id')
+          .eq('client_id', targetUserId)
+          .eq('is_active', true)
+        const alreadyAssigned = new Set((existingTargetPrograms || []).map((p) => p.program_id))
+
         for (const program of sourcePrograms) {
+          if (alreadyAssigned.has(program.program_id)) {
+            continue
+          }
           // Create new client_program for target user
           const startDate = new Date()
           const endDate = new Date()

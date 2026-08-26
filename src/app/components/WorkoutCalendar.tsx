@@ -715,7 +715,12 @@ export default function WorkoutCalendar({ scheduleByDay, scheduleByWeekAndDay, c
                                so the user sees their real saved weights. */}
                             {(() => {
                               const dateStr = formatDateLocal(selectedDate)
-                              const actualCompletion = completionsByDate?.[dateStr]
+                              // Prefer the workout-specific completion so a
+                              // multi-workout day resolves each card to its
+                              // own log (audit fix 2026-08-26).
+                              const actualCompletion =
+                                completionsByDate?.[`${dateStr}:${workout.workoutId}`] ||
+                                completionsByDate?.[dateStr]
                               const targetWorkoutId = workoutCompleted && actualCompletion?.workout_id
                                 ? actualCompletion.workout_id
                                 : workout.workoutId
@@ -753,7 +758,9 @@ export default function WorkoutCalendar({ scheduleByDay, scheduleByWeekAndDay, c
                                     return
                                   }
                                   const dateStr = formatDateLocal(selectedDate)
-                                  const actual = completionsByDate?.[dateStr]
+                                  const actual =
+                                    completionsByDate?.[`${dateStr}:${workout.workoutId}`] ||
+                                    completionsByDate?.[dateStr]
                                   const queryWorkoutId = actual?.workout_id || workout.workoutId
                                   fetchWorkoutDetails(selectedDate, workout.workoutId, queryWorkoutId)
                                 }}
