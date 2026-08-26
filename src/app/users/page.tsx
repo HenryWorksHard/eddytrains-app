@@ -28,6 +28,7 @@ interface Program {
   id: string
   name: string
   category: string
+  program_kind: string | null
 }
 
 interface NutritionPlan {
@@ -230,7 +231,7 @@ export default function UsersPage() {
     }
 
     if (action === 'program' && programs.length === 0) {
-      const query = supabase.from('programs').select('id, name, category').order('name')
+      const query = supabase.from('programs').select('id, name, category, program_kind').order('name')
       if (orgId) query.eq('organization_id', orgId)
       const { data } = await query
       setPrograms(data || [])
@@ -695,9 +696,20 @@ export default function UsersPage() {
                       className="w-full px-4 py-3 bg-zinc-800 border border-zinc-700 rounded-xl text-white focus:outline-none focus:ring-2 focus:ring-yellow-400"
                     >
                       <option value="">Choose a program...</option>
-                      {programs.map(p => (
-                        <option key={p.id} value={p.id}>{p.name} ({p.category})</option>
-                      ))}
+                      {/* The two libraries stay visually separate here too, so a
+                          sellable rehab program is never picked by accident. */}
+                      <optgroup label="Client Programs">
+                        {programs.filter(p => p.program_kind !== 'catalog').map(p => (
+                          <option key={p.id} value={p.id}>{p.name} ({p.category})</option>
+                        ))}
+                      </optgroup>
+                      {programs.some(p => p.program_kind === 'catalog') && (
+                        <optgroup label="Rehab Catalog">
+                          {programs.filter(p => p.program_kind === 'catalog').map(p => (
+                            <option key={p.id} value={p.id}>{p.name} ({p.category})</option>
+                          ))}
+                        </optgroup>
+                      )}
                     </select>
                   </div>
                   <div>

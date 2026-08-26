@@ -38,14 +38,19 @@ export function todayISO(): string {
 }
 
 /**
- * The rule as a PostgREST `or=` expression, for queries answering "what can
- * this client train right now". Combine with `.eq('is_active', true)`.
+ * The rule as a PostgREST `or=` expression. Combine with
+ * `.eq('is_active', true)`.
  *
- * Nested and/or is supported by PostgREST and was verified against this
- * project's REST endpoint before being relied on here.
+ * Reads as: assigned, OR still inside the licence, OR licensed forever.
+ *
+ * Note it does NOT gate on `start_date`. A purchased program starts on the
+ * first Monday after the sale (see lib/purchase-window), so someone buying on
+ * a Wednesday would otherwise sit locked out for five days wondering what
+ * they paid for. They get in immediately; the week clock still starts Monday,
+ * because the week computation already floors a future start to week 1.
  */
 export function entitlementOrFilter(today: string = todayISO()): string {
-  return `source.eq.assigned,and(start_date.lte.${today},or(end_date.gte.${today},end_date.is.null))`
+  return `source.eq.assigned,end_date.gte.${today},end_date.is.null`
 }
 
 export type EntitlementRow = {
@@ -56,25 +61,15 @@ export type EntitlementRow = {
 }
 
 /**
- * The same rule as a predicate, for rows already in hand.
- *
- * `includeFuture` keeps not-yet-started programs — the schedule screen shows
- * upcoming blocks on purpose, so it wants "not expired" rather than "live
- * today". Expiry still applies either way.
+ * A purchased licence that has run out. Assigned programs never lapse — the
+ * trainer ends those by hand.
  */
-export function isEntitled(
-  row: EntitlementRow,
-  opts: { today?: string; includeFuture?: boolean } = {}
-): boolean {
-  const today = opts.today ?? todayISO()
+export function isExpired(row: EntitlementRow, today: string = todayISO()): boolean {
+  return row.source === 'purchased' && !!row.end_date && row.end_date < today
+}
 
-  if (row.is_active === false && !opts.includeFuture) return false
-
-  // Trainer-assigned: the trainer controls access, dates are advisory.
-  if (row.source !== 'purchased') return true
-
-  // Purchased: the licence window is real.
-  if (!opts.includeFuture && row.start_date && row.start_date > today) return false
-  if (row.end_date && row.end_date < today) return false
-  return true
+/** The same rule as a predicate, for rows already in hand. */
+export function isEntitled(row: EntitlementRow, today: string = todayISO()): boolean {
+  if (row.is_active === false) return false
+  return !isExpired(row, today)
 }

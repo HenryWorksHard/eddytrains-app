@@ -3,7 +3,7 @@ import { redirect } from 'next/navigation'
 import BottomNav from '../components/BottomNav'
 import ScheduleClient from './ScheduleClient'
 import { COMPLETION_LOOKBACK_DAYS } from '../lib/constants'
-import { isEntitled } from '@/app/lib/entitlements'
+import { isExpired } from '@/app/lib/entitlements'
 
 // Force dynamic rendering - no caching
 export const revalidate = 60
@@ -53,9 +53,7 @@ export default async function SchedulePage() {
   // The schedule deliberately shows upcoming blocks as well as live ones, so
   // it asks for "not expired" rather than "trainable today" — but a purchased
   // program whose licence has lapsed still drops off. See lib/entitlements.
-  const clientPrograms = (clientProgramsRaw || []).filter(cp =>
-    isEntitled(cp, { today: todayStr, includeFuture: true })
-  )
+  const clientPrograms = (clientProgramsRaw || []).filter(cp => !isExpired(cp, todayStr))
 
   // Get workout completions for the lookback period
   const lookbackDate = new Date()

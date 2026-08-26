@@ -76,6 +76,7 @@ interface Program {
   category: string
   difficulty: string
   description: string | null
+  program_kind: string | null
 }
 
 interface ClientProgram {
@@ -86,6 +87,7 @@ interface ClientProgram {
   duration_weeks: number
   phase_name: string | null
   is_active: boolean
+  source: string | null
   program: {
     id: string
     name: string
@@ -363,6 +365,7 @@ export default function UserProfilePage() {
           duration_weeks,
           phase_name,
           is_active,
+          source,
           program:programs (id, name, category, difficulty)
         `)
         .eq('client_id', userUuid)
@@ -713,7 +716,7 @@ export default function UserProfilePage() {
     try {
       const { data, error } = await supabase
         .from('programs')
-        .select('id, name, category, difficulty, description')
+        .select('id, name, category, difficulty, description, program_kind')
         .eq('is_active', true)
         .order('name')
       
@@ -1302,7 +1305,21 @@ export default function UserProfilePage() {
                   <div>
                     <label className="block text-sm font-medium text-zinc-400 mb-2">Select Program</label>
                     <div className="space-y-2 max-h-64 overflow-y-auto">
-                      {availablePrograms.map(program => {
+                      {(['custom', 'catalog'] as const).map(kindGroup => {
+                        const groupPrograms = availablePrograms.filter(p =>
+                          kindGroup === 'catalog'
+                            ? p.program_kind === 'catalog'
+                            : p.program_kind !== 'catalog'
+                        )
+                        if (groupPrograms.length === 0) return null
+                        return (
+                          <div key={kindGroup} className="space-y-2">
+                            {/* Client Programs and the sellable Rehab Catalog stay
+                                visually separate wherever a program gets picked. */}
+                            <p className="text-xs font-medium uppercase tracking-wider text-zinc-500 pt-2">
+                              {kindGroup === 'catalog' ? 'Rehab Catalog' : 'Client Programs'}
+                            </p>
+                            {groupPrograms.map(program => {
                         const Icon = getCategoryIcon(program.category)
                         return (
                           <div
@@ -1328,6 +1345,9 @@ export default function UserProfilePage() {
                             {selectedProgram?.id === program.id && (
                               <Check className="w-5 h-5 text-yellow-400" />
                             )}
+                          </div>
+                        )
+                      })}
                           </div>
                         )
                       })}
@@ -2155,6 +2175,13 @@ export default function UserProfilePage() {
                         {cp.is_active && (
                           <span className="px-2 py-0.5 text-xs font-medium bg-yellow-400/20 text-yellow-400 rounded-full">Active</span>
                         )}
+                        {/* Purchased programs expire on their end_date by
+                            themselves; assigned ones don't. Worth seeing. */}
+                        {cp.source === 'purchased' && (
+                          <span className="px-2 py-0.5 text-xs font-medium bg-emerald-400/15 text-emerald-400 rounded-full">
+                            Purchased
+                          </span>
+                        )}
                       </div>
                       {cp.phase_name && (
                         <p className="text-sm text-yellow-400/80 mb-1">{cp.phase_name}</p>
@@ -2166,6 +2193,15 @@ export default function UserProfilePage() {
                         <span>{cp.duration_weeks} weeks</span>
                         <span>•</span>
                         <span>Started {new Date(cp.start_date).toLocaleDateString()}</span>
+                        {cp.source === 'purchased' && cp.end_date && (
+                          <>
+                            <span>•</span>
+                            <span className={cp.end_date < new Date().toISOString().split('T')[0] ? 'text-zinc-500' : ''}>
+                              {cp.end_date < new Date().toISOString().split('T')[0] ? 'Lapsed' : 'Access until'}{' '}
+                              {new Date(cp.end_date).toLocaleDateString()}
+                            </span>
+                          </>
+                        )}
                       </div>
                     </div>
                   </Link>
