@@ -4,6 +4,7 @@ import { useEffect, useState, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import { mutate as swrMutate } from 'swr'
 import { createClient } from '../lib/supabase/client'
+import { signOutAndClear } from '../lib/auth-helpers'
 import { compressImage } from '../lib/imageUtils'
 import { useTheme } from '../lib/ThemeContext'
 import BottomNav from '../components/BottomNav'
@@ -401,7 +402,7 @@ export default function ProfilePage() {
   }
 
   const handleLogout = async () => {
-    await supabase.auth.signOut()
+    await signOutAndClear(supabase)
     router.push('/login')
     router.refresh()
   }
@@ -416,7 +417,7 @@ export default function ProfilePage() {
         throw new Error(j.error || 'Failed to delete account')
       }
       // Sign the client out and bounce to the login screen.
-      await supabase.auth.signOut()
+      await signOutAndClear(supabase)
       router.replace('/login?deleted=1')
       router.refresh()
     } catch (e) {

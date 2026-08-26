@@ -16,6 +16,15 @@ const PROFILE_CACHE_COOKIE = 'cmpd-profile-cache'
 const PROFILE_CACHE_TTL_SECONDS = 60
 
 type CachedProfile = {
+  // Audit fix (2026-08-23): bind cache to the authenticated user id. Prior
+  // to this, if User A signed out on a shared browser and User B signed
+  // in within 60s (cache TTL), the middleware's readCache accepted A's
+  // still-signed payload for B — B inherited A's role, organization_id,
+  // and access_paused for up to 60s. On shared devices / trainer laptops
+  // this was a silent privilege confusion. Sign-out also now clears this
+  // cookie via /api/auth/sign-out-cleanup, but the userId check is the
+  // defense-in-depth layer.
+  userId: string
   password_changed: boolean | null
   role: string | null
   organization_id: string | null
@@ -24,7 +33,7 @@ type CachedProfile = {
   access_paused: boolean | null
 }
 
-async function readCache(request: NextRequest): Promise<CachedProfile | null> {
+async function readCache(request: NextRequest, expectedUserId: string): Promise<CachedProfile | null> {
   const raw = request.cookies.get(PROFILE_CACHE_COOKIE)?.value
   if (!raw) return null
   // Signed-cookie path: `${base64url(json)}.${hmac}`. On signature failure,
@@ -32,7 +41,11 @@ async function readCache(request: NextRequest): Promise<CachedProfile | null> {
   const verified = await verifyPayload(raw)
   if (!verified) return null
   try {
-    return JSON.parse(verified) as CachedProfile
+    const parsed = JSON.parse(verified) as CachedProfile
+    // Belt-and-braces: reject stale cache belonging to a different user
+    // (see comment on CachedProfile.userId above).
+    if (parsed.userId !== expectedUserId) return null
+    return parsed
   } catch {
     return null
   }
@@ -81,7 +94,7 @@ export async function middleware(request: NextRequest) {
   // load while the Supabase JS client processes the recovery token from
   // the URL hash. /api/auth/send-password-reset must also be public —
   // a forgotten-password submission obviously runs while logged out.
-  const publicRoutes = ['/login', '/signup', '/api/signup', '/reset-password', '/update-password', '/auth/callback', '/join', '/api/exercises', '/accept-invite', '/api/accept-invite', '/api/auth/send-password-reset', '/api/log/client-diagnostic', '/privacy', '/access-paused']
+  const publicRoutes = ['/login', '/signup', '/api/signup', '/reset-password', '/update-password', '/auth/callback', '/join', '/api/exercises', '/accept-invite', '/api/accept-invite', '/api/auth/send-password-reset', '/api/auth/sign-out-cleanup', '/api/log/client-diagnostic', '/privacy', '/access-paused']
   const isPublicRoute = publicRoutes.some(route => pathname.startsWith(route))
 
   if (!user && !isPublicRoute) {
@@ -96,14 +109,19 @@ export async function middleware(request: NextRequest) {
     return NextResponse.redirect(url)
   }
 
-  // Everything below needs the profile. Skip API routes and the update-password
-  // page (which runs independently of the redirect-check).
-  if (!user || pathname.startsWith('/update-password') || pathname.startsWith('/api')) {
+  // Everything below needs the profile. update-password runs its own
+  // recovery-session flow so we skip it here.
+  if (!user || pathname.startsWith('/update-password')) {
     return supabaseResponse
   }
 
-  // Try the cache first. On cache hit: zero DB roundtrips for this navigation.
-  let profile = await readCache(request)
+  // Fetch profile for BOTH pages and API routes. The cache TTL (60s) keeps
+  // this cheap. Audit fix (2026-08-23): previously we short-circuited
+  // /api/* here, which meant the access_paused gate below only ran for
+  // page navigations. Paused clients could keep POSTing to /api/log,
+  // /api/workouts/complete, /api/dashboard etc. via the mobile app — the
+  // whole "lock out unpaid clients" feature was nullified for API traffic.
+  let profile = await readCache(request, user.id)
 
   if (!profile) {
     const { data } = await supabase
@@ -132,6 +150,7 @@ export async function middleware(request: NextRequest) {
     }
 
     profile = {
+      userId: user.id,
       password_changed: data.password_changed ?? null,
       role: data.role ?? null,
       organization_id: data.organization_id ?? null,
@@ -143,29 +162,48 @@ export async function middleware(request: NextRequest) {
     await writeCache(supabaseResponse, profile)
   }
 
+  const role = profile.role || 'client'
+  const isApiRoute = pathname.startsWith('/api')
+
+  // Client access pause — trainer can lock out unpaid clients without
+  // affecting the org's other clients or the trainer's subscription.
+  // Enforced BEFORE any /api short-circuit so the mobile app can't
+  // keep POSTing set_logs / completions after being paused.
+  if (role === 'client' && profile.access_paused) {
+    if (isApiRoute) {
+      // Allow /api/auth/* for sign-out flows; block everything else with
+      // a JSON 403 so client-side fetch handlers can surface a clean
+      // "your access is paused" message instead of getting HTML.
+      if (!pathname.startsWith('/api/auth')) {
+        return NextResponse.json(
+          { error: 'access_paused', message: 'Your access is currently paused. Contact your trainer.' },
+          { status: 403 },
+        )
+      }
+    } else if (
+      !pathname.startsWith('/access-paused') &&
+      !pathname.startsWith('/login')
+    ) {
+      const url = request.nextUrl.clone()
+      url.pathname = '/access-paused'
+      return NextResponse.redirect(url)
+    }
+  }
+
+  // Below this line is page-only (password-reset redirect, role gating,
+  // trial expiry redirect). API routes short-circuit here — those checks
+  // don't apply to API traffic and each route self-guards via
+  // getAuthContext for what it does need.
+  if (isApiRoute) {
+    return supabaseResponse
+  }
+
   // Force password reset if the client hasn't set theirs yet.
   if (profile.password_changed === false) {
     const url = request.nextUrl.clone()
     url.pathname = '/update-password'
     url.searchParams.set('required', 'true')
     return NextResponse.redirect(url)
-  }
-
-  const role = profile.role || 'client'
-
-  // Client access pause — trainer can lock out unpaid clients without
-  // affecting the org's other clients or the trainer's subscription.
-  // Has no effect on trainer/admin/super_admin roles.
-  if (role === 'client' && profile.access_paused) {
-    if (
-      !pathname.startsWith('/access-paused') &&
-      !pathname.startsWith('/login') &&
-      !pathname.startsWith('/api/auth')
-    ) {
-      const url = request.nextUrl.clone()
-      url.pathname = '/access-paused'
-      return NextResponse.redirect(url)
-    }
   }
 
   // Super-admin-only routes

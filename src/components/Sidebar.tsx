@@ -3,6 +3,7 @@
 import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
 import { createClient } from '@/app/lib/supabase/client'
+import { signOutAndClear } from '@/app/lib/auth-helpers'
 import { useTheme } from './ThemeProvider'
 import {
   LayoutDashboard,
@@ -198,7 +199,12 @@ export default function Sidebar() {
   }
 
   const handleSignOut = async () => {
-    await supabase.auth.signOut()
+    // signOutAndClear ALSO clears the impersonation + profile-cache
+    // cookies that supabase.auth.signOut() doesn't touch (audit fix,
+    // 2026-08-23). Critical here since super-admins impersonate — leaving
+    // the impersonation cookie would let the next super-admin who signs
+    // in on this browser inherit the current impersonation.
+    await signOutAndClear(supabase)
     router.push('/login')
     router.refresh()
   }
