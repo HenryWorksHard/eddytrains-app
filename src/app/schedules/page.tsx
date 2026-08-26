@@ -123,10 +123,40 @@ function SchedulesPageContent() {
 
   const loadInitialData = async () => {
     try {
-      const [clientsRes, programsRes] = await Promise.all([
-        supabase.from('profiles').select('id, full_name, email').order('full_name'),
-        supabase.from('programs').select('id, name, category, difficulty, duration_weeks').eq('is_active', true).order('name')
-      ])
+      // Audit fix (2026-08-23): the clients query previously had no role
+      // or organization filter, so the "assignable clients" dropdown
+      // showed trainers/admins/super_admin from every visible profile —
+      // cross-tenant leak + a trainer could accidentally assign a program
+      // to another trainer. Resolve the caller's org first, then scope
+      // both queries to that org.
+      const { data: { user } } = await supabase.auth.getUser()
+      let orgId: string | null = null
+      if (user) {
+        const { data: me } = await supabase
+          .from('profiles')
+          .select('organization_id')
+          .eq('id', user.id)
+          .maybeSingle()
+        orgId = me?.organization_id ?? null
+      }
+
+      const clientsQuery = supabase
+        .from('profiles')
+        .select('id, full_name, email')
+        .eq('role', 'client')
+        .order('full_name')
+      const programsQuery = supabase
+        .from('programs')
+        .select('id, name, category, difficulty, duration_weeks')
+        .eq('is_active', true)
+        .order('name')
+
+      if (orgId) {
+        clientsQuery.eq('organization_id', orgId)
+        programsQuery.eq('organization_id', orgId)
+      }
+
+      const [clientsRes, programsRes] = await Promise.all([clientsQuery, programsQuery])
 
       const clientsList = clientsRes.data || []
       setClients(clientsList)

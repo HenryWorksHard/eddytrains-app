@@ -187,12 +187,31 @@ export default function UsersPage() {
   const openBulkModal = async (action: 'program' | 'nutrition') => {
     setBulkAction(action)
     setShowBulkModal(true)
-    
+
+    // Audit fix (2026-08-23): scope programs + nutrition plans to the
+    // caller's org. Previously any trainer saw programs/plans from every
+    // org that RLS didn't block — cross-tenant leak, and assigning across
+    // orgs is a foot-gun.
+    const { data: { user: authUser } } = await supabase.auth.getUser()
+    let orgId: string | null = null
+    if (authUser) {
+      const { data: me } = await supabase
+        .from('profiles')
+        .select('organization_id')
+        .eq('id', authUser.id)
+        .maybeSingle()
+      orgId = me?.organization_id ?? null
+    }
+
     if (action === 'program' && programs.length === 0) {
-      const { data } = await supabase.from('programs').select('id, name, category').order('name')
+      const query = supabase.from('programs').select('id, name, category').order('name')
+      if (orgId) query.eq('organization_id', orgId)
+      const { data } = await query
       setPrograms(data || [])
     } else if (action === 'nutrition' && nutritionPlans.length === 0) {
-      const { data } = await supabase.from('nutrition_plans').select('id, name').order('name')
+      const query = supabase.from('nutrition_plans').select('id, name').order('name')
+      if (orgId) query.eq('organization_id', orgId)
+      const { data } = await query
       setNutritionPlans(data || [])
     }
   }

@@ -862,13 +862,32 @@ export default function UserProfilePage() {
   // Clone from another user
   const fetchAvailableUsers = async () => {
     try {
-      const { data, error } = await supabase
+      // Audit fix (2026-08-23): scope to caller's org. Previously any
+      // trainer could see + clone from clients across every org that
+      // RLS didn't block. The clone POST is server-checked, but the
+      // picker itself was leaking names + emails cross-org.
+      const { data: { user: authUser } } = await supabase.auth.getUser()
+      let orgId: string | null = null
+      if (authUser) {
+        const { data: me } = await supabase
+          .from('profiles')
+          .select('organization_id')
+          .eq('id', authUser.id)
+          .maybeSingle()
+        orgId = me?.organization_id ?? null
+      }
+
+      const query = supabase
         .from('profiles')
         .select('id, email, full_name')
         .eq('role', 'client')
         .neq('id', user?.id || '')
         .order('full_name')
-      
+
+      if (orgId) query.eq('organization_id', orgId)
+
+      const { data, error } = await query
+
       if (!error && data) {
         setAvailableUsers(data)
       }

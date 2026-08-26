@@ -2,10 +2,21 @@
 
 import { useEffect, useState } from 'react';
 import { useRouter, useParams } from 'next/navigation';
+import Link from 'next/link';
 import { createClient } from '@/app/lib/supabase/client';
 import { getOrganizationBySlug, OrganizationBranding } from '@/app/lib/branding';
-import { Mail, Lock, User, Eye, EyeOff, AlertCircle, Loader2 } from 'lucide-react';
+import { Mail, Lock, Eye, EyeOff, AlertCircle, Loader2 } from 'lucide-react';
 import AppLoading from '@/components/AppLoading';
+
+// Audit fix (2026-08-23): this page previously had an "isSignUp" toggle
+// that let any unauthenticated visitor with an org slug do
+// supabase.auth.signUp() + profiles.upsert({ organization_id, role: 'client' }).
+// That let an attacker enumerate a slug and drop themselves into any org
+// as a client — cross-tenant bypass.
+//
+// Fixed by removing the sign-up path entirely. Clients must be invited
+// via /accept-invite with a server-issued token. This page is now a
+// branded sign-in shortcut only.
 
 export default function JoinPage() {
   const router = useRouter();
@@ -18,12 +29,10 @@ export default function JoinPage() {
   const [organization, setOrganization] = useState<OrganizationBranding | null>(null);
   const [error, setError] = useState<string | null>(null);
 
-  // Form state
+  // Form state (sign-in only)
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [fullName, setFullName] = useState('');
   const [showPassword, setShowPassword] = useState(false);
-  const [isSignUp, setIsSignUp] = useState(false);
 
   useEffect(() => {
     async function loadOrganization() {
@@ -43,48 +52,17 @@ export default function JoinPage() {
     setSubmitting(true);
 
     try {
-      if (isSignUp) {
-        // Sign up new client
-        const { data, error: signUpError } = await supabase.auth.signUp({
-          email,
-          password,
-          options: {
-            data: { full_name: fullName },
-          },
-        });
+      const { error: signInError } = await supabase.auth.signInWithPassword({
+        email,
+        password,
+      });
 
-        if (signUpError) {
-          setError(signUpError.message);
-          return;
-        }
-
-        if (data.user) {
-          // Update profile with organization
-          await supabase.from('profiles').upsert({
-            id: data.user.id,
-            email,
-            full_name: fullName,
-            organization_id: organization?.id,
-            role: 'client',
-            is_active: true,
-          });
-
-          router.push('/dashboard');
-        }
-      } else {
-        // Sign in existing client
-        const { error: signInError } = await supabase.auth.signInWithPassword({
-          email,
-          password,
-        });
-
-        if (signInError) {
-          setError(signInError.message);
-          return;
-        }
-
-        router.push('/dashboard');
+      if (signInError) {
+        setError(signInError.message);
+        return;
       }
+
+      router.push('/dashboard');
     } catch {
       setError('An unexpected error occurred');
     } finally {
@@ -113,6 +91,7 @@ export default function JoinPage() {
         {/* Branding */}
         <div className="text-center mb-8">
           {organization.logoUrl ? (
+            // eslint-disable-next-line @next/next/no-img-element
             <img
               src={organization.logoUrl}
               alt={organization.name}
@@ -130,7 +109,7 @@ export default function JoinPage() {
           )}
           <h1 className="text-2xl font-bold text-white">{organization.name}</h1>
           <p className="text-zinc-400 mt-2">
-            {isSignUp ? 'Create your account to get started' : 'Sign in to access your workouts'}
+            Sign in to access your workouts
           </p>
         </div>
 
@@ -141,26 +120,6 @@ export default function JoinPage() {
               <div className="flex items-center gap-3 bg-red-500/10 border border-red-500/20 rounded-xl p-4 text-red-400">
                 <AlertCircle className="w-5 h-5 flex-shrink-0" />
                 <p className="text-sm">{error}</p>
-              </div>
-            )}
-
-            {isSignUp && (
-              <div>
-                <label className="block text-sm font-medium text-zinc-300 mb-2">
-                  <div className="flex items-center gap-2">
-                    <User className="w-4 h-4" />
-                    Your Name
-                  </div>
-                </label>
-                <input
-                  type="text"
-                  value={fullName}
-                  onChange={(e) => setFullName(e.target.value)}
-                  className="w-full px-4 py-3 bg-zinc-800 border border-zinc-700 rounded-xl text-white placeholder-zinc-500 focus:outline-none focus:ring-2"
-                  style={{ '--tw-ring-color': organization.brandColor } as React.CSSProperties}
-                  placeholder="John Smith"
-                  required
-                />
               </div>
             )}
 
@@ -215,27 +174,26 @@ export default function JoinPage() {
             >
               {submitting ? (
                 <Loader2 className="w-5 h-5 animate-spin mx-auto" />
-              ) : isSignUp ? (
-                'Create Account'
               ) : (
                 'Sign In'
               )}
             </button>
           </form>
 
-          <div className="mt-6 pt-6 border-t border-zinc-800 text-center">
+          <div className="mt-6 pt-6 border-t border-zinc-800 text-center space-y-2">
             <p className="text-zinc-400 text-sm">
-              {isSignUp ? 'Already have an account?' : "Don't have an account?"}{' '}
-              <button
-                onClick={() => {
-                  setIsSignUp(!isSignUp);
-                  setError(null);
-                }}
+              New here? Ask your trainer for an invite link — they&apos;ll
+              email you a personal one that sets up your account.
+            </p>
+            <p className="text-zinc-500 text-xs">
+              Forgot your password?{' '}
+              <Link
+                href="/reset-password"
                 className="font-medium hover:underline"
                 style={{ color: organization.brandColor }}
               >
-                {isSignUp ? 'Sign in' : 'Sign up'}
-              </button>
+                Reset it
+              </Link>
             </p>
           </div>
         </div>
