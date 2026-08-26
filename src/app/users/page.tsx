@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import Link from 'next/link'
-import { UserPlus, Search, Filter, Mail, Edit2, Trash2, Clock, Copy, Check, RefreshCw, Dumbbell, Apple, X, Loader2 } from 'lucide-react'
+import { UserPlus, Search, Mail, Edit2, Trash2, Clock, Copy, Check, RefreshCw, Dumbbell, Apple, X, Loader2 } from 'lucide-react'
 import { createClient } from '@/app/lib/supabase/client'
 import { apiFetch } from '@/app/lib/api'
 import AppLoading from '@/components/AppLoading'
@@ -125,6 +125,9 @@ function ResendInviteButton({ userId }: { userId: string }) {
 export default function UsersPage() {
   const [users, setUsers] = useState<User[]>([])
   const [loading, setLoading] = useState(true)
+  // Audit fix (2026-08-23): the search box was decorative (no value/onChange).
+  // Wire it to actually filter the roster by name or email.
+  const [search, setSearch] = useState('')
   const supabase = createClient()
   
   // Bulk selection state
@@ -175,6 +178,14 @@ export default function UsersPage() {
     }
     setSelectedUsers(newSelected)
   }
+
+  // Filter roster by the search box (name or email, case-insensitive).
+  const filteredUsers = search.trim()
+    ? users.filter(u => {
+        const q = search.trim().toLowerCase()
+        return (u.full_name?.toLowerCase().includes(q) ?? false) || u.email.toLowerCase().includes(q)
+      })
+    : users
 
   const toggleSelectAll = () => {
     if (selectedUsers.size === users.length) {
@@ -331,14 +342,12 @@ export default function UsersPage() {
           <Search className="absolute left-3 lg:left-4 top-1/2 -translate-y-1/2 w-4 h-4 lg:w-5 lg:h-5 text-zinc-500" />
           <input
             type="search"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
             placeholder="Search users by name or email..."
             className="w-full pl-10 lg:pl-12 pr-4 py-2.5 lg:py-3 bg-zinc-900 border border-zinc-800 rounded-lg lg:rounded-xl text-sm lg:text-base text-white placeholder-zinc-500 focus:outline-none focus:ring-2 focus:ring-yellow-400 focus:border-transparent"
           />
         </div>
-        <button className="flex items-center gap-2 px-3 lg:px-4 py-2.5 lg:py-3 bg-zinc-900 border border-zinc-800 rounded-lg lg:rounded-xl text-zinc-400 hover:text-white hover:border-zinc-700 transition-colors">
-          <Filter className="w-4 h-4 lg:w-5 lg:h-5" />
-          <span className="hidden sm:inline">Filters</span>
-        </button>
       </div>
 
       {/* Bulk Action Toolbar */}
@@ -386,7 +395,7 @@ export default function UsersPage() {
       {/* Users — mobile card view (sm:hidden) */}
       {users.length > 0 && (
         <div className="space-y-2 sm:hidden">
-          {users.map((user) => (
+          {filteredUsers.map((user) => (
             <div
               key={user.id}
               className={`relative bg-zinc-900 border rounded-xl p-3 transition-colors ${
@@ -492,7 +501,7 @@ export default function UsersPage() {
                 </tr>
               </thead>
               <tbody>
-                {users.map((user) => (
+                {filteredUsers.map((user) => (
                   <tr key={user.id} className={selectedUsers.has(user.id) ? 'bg-yellow-400/5' : ''}>
                     <td className="hidden sm:table-cell">
                       <input
