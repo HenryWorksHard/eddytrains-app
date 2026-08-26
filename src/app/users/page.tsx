@@ -231,7 +231,7 @@ export default function UsersPage() {
     }
 
     if (action === 'program' && programs.length === 0) {
-      const query = supabase.from('programs').select('id, name, category, program_kind').order('name')
+      const query = supabase.from('programs').select('id, name, category, program_kind').eq('is_active', true).order('name')
       if (orgId) query.eq('organization_id', orgId)
       const { data } = await query
       setPrograms(data || [])
