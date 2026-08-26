@@ -112,21 +112,30 @@ export async function POST(request: NextRequest) {
 
     // Create set logs with user_id and exercise_uuid for proper history lookup
     if (sets && sets.length > 0 && workoutLog) {
-      // Get exercise_uuid for each exercise_id from workout_exercises
+      // Get exercise_uuid + name for each exercise_id from workout_exercises
       const exerciseIds = [...new Set(sets.map((s: any) => s.exercise_id))]
       const { data: exerciseData } = await adminClient
         .from('workout_exercises')
-        .select('id, exercise_uuid')
+        .select('id, exercise_uuid, exercise_name')
         .in('id', exerciseIds)
-      
+
       const exerciseUuidMap = new Map(
         exerciseData?.map(e => [e.id, e.exercise_uuid]) || []
+      )
+      const exerciseNameMap = new Map(
+        exerciseData?.map(e => [e.id, e.exercise_name]) || []
       )
 
       const setLogsToInsert = sets.map((set: any) => ({
         workout_log_id: workoutLog.id,
         exercise_id: set.exercise_id,
         exercise_uuid: exerciseUuidMap.get(set.exercise_id) || null,
+        // Cascade fix (2026-08-26): snapshot the name. Without this,
+        // trainer-entered sessions become permanently unrecoverable once
+        // the trainer later edits the program (exercise_id → null with no
+        // name to fall back on). Prefer the client-supplied name, else
+        // look it up.
+        exercise_name: set.exercise_name || exerciseNameMap.get(set.exercise_id) || null,
         user_id: clientId, // Save under client's profile for history lookup
         set_number: set.set_number,
         weight_kg: set.weight_kg || null,

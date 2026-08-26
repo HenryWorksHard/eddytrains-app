@@ -25,6 +25,13 @@ type CachedProfile = {
   // cookie via /api/auth/sign-out-cleanup, but the userId check is the
   // defense-in-depth layer.
   userId: string
+  // Re-audit fix (2026-08-26): issued-at (epoch ms). The signed payload
+  // is valid forever cryptographically, and the browser-honored maxAge=60
+  // is not enforced server-side — so a paused / role-demoted / trial-
+  // expired user could REPLAY their old cookie from any HTTP client and
+  // the middleware would trust access_paused:false indefinitely, defeating
+  // the very pause gate. readCache now rejects payloads older than the TTL.
+  iat: number
   password_changed: boolean | null
   role: string | null
   organization_id: string | null
@@ -42,9 +49,13 @@ async function readCache(request: NextRequest, expectedUserId: string): Promise<
   if (!verified) return null
   try {
     const parsed = JSON.parse(verified) as CachedProfile
-    // Belt-and-braces: reject stale cache belonging to a different user
-    // (see comment on CachedProfile.userId above).
+    // Reject stale cache belonging to a different user.
     if (parsed.userId !== expectedUserId) return null
+    // Server-enforced TTL (replay protection): ignore payloads older than
+    // the cache window regardless of the browser-set maxAge.
+    if (typeof parsed.iat !== 'number' || Date.now() - parsed.iat > PROFILE_CACHE_TTL_SECONDS * 1000) {
+      return null
+    }
     return parsed
   } catch {
     return null
@@ -191,6 +202,7 @@ export async function middleware(request: NextRequest) {
 
     profile = {
       userId: user.id,
+      iat: Date.now(),
       password_changed: data.password_changed ?? null,
       role: data.role ?? null,
       organization_id: data.organization_id ?? null,

@@ -476,6 +476,14 @@ export default function WorkoutClient({ workoutId, exercises, oneRMs, personalBe
   // "someone asked for another save while I was busy" so the finally
   // block can re-fire once the current save completes.
   const requeueSaveRef = useRef(false)
+  // Re-audit fix (2026-08-26): pendingLogsRef is a full mirror of setLogs
+  // and is NEVER emptied (it feeds UI restore), so any loop that breaks on
+  // pendingLogsRef.size === 0 never terminates. Track genuine dirtiness
+  // separately: set true on every real edit, cleared when a save commits
+  // the current state. flushPendingSaves loops on THIS, not map size —
+  // otherwise every Complete burned the full 5s timeout + dozens of
+  // redundant upserts + reported timed_out on 100% of completions.
+  const hasUnsavedRef = useRef(false)
   const workoutLogIdRef = useRef<string | null>(null)
   const swappedExercisesRef = useRef<Map<string, SwappedExercise>>(new Map())
   
@@ -496,9 +504,13 @@ export default function WorkoutClient({ workoutId, exercises, oneRMs, personalBe
   // Use a short delay just to batch rapid changes (e.g., user adjusting weight picker)
   useEffect(() => {
     if (setLogs.size === 0) return
-    
+
     console.log('💾 [Save Trigger] setLogs changed, saving in 500ms...', setLogs.size, 'entries')
-    
+
+    // A real edit landed → mark dirty so flushPendingSaves knows there's
+    // genuinely something to persist (re-audit fix 2026-08-26).
+    hasUnsavedRef.current = true
+
     // Clear existing timeout
     if (saveTimeoutRef.current) {
       clearTimeout(saveTimeoutRef.current)
@@ -551,18 +563,19 @@ export default function WorkoutClient({ workoutId, exercises, oneRMs, personalBe
     // POSTing /api/workouts/complete so the last debounced set never
     // races the completion (Halley bug, 2026-06-29).
     //
-    // Audit fix (2026-08-23): the previous version was a "fake flush" —
-    // it waited once for an in-flight save, then fired saveWorkoutLogs()
-    // ONCE. But saveWorkoutLogs early-returns if a save is still running
-    // (and after the PR-A requeue fix, may schedule another save that
-    // this function never awaited). So flush could return while data was
-    // still pending. Now we LOOP: drain pending → wait for the save to
-    // settle → re-check pending, until it's empty or we hit the timeout.
+    // Re-audit fix (2026-08-26): the previous version looped on
+    // pendingLogsRef.size === 0 — unreachable, since that ref mirrors
+    // setLogs and never empties. Result: every Complete burned the full
+    // 5s timeout with ~20-40 redundant upserts and reported timed_out on
+    // 100% of completions. Now we loop on hasUnsavedRef (true dirtiness),
+    // which saveWorkoutLogs clears on a successful commit — so once the
+    // current state is durable and no new edit has landed, we return
+    // immediately (typically well under 1s).
     const flushPendingSaves = async (timeoutMs = 5000): Promise<void> => {
       if (saveTimeoutRef.current) {
         clearTimeout(saveTimeoutRef.current)
       }
-      const pendingBefore = pendingLogsRef.current.size
+      const dirtyBefore = hasUnsavedRef.current
       const wasSaving = isSavingRef.current
       const start = Date.now()
 
@@ -573,33 +586,26 @@ export default function WorkoutClient({ workoutId, exercises, oneRMs, personalBe
         }
       }
 
-      // Loop until there is nothing pending and nothing saving, or we run
-      // out of time. Each iteration: wait for any current save to finish,
-      // then if rows are still pending kick a fresh save.
+      // Loop until nothing is dirty and nothing is saving, or timeout.
+      // Each iteration: let any in-flight save finish, then if still dirty
+      // kick a fresh save (which clears the flag on success).
       while (timeLeft() > 0) {
         await waitForIdle()
-        if (pendingLogsRef.current.size === 0) break
-        // Rows still pending and no save running — start one and loop.
+        if (!hasUnsavedRef.current) break
         await saveWorkoutLogs()
       }
-      // Final settle so an in-flight save started on the last iteration
-      // completes before we return.
-      await waitForIdle()
+      await waitForIdle() // settle a save started on the last iteration
 
       const waitedMs = Date.now() - start
-      const pendingAfterWait = pendingLogsRef.current.size
-      // Telemetry: did we have unsaved work at Complete-tap time, and did
-      // we successfully flush it? pending_after should now almost always
-      // be 0; a non-zero value means we timed out with a stuck save.
       postDiagnostic({
         event_type: 'flush_before_complete',
         workout_log_id: workoutLogIdRef.current,
-        n_pending_rows: pendingAfterWait,
+        n_pending_rows: hasUnsavedRef.current ? pendingLogsRef.current.size : 0,
         context: {
-          pending_before_wait: pendingBefore,
+          was_dirty_at_complete: dirtyBefore,
           was_saving_in_progress: wasSaving,
           waited_ms: waitedMs,
-          timed_out: waitedMs >= timeoutMs,
+          timed_out: hasUnsavedRef.current && waitedMs >= timeoutMs,
         },
       })
     }
@@ -665,6 +671,14 @@ export default function WorkoutClient({ workoutId, exercises, oneRMs, personalBe
     }
   }
 
+  // Main + finisher exercises unioned, for name/uuid snapshot lookups
+  // (finishers live in a separate prop — see the cascade fix note in the
+  // save mapper below).
+  const allExercisesForLookup = [
+    ...exercises,
+    ...finishers.flatMap(f => f.exercises),
+  ]
+
   const saveWorkoutLogs = async () => {
     // Prevent concurrent saves. Set requeue flag so finally re-fires once
     // the in-flight save completes — otherwise any set typed during the
@@ -680,6 +694,10 @@ export default function WorkoutClient({ workoutId, exercises, oneRMs, personalBe
 
     isSavingRef.current = true
     setSaving(true)
+    // We are about to persist the current state. Mark clean NOW (before
+    // the await) so that any edit landing DURING this save re-sets the
+    // flag → another save. On failure we set it back to dirty in catch.
+    hasUnsavedRef.current = false
     // Do NOT clear saveError here. If a previous save failed and the user
     // types more data, they'd see the error flash away then reappear —
     // easy to miss. We only clear on ACTUAL success (below). This is part
@@ -712,6 +730,7 @@ export default function WorkoutClient({ workoutId, exercises, oneRMs, personalBe
           error_code: 'no_user',
           error_message: 'supabase.auth.getUser() returned null — likely JWT expired or session lost',
         })
+        hasUnsavedRef.current = true // didn't persist; still dirty
         setSaveError(true)
         return
       }
@@ -799,8 +818,12 @@ export default function WorkoutClient({ workoutId, exercises, oneRMs, personalBe
         .map(log => {
           // Check if this exercise was swapped
           const swapped = swappedExercisesRef.current.get(log.exercise_id)
-          // Get exercise_uuid for cross-workout history lookup
-          const exercise = exercises.find(e => e.id === log.exercise_id)
+          // Get exercise_uuid + name for cross-workout history lookup.
+          // Re-audit fix (2026-08-26): include finisher exercises in the
+          // lookup — they live in the separate `finishers` prop, so a
+          // main-exercises-only find() left their set_logs with a null
+          // snapshot, re-opening the cascade gap for finishers.
+          const exercise = allExercisesForLookup.find(e => e.id === log.exercise_id)
           return {
             workout_log_id: logId,
             exercise_id: log.exercise_id,
@@ -891,6 +914,7 @@ export default function WorkoutClient({ workoutId, exercises, oneRMs, personalBe
           hint: (errObj as { hint?: string })?.hint || null,
         },
       })
+      hasUnsavedRef.current = true // save failed → still dirty, retry later
       setSaveError(true)
     } finally {
       isSavingRef.current = false
@@ -920,13 +944,18 @@ export default function WorkoutClient({ workoutId, exercises, oneRMs, personalBe
   // Extract per-exercise logs from the session-level setLogs map so we
   // can pass them down to ExerciseCard as existingLogs.
   const getExistingLogsForExercise = (exerciseId: string) => {
-    const logs: { set_number: number; weight_kg: number | null; reps_completed: number | null; is_skipped?: boolean }[] = []
+    // Re-audit fix (2026-08-26): include steps_completed. Without it, a
+    // steps-based exercise saved this session showed "—" (unlogged) on
+    // reload despite the value being in state/DB — the exact symptom the
+    // steps-persistence fix closed, resurfacing on restore.
+    const logs: { set_number: number; weight_kg: number | null; reps_completed: number | null; steps_completed?: number | null; is_skipped?: boolean }[] = []
     setLogs.forEach((log, key) => {
       if (key.startsWith(`${exerciseId}-`)) {
         logs.push({
           set_number: log.set_number,
           weight_kg: log.weight_kg,
           reps_completed: log.reps_completed,
+          steps_completed: log.steps_completed ?? null,
           is_skipped: log.is_skipped === true,
         })
       }

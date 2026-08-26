@@ -11,6 +11,7 @@ interface WorkoutSchedule {
   programName: string
   programCategory: string
   clientProgramId: string
+  weekNumber?: number // which template week this entry belongs to
 }
 
 interface WorkoutCalendarProps {
@@ -29,6 +30,11 @@ interface WorkoutCalendarProps {
   compact?: boolean // For home screen - smaller version
   programStartDate?: string // Earliest active program start date
   maxWeek?: number // Maximum week number in the program
+  /** Per-program week metadata (clientProgramId → start + maxWeek). When
+   *  present, the calendar computes each program's own current week
+   *  instead of one global week — matches the dashboard's Today card for
+   *  multi-program clients (re-audit fix 2026-08-26). */
+  programWeekMeta?: Record<string, { startDate: string | null; maxWeek: number }>
 }
 
 interface WorkoutLogDetail {
@@ -45,7 +51,7 @@ interface WorkoutLogMeta {
   trainerName: string | null
 }
 
-export default function WorkoutCalendar({ scheduleByDay, scheduleByWeekAndDay, completedWorkouts, completionsByDate, compact = false, programStartDate, maxWeek = 1 }: WorkoutCalendarProps) {
+export default function WorkoutCalendar({ scheduleByDay, scheduleByWeekAndDay, completedWorkouts, completionsByDate, compact = false, programStartDate, maxWeek = 1, programWeekMeta }: WorkoutCalendarProps) {
   const [mounted, setMounted] = useState(false)
   const [today, setToday] = useState(new Date())
   const [currentMonth, setCurrentMonth] = useState(new Date())
@@ -102,22 +108,54 @@ export default function WorkoutCalendar({ scheduleByDay, scheduleByWeekAndDay, c
     return weekNum
   }
 
+  // Per-program current week for a given date (re-audit fix 2026-08-26).
+  // Mirrors dashboard/route.ts currentWeekForProgram.
+  const weekForProgramOnDate = (clientProgramId: string, date: Date): number => {
+    const meta = programWeekMeta?.[clientProgramId]
+    if (!meta?.startDate) return getWeekNumberForDate(date) // fallback to global
+    const programStart = new Date(meta.startDate + 'T00:00:00')
+    const dateStart = new Date(date)
+    dateStart.setHours(0, 0, 0, 0)
+    if (dateStart < programStart) return 1
+    const diffDays = Math.floor((dateStart.getTime() - programStart.getTime()) / (1000 * 60 * 60 * 24))
+    const rawWeek = Math.floor(diffDays / 7) + 1
+    return meta.maxWeek > 0 ? Math.min(rawWeek, meta.maxWeek) : rawWeek
+  }
+
   // Get workouts for a specific date (using week-specific schedule if available)
   const getWorkoutsForDate = (date: Date): WorkoutSchedule[] => {
     const dayOfWeek = date.getDay() // JS day (0=Sun)
-    const weekNum = getWeekNumberForDate(date)
-    
-    // Try week-specific schedule first
-    if (scheduleByWeekAndDay?.[weekNum]?.[dayOfWeek] !== undefined) {
-      return scheduleByWeekAndDay[weekNum][dayOfWeek]
-    }
-    
+
     // If no week-specific data exists at all, fallback to legacy scheduleByDay
     if (!scheduleByWeekAndDay || Object.keys(scheduleByWeekAndDay).length === 0) {
       return scheduleByDay[dayOfWeek] || []
     }
-    
-    // Week-specific data exists but no workouts for this week+day = rest day
+
+    // Per-program path: when we have per-program metadata, gather every
+    // week's entries for this day-of-week and keep only those whose
+    // weekNumber matches their OWN program's current week for this date.
+    // This is the multi-program-correct version of the old single-week
+    // lookup (which showed program B's week-N template on the wrong day).
+    if (programWeekMeta && Object.keys(programWeekMeta).length > 0) {
+      const out: WorkoutSchedule[] = []
+      for (const weekStr of Object.keys(scheduleByWeekAndDay)) {
+        const weekNum = Number(weekStr)
+        const entries = scheduleByWeekAndDay[weekNum]?.[dayOfWeek] || []
+        for (const entry of entries) {
+          const entryWeek = entry.weekNumber ?? weekNum
+          if (entryWeek === weekForProgramOnDate(entry.clientProgramId, date)) {
+            out.push(entry)
+          }
+        }
+      }
+      return out
+    }
+
+    // Single-program (or no per-program meta): original global-week lookup.
+    const weekNum = getWeekNumberForDate(date)
+    if (scheduleByWeekAndDay?.[weekNum]?.[dayOfWeek] !== undefined) {
+      return scheduleByWeekAndDay[weekNum][dayOfWeek]
+    }
     return []
   }
 

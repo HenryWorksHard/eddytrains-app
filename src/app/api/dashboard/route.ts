@@ -104,7 +104,7 @@ export async function GET(request: NextRequest) {
     // streak is computed below from monthCompletions + schedule.
     supabase
       .from('client_streaks')
-      .select('longest_streak')
+      .select('longest_streak, current_streak')
       .eq('client_id', user.id)
       .maybeSingle(),
 
@@ -328,6 +328,13 @@ export async function GET(request: NextRequest) {
   checkDate.setDate(checkDate.getDate() - 1)
   // Walk back no further than the window we fetched — beyond that we have no data.
   const walkLimit = parseLocalDate(windowStart)
+  // Re-audit fix (2026-08-26): track whether the walk terminated because
+  // it hit a MISSED day (streak genuinely broke → the count is complete
+  // and authoritative) vs. because it ran out of fetched data (the count
+  // is a floor, not the true streak). We only persist the authoritative
+  // case; otherwise we'd clobber the accurate 365-day walk that
+  // /api/workouts/complete wrote.
+  let walkResolvedNaturally = false
   while (checkDate >= walkLimit) {
     const dow = checkDate.getDay()
     if (scheduledDays.has(dow)) {
@@ -335,21 +342,26 @@ export async function GET(request: NextRequest) {
       if (completedDateSet.has(dateStr)) {
         currentStreak++
       } else {
+        walkResolvedNaturally = true // hit a real missed day
         break
       }
     }
     checkDate.setDate(checkDate.getDate() - 1)
   }
 
+  const streakIsAuthoritative = walkResolvedNaturally || currentStreak === 0
   const longestStreak = Math.max(currentStreak, streakRow?.longest_streak ?? 0)
 
-  // Audit fix (2026-08-23): previously we ONLY persisted when the current
-  // streak exceeded the stored longest. That meant broken streaks never
-  // wrote back — the dashboard showed the live 0 while /progress and any
-  // other consumer of client_streaks kept showing the stale higher value.
-  // Now we persist current_streak unconditionally (cheap: single upsert,
-  // fire-and-forget) and keep longest as the max of stored and current.
-  {
+  // Persist ONLY when this walk is authoritative (it hit a missed day, so
+  // the full streak is contained in our window) — otherwise a client with
+  // a streak longer than the ~30-60 day fetch window would have the
+  // truncated floor written over the accurate value from
+  // /api/workouts/complete. And NEVER stamp last_workout_date here: this
+  // runs on every dashboard load, workout or not — stamping it would
+  // falsely mark the client as "trained today" and destroy the
+  // went-dark signal that trainer views + alerts rely on. The complete
+  // route owns last_workout_date.
+  if (streakIsAuthoritative) {
     const priorLongest = streakRow?.longest_streak || 0
     const nextLongest = Math.max(priorLongest, currentStreak)
     supabase
@@ -359,7 +371,6 @@ export async function GET(request: NextRequest) {
           client_id: user.id,
           current_streak: currentStreak,
           longest_streak: nextLongest,
-          last_workout_date: todayStr,
         },
         { onConflict: 'client_id' }
       )
@@ -398,8 +409,23 @@ export async function GET(request: NextRequest) {
     currentWeek, // which program week "today's workout" was served from
     programStartDate,
     maxWeek,
+    // Per-program week metadata so the calendar can compute each program's
+    // own week (re-audit fix 2026-08-26 — the calendar was still using a
+    // single global week and disagreeing with the Today's Workout card for
+    // multi-program clients).
+    programWeekMeta: Object.fromEntries(
+      Array.from(programMeta.entries()).map(([cpId, m]) => [
+        cpId,
+        { startDate: m.startDate, maxWeek: m.maxWeek },
+      ])
+    ),
     // Streak data — eliminates the separate /api/workouts/streak round-trip.
-    streak: currentStreak,
+    // When our walk was truncated by the fetch window (non-authoritative)
+    // the live count is only a floor — show the larger of it and the
+    // stored value so a long streak isn't visually truncated.
+    streak: streakIsAuthoritative
+      ? currentStreak
+      : Math.max(currentStreak, streakRow?.current_streak ?? 0),
     longestStreak,
     scheduledDays: Array.from(scheduledDays),
     // Progress photo prompt state

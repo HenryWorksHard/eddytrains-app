@@ -74,6 +74,7 @@ export default function ClientDashboard() {
         completionsByDate={data.completionsByDate}
         programStartDate={data.programStartDate}
         maxWeek={data.maxWeek}
+        programWeekMeta={data.programWeekMeta}
         streak={data.streak ?? 0}
         longestStreak={data.longestStreak ?? 0}
         lastProgressPhotoDate={data.lastProgressPhotoDate ?? null}
