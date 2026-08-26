@@ -375,6 +375,9 @@ export default function WorkoutCalendar({ scheduleByDay, scheduleByWeekAndDay, c
   const fetchSetLogs = async (workoutLogId: string) => {
     console.log('[Calendar] Fetching set_logs for workout_log_id:', workoutLogId)
     
+    // exercise_name is the save-time snapshot (cascade fix 2026-08-26) —
+    // survives trainer program edits that delete the workout_exercises
+    // row and null out exercise_id.
     const { data: setLogs, error: setLogsError } = await supabase
       .from('set_logs')
       .select(`
@@ -382,6 +385,7 @@ export default function WorkoutCalendar({ scheduleByDay, scheduleByWeekAndDay, c
         set_number,
         weight_kg,
         reps_completed,
+        exercise_name,
         swapped_exercise_name
       `)
       .eq('workout_log_id', workoutLogId)
@@ -402,32 +406,40 @@ export default function WorkoutCalendar({ scheduleByDay, scheduleByWeekAndDay, c
       return
     }
     
-    // Get exercise names from workout_exercises table
-    const exerciseIds = [...new Set(setLogs.map(l => l.exercise_id))]
-    const { data: exercises } = await supabase
-      .from('workout_exercises')
-      .select('id, exercise_name')
-      .in('id', exerciseIds)
-    
+    // Get exercise names from workout_exercises table (live templates
+    // only — tombstoned rows have exercise_id null after the cascade fix)
+    const exerciseIds = [...new Set(setLogs.map(l => l.exercise_id).filter(Boolean))]
+    const { data: exercises } = exerciseIds.length > 0
+      ? await supabase
+          .from('workout_exercises')
+          .select('id, exercise_name')
+          .in('id', exerciseIds)
+      : { data: [] as { id: string; exercise_name: string }[] }
+
     const exerciseNameMap = new Map(exercises?.map(e => [e.id, e.exercise_name]) || [])
-    
-    // Group by exercise
+
+    // Group by exercise. Name priority: swapped > snapshot > live template.
+    // Group key: exercise_id when live, else the snapshot name (so
+    // tombstoned rows for the same exercise still group together).
     const exerciseMap = new Map<string, WorkoutLogDetail>()
-    
+
     setLogs.forEach(log => {
-      // Prefer swapped name, then lookup from workout_exercises
-      const exerciseName = log.swapped_exercise_name || exerciseNameMap.get(log.exercise_id) || 'Unknown Exercise'
-      const exerciseId = log.exercise_id
-      
-      if (!exerciseMap.has(exerciseId)) {
-        exerciseMap.set(exerciseId, {
-          id: exerciseId,
+      const exerciseName =
+        log.swapped_exercise_name ||
+        (log as { exercise_name?: string | null }).exercise_name ||
+        exerciseNameMap.get(log.exercise_id) ||
+        'Unknown Exercise'
+      const groupKey = log.exercise_id || `name:${exerciseName.toLowerCase()}`
+
+      if (!exerciseMap.has(groupKey)) {
+        exerciseMap.set(groupKey, {
+          id: groupKey,
           exerciseName,
           sets: []
         })
       }
-      
-      exerciseMap.get(exerciseId)!.sets.push({
+
+      exerciseMap.get(groupKey)!.sets.push({
         setNumber: log.set_number,
         weight: log.weight_kg || 0,
         reps: log.reps_completed || 0

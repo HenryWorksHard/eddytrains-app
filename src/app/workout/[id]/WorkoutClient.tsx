@@ -338,6 +338,12 @@ export default function WorkoutClient({ workoutId, exercises, oneRMs, personalBe
     // hint reflects the swapped exercise's history — not the original.
     const logsByExerciseName = new Map<string, PreviousSetLog[]>()
 
+    // Cascade fix (2026-08-26): join changed from workout_exercises!inner
+    // to a LEFT join + the new exercise_name snapshot column. With the
+    // old !inner, any set_log whose template row had been deleted (every
+    // weekly program edit!) silently vanished from history — the true
+    // root cause of "weights don't carry over to next week". Effective
+    // name priority: swapped > snapshot > live template name.
     const { data: prevSetLogs, error } = await supabase
       .from('set_logs')
       .select(`
@@ -345,8 +351,9 @@ export default function WorkoutClient({ workoutId, exercises, oneRMs, personalBe
         weight_kg,
         reps_completed,
         created_at,
+        exercise_name,
         swapped_exercise_name,
-        workout_exercises!inner(exercise_name)
+        workout_exercises(exercise_name)
       `)
       .eq('user_id', user.id)
       .lt('created_at', viewingDateStart.toISOString())
@@ -371,10 +378,12 @@ export default function WorkoutClient({ workoutId, exercises, oneRMs, personalBe
         set_number: number
         weight_kg: number
         reps_completed: number
+        exercise_name: string | null
         swapped_exercise_name: string | null
         workout_exercises: { exercise_name: string | null } | null
       }>) {
         const effective = (log.swapped_exercise_name ||
+          log.exercise_name ||
           log.workout_exercises?.exercise_name ||
           '').trim().toLowerCase()
         if (!effective) continue
@@ -801,6 +810,12 @@ export default function WorkoutClient({ workoutId, exercises, oneRMs, personalBe
             weight_kg: log.weight_kg,
             reps_completed: log.reps_completed,
             steps_completed: log.steps_completed ?? null,
+            // Snapshot the ORIGINAL slot name at save time. Cascade fix
+            // (2026-08-26): trainer program edits delete + recreate
+            // workout_exercises rows; the FK is now SET NULL so this row
+            // survives — but exercise_id goes null, so the snapshot is
+            // what keeps history queryable by exercise name.
+            exercise_name: exercise?.exercise_name || null,
             swapped_exercise_name: swapped?.newName || null,
             is_skipped: log.is_skipped === true,
           }

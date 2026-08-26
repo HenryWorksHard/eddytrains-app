@@ -214,7 +214,7 @@ export default async function WorkoutDetailPage({
     const [setLogsResult, exercisesResult] = await Promise.all([
       supabase
         .from('set_logs')
-        .select('exercise_id, weight_kg, reps_completed')
+        .select('exercise_id, weight_kg, reps_completed, exercise_name, swapped_exercise_name')
         .in('workout_log_id', workoutLogIds)
         .not('weight_kg', 'is', null)
         .not('reps_completed', 'is', null),
@@ -222,14 +222,22 @@ export default async function WorkoutDetailPage({
         .from('workout_exercises')
         .select('id, exercise_name')
     ])
-    
+
     const allSetLogs = setLogsResult.data || []
     const exerciseNameLookup = new Map(exercisesResult.data?.map(e => [e.id, e.exercise_name]) || [])
-    
+
     const personalBestsMap = new Map<string, { weight_kg: number; reps: number; estimated1RM: number }>()
-    
+
     allSetLogs.forEach(log => {
-      const exerciseName = exerciseNameLookup.get(log.exercise_id)
+      // Name priority (cascade fix 2026-08-26): swapped > save-time
+      // snapshot > live template lookup. Tombstoned rows (exercise_id
+      // nulled by trainer program edits) still contribute to PBs via
+      // the snapshot. This also fixes the audit finding where a swapped
+      // exercise's PR was bucketed under the ORIGINAL slot name.
+      const exerciseName =
+        (log as { swapped_exercise_name?: string | null }).swapped_exercise_name ||
+        (log as { exercise_name?: string | null }).exercise_name ||
+        exerciseNameLookup.get(log.exercise_id)
       if (!exerciseName || !log.weight_kg || !log.reps_completed) return
       
       const estimated1RM = log.weight_kg * (1 + log.reps_completed / 30)

@@ -39,6 +39,8 @@ export async function GET(request: NextRequest) {
     reps_completed: number | null
     workout_log_id: string
     created_at: string
+    exercise_name: string | null
+    swapped_exercise_name: string | null
     workout_logs: { client_id: string; completed_at: string | null } | null
     workout_exercises: { exercise_name: string | null } | null
   }
@@ -64,6 +66,10 @@ export async function GET(request: NextRequest) {
       .order('created_at', { ascending: false })
       .limit(12),
 
+    // Cascade fix (2026-08-26): workout_exercises join is LEFT (was
+    // !inner) + snapshot exercise_name selected. Tombstoned history rows
+    // (template deleted by trainer edits) still count toward tonnage +
+    // estimated PRs via the snapshot.
     supabase
       .from('set_logs')
       .select(`
@@ -71,8 +77,10 @@ export async function GET(request: NextRequest) {
         reps_completed,
         workout_log_id,
         created_at,
+        exercise_name,
+        swapped_exercise_name,
         workout_logs!inner(client_id, completed_at),
-        workout_exercises!inner(exercise_name)
+        workout_exercises(exercise_name)
       `)
       .eq('workout_logs.client_id', user.id)
       .not('weight_kg', 'is', null)
@@ -127,7 +135,10 @@ export async function GET(request: NextRequest) {
     const weight = log.weight_kg ?? 0
     const reps = log.reps_completed ?? 0
     const completedAt = log.workout_logs?.completed_at
-    const exerciseName = log.workout_exercises?.exercise_name
+    // Name priority (cascade fix 2026-08-26): swapped > save-time
+    // snapshot > live template join.
+    const exerciseName =
+      log.swapped_exercise_name || log.exercise_name || log.workout_exercises?.exercise_name
     if (!weight || !reps || weight <= 0) continue
 
     if (completedAt) {
