@@ -83,6 +83,11 @@ export default function ProgramCard({ program }: { program: Program }) {
           duration_weeks: fullProgram.duration_weeks,
           is_active: true,
           organization_id: fullProgram.organization_id,
+          // Carry the library across so a duplicated catalog program lands in
+          // the Rehab Catalog tab (flagged as needing a slug), which is how a
+          // new version of a sellable program gets made. The slug itself is
+          // deliberately NOT copied — one slug, one live program.
+          program_kind: fullProgram.program_kind ?? 'custom',
         })
         .select()
         .single()
