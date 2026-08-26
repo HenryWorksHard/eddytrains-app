@@ -306,13 +306,18 @@ export async function GET(request: NextRequest) {
     calendarCompletions[`${d}:${c.workout_id}`] = true
     calendarCompletions[d] = true
     completedDateSet.add(d)
-    // Keep first completion for a given date (most days have one workout)
+    const entry = {
+      workout_id: c.workout_id as string,
+      client_program_id: (c.client_program_id as string | null) ?? null,
+      workout_log_id: (c.workout_log_id as string | null) ?? null,
+    }
+    // Audit fix (2026-08-26): also index by date:workout_id so a day with
+    // multiple completed workouts resolves each card to its OWN log — the
+    // date-only key alone made "View Log" on workout B open workout A.
+    completionsByDate[`${d}:${c.workout_id}`] = entry
+    // Keep the date-only key too (first completion) for legacy callers.
     if (!completionsByDate[d]) {
-      completionsByDate[d] = {
-        workout_id: c.workout_id as string,
-        client_program_id: (c.client_program_id as string | null) ?? null,
-        workout_log_id: (c.workout_log_id as string | null) ?? null,
-      }
+      completionsByDate[d] = entry
     }
   })
 

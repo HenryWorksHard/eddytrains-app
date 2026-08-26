@@ -153,6 +153,10 @@ export default function ExerciseLogger({
           workout_log_id: workoutLogId,
           exercise_id: exercise.id,
           exercise_uuid: exercise.exercise_uuid || null,  // Global exercise ID
+          // Cascade fix (2026-08-26): snapshot name so these sets survive
+          // a later program edit (exercise_id → null). The legacy /log
+          // logger was missing this.
+          exercise_name: exercise.name || null,
           user_id: user.id,  // For access control and queries
           set_number: setNumber,
           weight_kg: weight,
@@ -209,7 +213,9 @@ export default function ExerciseLogger({
         <div className="px-3 pb-3 space-y-2">
           {exercise.sets.map((set) => {
             const log = logs.get(set.setNumber)
-            const isLogged = log?.weight !== null || log?.reps !== null
+            // Audit fix (2026-08-26): require BOTH, matching loggedCount —
+            // a half-filled set no longer paints green.
+            const isLogged = log?.weight !== null && log?.reps !== null
             const prevLog = previousLogs.find(p => p.setNumber === set.setNumber)
             
             return (

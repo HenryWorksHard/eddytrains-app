@@ -1,6 +1,6 @@
 import { createClient } from '@supabase/supabase-js'
 import { NextRequest, NextResponse } from 'next/server'
-import { getAuthContext, unauthorized, forbidden, isTrainerRole } from '@/app/lib/auth-guard'
+import { getAuthContext, unauthorized, forbidden, isTrainerRole, getEffectiveOrgIdStrict } from '@/app/lib/auth-guard'
 
 function getAdminClient() {
   return createClient(
@@ -23,13 +23,18 @@ export async function GET(request: NextRequest) {
     }
 
     const adminClient = getAdminClient()
-    
-    // Get workout with exercises and sets
+
+    // Get workout with exercises and sets — join up to the owning program's
+    // organization_id for the tenant check. Audit fix (2026-08-26): this
+    // route was gated by isTrainerRole only, so any trainer could read any
+    // org's workout template by guessing a workoutId. Now scope to the
+    // caller's effective org.
     const { data: workout, error } = await adminClient
       .from('program_workouts')
       .select(`
         id,
         name,
+        programs!inner ( organization_id ),
         workout_exercises (
           id,
           exercise_name,
@@ -48,6 +53,13 @@ export async function GET(request: NextRequest) {
     if (error) {
       console.error('Error fetching workout preview:', error)
       return NextResponse.json({ error: 'Workout not found' }, { status: 404 })
+    }
+
+    const owningOrg = (workout.programs as unknown as { organization_id: string } | { organization_id: string }[] | null)
+    const orgId = Array.isArray(owningOrg) ? owningOrg[0]?.organization_id : owningOrg?.organization_id
+    if (ctx.role !== 'super_admin') {
+      const effectiveOrg = await getEffectiveOrgIdStrict(ctx)
+      if (!orgId || orgId !== effectiveOrg) return forbidden()
     }
 
     // Transform to simpler format

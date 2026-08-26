@@ -78,21 +78,23 @@ export async function GET(
       // was named something else.
       const { data: setLogs } = await adminClient
         .from('set_logs')
-        .select('exercise_id, swapped_exercise_name')
+        .select('exercise_id, exercise_name, swapped_exercise_name')
         .in('workout_log_id', logIds)
 
       if (setLogs && setLogs.length > 0) {
-        // Surface swapped names directly.
+        // Cascade fix (2026-08-26): surface swapped OR snapshot names so
+        // tombstoned exercises still appear in the trainer's picker.
         for (const sl of setLogs) {
-          if (sl.swapped_exercise_name) {
-            const name = String(sl.swapped_exercise_name).trim()
-            if (name && !exerciseMap.has(name)) {
-              exerciseMap.set(name, sl.exercise_id || '')
-            }
+          const name =
+            (sl.swapped_exercise_name && String(sl.swapped_exercise_name).trim()) ||
+            ((sl as { exercise_name?: string | null }).exercise_name && String((sl as { exercise_name?: string | null }).exercise_name).trim()) ||
+            ''
+          if (name && !exerciseMap.has(name)) {
+            exerciseMap.set(name, sl.exercise_id || '')
           }
         }
 
-        // Fall back to original slot names for un-swapped logs.
+        // Fall back to original slot names for logs with neither.
         const exerciseIds = [...new Set(setLogs.map(sl => sl.exercise_id).filter(Boolean))]
         if (exerciseIds.length > 0) {
           const { data: exercises } = await adminClient

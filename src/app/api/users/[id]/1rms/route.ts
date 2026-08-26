@@ -81,12 +81,17 @@ export async function PUT(
     }
     
     // Delete any that are now zero (if they had an id, meaning they existed before)
+    // Audit fix (2026-08-26): scope the delete to this path's client_id.
+    // Previously it filtered only by the client-supplied rm.id, so a
+    // trainer with access to client A could pass client B's 1RM id (with
+    // weight 0) and delete it — an IDOR on the delete path.
     const toDelete = (oneRMs || []).filter((rm: { weight_kg: number; id?: string }) => rm.weight_kg === 0 && rm.id)
     for (const rm of toDelete) {
       await adminClient
         .from('client_1rms')
         .delete()
         .eq('id', rm.id)
+        .eq('client_id', userId)
     }
     
     return NextResponse.json({ success: true })

@@ -32,7 +32,7 @@ export async function GET() {
     // for Bench Press) never appears in the progress dropdown.
     const { data: setLogs } = await supabase
       .from('set_logs')
-      .select('exercise_id, swapped_exercise_name')
+      .select('exercise_id, exercise_name, swapped_exercise_name')
       .in('workout_log_id', workoutLogIds)
       .not('weight_kg', 'is', null)
       .not('reps_completed', 'is', null)
@@ -44,9 +44,15 @@ export async function GET() {
     const exerciseNames = new Set<string>()
     const slotIdsNeedingNames = new Set<string>()
 
+    // Cascade fix (2026-08-26): use the save-time snapshot so tombstoned
+    // exercises (exercise_id nulled by a program edit) still appear in the
+    // Progress picker — otherwise the user couldn't select them at all.
     for (const s of setLogs) {
       if (s.swapped_exercise_name) {
         const name = String(s.swapped_exercise_name).trim()
+        if (name) exerciseNames.add(name)
+      } else if ((s as { exercise_name?: string | null }).exercise_name) {
+        const name = String((s as { exercise_name?: string | null }).exercise_name).trim()
         if (name) exerciseNames.add(name)
       } else if (s.exercise_id) {
         slotIdsNeedingNames.add(s.exercise_id)

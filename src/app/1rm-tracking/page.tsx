@@ -19,7 +19,10 @@ export default async function OneRMPage() {
     .select('*')
     .eq('client_id', user.id)
 
-  // Fetch workout logs with set data for progress history
+  // Fetch workout logs with set data for progress history.
+  // Audit fix (2026-08-26): order DESC so heavy users (100+ sessions)
+  // get their MOST RECENT 100, not the oldest 100 (which froze charts
+  // months in the past). The chart re-sorts ascending for display.
   const { data: workoutLogs } = await supabase
     .from('workout_logs')
     .select(`
@@ -27,7 +30,7 @@ export default async function OneRMPage() {
       completed_at
     `)
     .eq('client_id', user.id)
-    .order('completed_at', { ascending: true })
+    .order('completed_at', { ascending: false })
     .limit(100)
 
   const workoutLogIds = workoutLogs?.map(log => log.id) || []

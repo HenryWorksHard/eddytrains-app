@@ -6,6 +6,7 @@ import TutorialModal from './TutorialModal'
 import { createClient } from '../../lib/supabase/client'
 import WheelPicker from '../../components/WheelPicker'
 import PRCelebration from '../../components/PRCelebration'
+import { estimateOneRm } from '../../lib/tonnage'
 
 interface ExerciseSet {
   set_number: number
@@ -559,12 +560,12 @@ function ExerciseCardInner({
   const isNewPR = (weight: number, reps: number): boolean => {
     if (!weight || !reps) return false
     
-    // Calculate estimated 1RM for this set
-    const estimated1RM = weight * (1 + reps / 30)
-    
+    // Shared estimator — matches /progress + /1rm-tracking (audit fix 2026-08-26)
+    const estimated1RM = estimateOneRm(weight, reps)
+
     // Compare to personal best (if exists)
     if (personalBest) {
-      const bestEstimated1RM = personalBest.weight_kg * (1 + personalBest.reps / 30)
+      const bestEstimated1RM = estimateOneRm(personalBest.weight_kg, personalBest.reps)
       if (estimated1RM > bestEstimated1RM) return true
     }
     
@@ -612,8 +613,8 @@ function ExerciseCardInner({
     // } else
     if (weight && reps) {
       // Update session best if better
-      const estimated1RM = weight * (1 + reps / 30)
-      if (!sessionBest || estimated1RM > sessionBest.weight * (1 + sessionBest.reps / 30)) {
+      const estimated1RM = estimateOneRm(weight, reps)
+      if (!sessionBest || estimated1RM > estimateOneRm(sessionBest.weight, sessionBest.reps)) {
         setSessionBest({ weight, reps })
       }
     }
