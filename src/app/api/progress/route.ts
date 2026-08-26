@@ -1,5 +1,6 @@
 import { createClient } from '../../lib/supabase/server'
 import { NextRequest, NextResponse } from 'next/server'
+import { estimateOneRm } from '../../lib/tonnage'
 
 export async function GET(request: NextRequest) {
   const supabase = await createClient()
@@ -13,16 +14,21 @@ export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url)
   const timezone = searchParams.get('tz') || 'UTC'
 
+  // Audit fix (2026-08-23): the previous
+  //   new Date(new Date().toLocaleString('en-US', { timeZone }))
+  // pattern produced a Date whose UTC value equals the tz-local wall
+  // clock — a fake-UTC. Comparing that .toISOString() against real
+  // completed_at UTC values shifted the week window by the tz offset
+  // (~9.5h for Adelaide), misclassifying workouts near week boundaries
+  // between "this week" and "previous week". Fix: use real UTC time
+  // for the rolling window (a 7-day-ago cutoff is timezone-agnostic).
+  // Keep the fake-UTC "now" ONLY for month-start calendar math which
+  // needs local calendar semantics.
   const nowInTz = new Date(new Date().toLocaleString('en-US', { timeZone: timezone }))
 
-  // Week-over-week window bounds for the trend indicator.
-  const weekAgo = new Date(nowInTz)
-  weekAgo.setDate(weekAgo.getDate() - 7)
-  const weekAgoIso = weekAgo.toISOString()
-
-  const twoWeeksAgo = new Date(nowInTz)
-  twoWeeksAgo.setDate(twoWeeksAgo.getDate() - 14)
-  const twoWeeksAgoIso = twoWeeksAgo.toISOString()
+  // Week-over-week window bounds for the trend indicator — real UTC.
+  const weekAgoIso = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString()
+  const twoWeeksAgoIso = new Date(Date.now() - 14 * 24 * 60 * 60 * 1000).toISOString()
 
   // Month bounds (local to user's tz).
   const monthStart = new Date(nowInTz.getFullYear(), nowInTz.getMonth(), 1)
@@ -133,7 +139,9 @@ export async function GET(request: NextRequest) {
     }
 
     if (!exerciseName) continue
-    const est = reps === 1 ? weight : weight * (1 + reps / 30)
+    // Use shared estimateOneRm helper so /1rm-tracking and this endpoint
+    // agree exactly. Previously two different formulas (audit fix 2026-08-23).
+    const est = estimateOneRm(weight, reps)
     const key = exerciseName.toLowerCase()
     const existing = bestByExercise.get(key)
     if (!existing || est > existing.estimated_1rm) {

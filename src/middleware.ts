@@ -238,9 +238,15 @@ export async function middleware(request: NextRequest) {
       return NextResponse.redirect(url)
     }
 
-    if (profile.subscription_status === 'trialing' && profile.trial_ends_at) {
-      const trialEnd = new Date(profile.trial_ends_at)
-      if (trialEnd < new Date()) {
+    // Audit fix (2026-08-23): previously only fired if trial_ends_at was
+    // truthy AND < now(). A trialing org with trial_ends_at=NULL had no
+    // gate at all — a manual DB fix or a buggy Stripe webhook path that
+    // nulled the column yielded a permanent free tier. Treat null as
+    // "expired" so any drift lands the trainer on /billing instead of
+    // giving unlimited access.
+    if (profile.subscription_status === 'trialing') {
+      const trialEnd = profile.trial_ends_at ? new Date(profile.trial_ends_at) : null
+      if (!trialEnd || trialEnd < new Date()) {
         const url = request.nextUrl.clone()
         url.pathname = '/billing'
         url.searchParams.set('expired', 'true')

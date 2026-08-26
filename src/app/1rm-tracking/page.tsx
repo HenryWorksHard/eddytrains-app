@@ -2,6 +2,7 @@ import { createClient } from '../lib/supabase/server'
 import { redirect } from 'next/navigation'
 import BottomNav from '../components/BottomNav'
 import OneRMClient from './OneRMClient'
+import { estimateOneRm } from '../lib/tonnage'
 
 export default async function OneRMPage() {
   const supabase = await createClient()
@@ -68,8 +69,10 @@ export default async function OneRMPage() {
     
     if (!exerciseName || !date || !log.weight_kg || !log.reps_completed) return
     
-    // Calculate estimated 1RM
-    const estimated1RM = Math.round(log.weight_kg * (1 + log.reps_completed / 30))
+    // Use shared estimateOneRm — matches /api/progress exactly.
+    // Audit fix (2026-08-23): previously each page had its own formula
+    // and results differed by ~3% for the same lift.
+    const estimated1RM = Math.round(estimateOneRm(log.weight_kg, log.reps_completed))
     
     if (!progressData[exerciseName]) {
       progressData[exerciseName] = []
