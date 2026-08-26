@@ -56,10 +56,17 @@ export async function GET(request: NextRequest) {
     .eq('client_id', user.id)
     .eq('is_active', true)
 
+  const todayLocal = parseLocalDate(todayStr)
+
   // Compute maxWeek (across all active programs) and programStartDate
-  // (earliest active start), matching the dashboard formula.
+  // (earliest active start). Also stash each program's OWN max week so we
+  // can compute its individual current week — audit fix (2026-08-23):
+  // previously a single currentWeek (from the earliest start) filtered
+  // every program, so a brand-new second program showed its Week-N
+  // template on day one.
   let maxWeek = 1
   let programStartDate: string | undefined = undefined
+  const programMaxWeek = new Map<string, number>()
   if (clientPrograms) {
     for (const cp of clientPrograms) {
       if (cp.start_date && (!programStartDate || cp.start_date < programStartDate)) {
@@ -69,29 +76,46 @@ export async function GET(request: NextRequest) {
       const program = (Array.isArray(programData) ? programData[0] : programData) as {
         program_workouts?: { week_number?: number | null }[]
       } | null
+      let thisMax = 1
       program?.program_workouts?.forEach((w) => {
-        if (w.week_number) maxWeek = Math.max(maxWeek, w.week_number)
+        if (w.week_number) {
+          maxWeek = Math.max(maxWeek, w.week_number)
+          thisMax = Math.max(thisMax, w.week_number)
+        }
       })
+      programMaxWeek.set(cp.id, thisMax)
     }
   }
 
-  // Current-week formula (mirrors dashboard route).
+  // Per-program current week (clamped to that program's own last week).
+  const currentWeekForProgram = (clientProgramId: string, startDate: string | null): number => {
+    if (!startDate) return 1
+    const programStart = parseLocalDate(startDate)
+    if (todayLocal < programStart) return 1
+    const diffDays = Math.floor(
+      (todayLocal.getTime() - programStart.getTime()) / (1000 * 60 * 60 * 24)
+    )
+    const rawWeek = Math.floor(diffDays / 7) + 1
+    const pMax = programMaxWeek.get(clientProgramId) ?? 1
+    return pMax > 0 ? Math.min(rawWeek, pMax) : rawWeek
+  }
+
+  // Back-compat single currentWeek for the response (earliest program).
   let currentWeek = 1
   if (programStartDate) {
     const programStart = parseLocalDate(programStartDate)
-    const todayLocal = parseLocalDate(todayStr)
     if (todayLocal >= programStart) {
-      const diffMs = todayLocal.getTime() - programStart.getTime()
-      const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24))
+      const diffDays = Math.floor(
+        (todayLocal.getTime() - programStart.getTime()) / (1000 * 60 * 60 * 24)
+      )
       const rawWeek = Math.floor(diffDays / 7) + 1
-      // Linear progression: clamp to last week once program ends. See
-      // dashboard/route.ts for rationale.
       currentWeek = maxWeek > 0 ? Math.min(rawWeek, maxWeek) : rawWeek
     }
   }
 
-  // Build schedule by day of week — ONLY workouts for the current week
-  // (or legacy rows with null week_number). Skip finisher children.
+  // Build schedule by day of week — each program contributes ONLY its own
+  // current-week workouts (or legacy rows with null week_number). Skip
+  // finisher children.
   const scheduleByDay: Record<number, any[]> = {}
 
   for (let i = 0; i < 7; i++) {
@@ -102,6 +126,7 @@ export async function GET(request: NextRequest) {
     for (const cp of clientPrograms) {
       const programData = cp.programs as any
       const program = Array.isArray(programData) ? programData[0] : programData
+      const cpCurrentWeek = currentWeekForProgram(cp.id, cp.start_date ?? null)
 
       if (program?.program_workouts) {
         for (const workout of program.program_workouts) {
@@ -109,8 +134,8 @@ export async function GET(request: NextRequest) {
           if (workout.day_of_week === null) continue
 
           const wk = workout.week_number
-          // Keep legacy rows (null week) + rows for current week only.
-          if (wk !== null && wk !== undefined && wk !== currentWeek) continue
+          // Keep legacy rows (null week) + rows for THIS program's current week.
+          if (wk !== null && wk !== undefined && wk !== cpCurrentWeek) continue
 
           const exercises = (workout.workout_exercises || [])
             .sort((a: any, b: any) => a.order_index - b.order_index)
