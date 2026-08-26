@@ -21,8 +21,13 @@ async function getUserRole() {
   return profile?.role || 'client'
 }
 
-export default async function ProgramsPage() {
+export default async function ProgramsPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ kind?: string }>
+}) {
   const role = await getUserRole()
+  const { kind } = await searchParams
   
   if (!role) {
     redirect('/login')
@@ -31,7 +36,7 @@ export default async function ProgramsPage() {
   const adminRoles = ['super_admin', 'company_admin', 'admin', 'trainer']
   
   if (adminRoles.includes(role)) {
-    return <AdminPrograms />
+    return <AdminPrograms kind={kind} />
   }
   
   return <ClientPrograms />

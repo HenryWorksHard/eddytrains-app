@@ -1,6 +1,7 @@
 import { createClient } from '../../../lib/supabase/server'
 import { formatDateToString, parseLocalDate } from '../../../lib/dateUtils'
 import { NextRequest, NextResponse } from 'next/server'
+import { entitlementOrFilter } from '@/app/lib/entitlements'
 
 export async function GET(request: NextRequest) {
   const supabase = await createClient()
@@ -33,6 +34,7 @@ export async function GET(request: NextRequest) {
     `)
     .eq('client_id', user.id)
     .eq('is_active', true)
+    .or(entitlementOrFilter())
     .limit(1)
     .single()
 
