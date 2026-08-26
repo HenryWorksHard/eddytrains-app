@@ -22,6 +22,7 @@ interface Program {
   category: string
   difficulty: string
   duration_weeks: number | null
+  program_kind: string | null
 }
 
 interface ClientProgram {
@@ -147,7 +148,7 @@ function SchedulesPageContent() {
         .order('full_name')
       const programsQuery = supabase
         .from('programs')
-        .select('id, name, category, difficulty, duration_weeks')
+        .select('id, name, category, difficulty, duration_weeks, program_kind')
         .eq('is_active', true)
         .order('name')
 
@@ -784,7 +785,21 @@ function SchedulesPageContent() {
                   <div>
                     <label className="block text-sm font-medium text-zinc-400 mb-2">Select Program</label>
                     <div className="space-y-2 max-h-64 overflow-y-auto">
-                      {programs.map(program => (
+                      {(['custom', 'catalog'] as const).flatMap(kindGroup => {
+                        const groupPrograms = programs.filter(p =>
+                          kindGroup === 'catalog'
+                            ? p.program_kind === 'catalog'
+                            : p.program_kind !== 'catalog'
+                        )
+                        if (groupPrograms.length === 0) return []
+                        return [
+                          <p
+                            key={`hdr-${kindGroup}`}
+                            className="text-xs font-medium uppercase tracking-wider text-zinc-500 pt-2"
+                          >
+                            {kindGroup === 'catalog' ? 'Rehab Catalog' : 'Client Programs'}
+                          </p>,
+                          ...groupPrograms.map(program => (
                         <div
                           key={program.id}
                           onClick={() => {
@@ -812,7 +827,9 @@ function SchedulesPageContent() {
                             <Check className="w-5 h-5 text-yellow-400" />
                           )}
                         </div>
-                      ))}
+                          )),
+                        ]
+                      })}
                     </div>
                   </div>
 
