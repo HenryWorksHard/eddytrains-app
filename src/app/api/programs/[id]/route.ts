@@ -145,7 +145,45 @@ export async function DELETE(
       return forbidden()
     }
 
-    // Delete program (should cascade)
+    // DATA-LOSS GUARD (2026-08-26 re-audit): deleting a program used to
+    // rely on "should cascade" — and the FK chain
+    //   programs → program_workouts → workout_logs → set_logs
+    // meant one click permanently destroyed every assigned client's
+    // logged history. The workout_logs.workout_id FK is now SET NULL
+    // (migration 20260826_stop_remaining_cascade...) so history survives,
+    // but a trainer almost never actually wants to nuke a program that
+    // clients have trained against. Block the delete when any client has
+    // logged history under this program's workouts; the trainer can
+    // deactivate instead. super_admin can still force via ?force=true.
+    const url = new URL(request.url)
+    const force = url.searchParams.get('force') === 'true' && ctx.role === 'super_admin'
+    if (!force) {
+      const { data: pw } = await getAdminClient()
+        .from('program_workouts')
+        .select('id')
+        .eq('program_id', id)
+      const workoutIds = (pw || []).map((w) => w.id)
+      if (workoutIds.length > 0) {
+        const { count } = await getAdminClient()
+          .from('workout_logs')
+          .select('id', { count: 'exact', head: true })
+          .in('workout_id', workoutIds)
+        if ((count ?? 0) > 0) {
+          return NextResponse.json(
+            {
+              error: 'program_has_history',
+              message:
+                'Clients have logged workouts under this program. Deactivate it instead of deleting to preserve their history.',
+              loggedWorkouts: count,
+            },
+            { status: 409 },
+          )
+        }
+      }
+    }
+
+    // Delete program (cascades template rows; client history is now
+    // detached via SET NULL, not destroyed).
     const { error } = await getAdminClient()
       .from('programs')
       .delete()

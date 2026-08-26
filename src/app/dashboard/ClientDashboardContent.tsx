@@ -45,6 +45,7 @@ interface DashboardClientProps {
   completionsByDate?: Record<string, { workout_id: string; client_program_id: string | null; workout_log_id: string | null }>
   programStartDate?: string
   maxWeek?: number
+  programWeekMeta?: Record<string, { startDate: string | null; maxWeek: number }>
   streak?: number
   longestStreak?: number
   lastProgressPhotoDate?: string | null
@@ -207,7 +208,7 @@ function greetingFor(tier: 1 | 2 | 3 | 4): string {
   }
 }
 
-export default function DashboardClient({ firstName, workoutsByDay, programCount, completedWorkouts, scheduleByDay, scheduleByWeekAndDay, calendarCompletions, completionsByDate, programStartDate, maxWeek = 1, streak = 0, lastProgressPhotoDate = null, pascalName = null, pascalColor = null, pascalSkin = null, pascalOutfit = null, pascalCharacter = null }: DashboardClientProps) {
+export default function DashboardClient({ firstName, workoutsByDay, programCount, completedWorkouts, scheduleByDay, scheduleByWeekAndDay, calendarCompletions, completionsByDate, programStartDate, maxWeek = 1, programWeekMeta, streak = 0, lastProgressPhotoDate = null, pascalName = null, pascalColor = null, pascalSkin = null, pascalOutfit = null, pascalCharacter = null }: DashboardClientProps) {
   // Customizable mascot — fall back to defaults if user hasn't set values.
   const buddyName = (pascalName && pascalName.trim()) || 'Pascal'
   const buddyColor: PascalColorTheme = (pascalColor && (PASCAL_COLOR_KEYS as string[]).includes(pascalColor))
@@ -600,6 +601,7 @@ export default function DashboardClient({ firstName, workoutsByDay, programCount
             compact={true}
             programStartDate={programStartDate}
             maxWeek={maxWeek}
+            programWeekMeta={programWeekMeta}
           />
         </section>
       </main>
