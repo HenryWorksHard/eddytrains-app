@@ -142,6 +142,12 @@ export async function GET(request: NextRequest) {
   const scheduledDays = new Set<number>()
   let maxWeek = 1
 
+  // Per-program metadata so we can compute each program's OWN current week
+  // independently. Audit fix (2026-08-23): previously a single currentWeek
+  // (from the earliest program's start) selected across ALL programs, so a
+  // brand-new second program would show its Week-N template on day one.
+  const programMeta = new Map<string, { startDate: string | null; maxWeek: number }>()
+
   scheduleByWeekAndDay[1] = {}
   for (let i = 0; i < 7; i++) {
     scheduleByWeekAndDay[1][i] = []
@@ -149,6 +155,7 @@ export async function GET(request: NextRequest) {
 
   if (userPrograms) {
     for (const up of userPrograms) {
+      const upStartDate = (up as { start_date?: string | null }).start_date ?? null
       const programData = up.programs as unknown
       const program = (Array.isArray(programData) ? programData[0] : programData) as {
         id: string
@@ -172,6 +179,13 @@ export async function GET(request: NextRequest) {
             scheduledDays.add(workout.day_of_week)
             const weekNum = workout.week_number || 1
             maxWeek = Math.max(maxWeek, weekNum)
+
+            // Track this program's own max week + start date.
+            const prevMeta = programMeta.get(up.id)
+            programMeta.set(up.id, {
+              startDate: upStartDate,
+              maxWeek: Math.max(prevMeta?.maxWeek ?? 1, weekNum),
+            })
 
             if (!scheduleByWeekAndDay[weekNum]) {
               scheduleByWeekAndDay[weekNum] = {}
@@ -202,36 +216,60 @@ export async function GET(request: NextRequest) {
   }
 
   // ---------- Current-week selection for "Today's Workout" ----------
-  // PREVIOUSLY: workoutsByDay was hardcoded to scheduleByWeekAndDay[1], so
-  // clients on multi-week programs never progressed past Week 1. They'd do
-  // the same Week 1 workouts repeatedly while the calendar (which correctly
-  // cycles weeks) expected Week 2/3/4 workouts on those dates → mismatch →
-  // calendar showed red despite real completions.
-  //
-  // NOW: compute current week from programStartDate + today (mirrors the
-  // formula in WorkoutCalendar.getWeekNumberForDate). Falls back to Week 1
-  // if no start date.
+  // Audit fix (2026-08-23): compute each program's current week from ITS
+  // OWN start_date, then union the current-week workouts across all active
+  // programs. Previously a single currentWeek (from the earliest program's
+  // start, clamped to the global maxWeek) was applied to every program, so
+  // a brand-new second program would serve its Week-N template on day one
+  // — client sees week 4 of a program they started today.
+  const todayLocal = parseLocalDate(todayStr)
+
+  // Per-program current week (1-based, clamped to that program's own last
+  // week). Programs with no start date default to week 1.
+  const currentWeekForProgram = (clientProgramId: string): number => {
+    const meta = programMeta.get(clientProgramId)
+    if (!meta?.startDate) return 1
+    const programStart = parseLocalDate(meta.startDate)
+    if (todayLocal < programStart) return 1
+    const diffDays = Math.floor(
+      (todayLocal.getTime() - programStart.getTime()) / (1000 * 60 * 60 * 24)
+    )
+    const rawWeek = Math.floor(diffDays / 7) + 1
+    return meta.maxWeek > 0 ? Math.min(rawWeek, meta.maxWeek) : rawWeek
+  }
+
+  // Build workoutsByDay by unioning each program's current-week workouts.
+  const workoutsByDay: Record<number, WorkoutData[]> = {}
+  for (let i = 0; i < 7; i++) workoutsByDay[i] = []
+  for (const [clientProgramId] of programMeta) {
+    const wk = currentWeekForProgram(clientProgramId)
+    const weekSchedule = scheduleByWeekAndDay[wk]
+    if (!weekSchedule) continue
+    for (let day = 0; day < 7; day++) {
+      for (const w of weekSchedule[day] || []) {
+        // Only take this program's own workouts at its own current week.
+        if (w.clientProgramId === clientProgramId) {
+          workoutsByDay[day].push(w)
+        }
+      }
+    }
+  }
+
+  // Back-compat: a single "currentWeek" is still returned for consumers
+  // that expect it (calendar's initial week). Use the earliest program's
+  // computed week so the calendar's default view is sensible.
   const earliestStartDate = programStartDates?.[0]?.start_date
   let currentWeek = 1
   if (earliestStartDate) {
     const programStart = parseLocalDate(earliestStartDate)
-    const todayLocal = parseLocalDate(todayStr)
     if (todayLocal >= programStart) {
-      const diffMs = todayLocal.getTime() - programStart.getTime()
-      const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24))
+      const diffDays = Math.floor(
+        (todayLocal.getTime() - programStart.getTime()) / (1000 * 60 * 60 * 24)
+      )
       const rawWeek = Math.floor(diffDays / 7) + 1
-      // Linear progression: clamp to the last week once the program ends.
-      // Trainers extend a program by adding more weeks; clients should stay
-      // on the latest week until that happens, not loop back to Week 1.
-      if (maxWeek > 0) {
-        currentWeek = Math.min(rawWeek, maxWeek)
-      } else {
-        currentWeek = rawWeek
-      }
+      currentWeek = maxWeek > 0 ? Math.min(rawWeek, maxWeek) : rawWeek
     }
   }
-  const workoutsByDay: Record<number, WorkoutData[]> =
-    scheduleByWeekAndDay[currentWeek] || scheduleByWeekAndDay[1] || {}
 
   // Today's completions set for the home screen
   const completedWorkoutIds: Set<string> = new Set()
