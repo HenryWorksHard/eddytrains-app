@@ -88,10 +88,13 @@ export default function ProgressClient({
   const [chartLoading, setChartLoading] = useState(false)
 
   // Merge tested + estimated PRs into one sorted list.
+  // Audit fix (2026-08-23): also carry weight_kg through so the display
+  // can render "{weight}kg × {reps}" (not "{reps} × {est}" which reads
+  // as "5 reps at 117kg").
   const mergedPRs = useMemo(() => {
     const map = new Map<
       string,
-      { name: string; tested?: number; estimated: number; reps?: number; date?: string }
+      { name: string; tested?: number; estimated: number; weight?: number; reps?: number; date?: string }
     >()
     for (const rm of oneRMs) {
       const key = rm.exercise_name.toLowerCase()
@@ -102,12 +105,14 @@ export default function ProgressClient({
       const existing = map.get(key)
       if (existing) {
         existing.estimated = est.estimated_1rm
+        existing.weight = est.weight_kg
         existing.reps = est.reps
         existing.date = est.date
       } else {
         map.set(key, {
           name: est.exercise_name,
           estimated: est.estimated_1rm,
+          weight: est.weight_kg,
           reps: est.reps,
           date: est.date,
         })
@@ -503,7 +508,7 @@ function TrendBadge({ pct }: { pct: number | null }) {
 function PRCard({
   pr,
 }: {
-  pr: { name: string; tested?: number; estimated: number; reps?: number; date?: string }
+  pr: { name: string; tested?: number; estimated: number; weight?: number; reps?: number; date?: string }
 }) {
   const primary = pr.tested ?? pr.estimated
   const hasTested = pr.tested !== undefined
@@ -525,8 +530,11 @@ function PRCard({
         {estBeatsTested && (
           <span className="text-green-400"> · est {pr.estimated}, time to retest</span>
         )}
-        {!hasTested && pr.reps && (
-          <span className="text-zinc-500"> · from {pr.reps}×{pr.tested ?? pr.estimated}</span>
+        {/* Audit fix (2026-08-23): render "weight × reps" not "reps × est"
+            (which read as "5 reps at 117kg"). weight_kg now carried through
+            mergedPRs so we can show the actual lift that produced the est. */}
+        {!hasTested && pr.reps && pr.weight !== undefined && (
+          <span className="text-zinc-500"> · from {pr.weight}kg × {pr.reps}</span>
         )}
       </p>
     </div>

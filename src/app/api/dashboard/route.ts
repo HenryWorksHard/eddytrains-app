@@ -305,16 +305,22 @@ export async function GET(request: NextRequest) {
 
   const longestStreak = Math.max(currentStreak, streakRow?.longest_streak ?? 0)
 
-  // If current streak exceeds stored longest, persist the new record.
-  // Fire-and-forget so we don't block the response.
-  if (currentStreak > (streakRow?.longest_streak || 0)) {
+  // Audit fix (2026-08-23): previously we ONLY persisted when the current
+  // streak exceeded the stored longest. That meant broken streaks never
+  // wrote back — the dashboard showed the live 0 while /progress and any
+  // other consumer of client_streaks kept showing the stale higher value.
+  // Now we persist current_streak unconditionally (cheap: single upsert,
+  // fire-and-forget) and keep longest as the max of stored and current.
+  {
+    const priorLongest = streakRow?.longest_streak || 0
+    const nextLongest = Math.max(priorLongest, currentStreak)
     supabase
       .from('client_streaks')
       .upsert(
         {
           client_id: user.id,
           current_streak: currentStreak,
-          longest_streak: currentStreak,
+          longest_streak: nextLongest,
           last_workout_date: todayStr,
         },
         { onConflict: 'client_id' }

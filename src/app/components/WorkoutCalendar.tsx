@@ -130,26 +130,33 @@ export default function WorkoutCalendar({ scheduleByDay, scheduleByWeekAndDay, c
   // Week 1 workout_ids even when the calendar's week-cycling expects a Week
   // 2/3/4 workout_id for that date. Without tier 3 those legit completions
   // would render red.
-  const isWorkoutCompleted = (date: Date, workout: WorkoutSchedule): boolean => {
+  // The last argument `allowDateOnlyFallback` gates the tier-3 lookup so
+  // days with multiple workouts don't false-positive every workout when
+  // only one was actually completed. Audit fix (2026-08-23): previously
+  // the tier-3 fallback fired for ALL workouts on a day where ANY
+  // completion existed — a day with 2 workouts and 1 done rendered as
+  // fully completed AND the 'partial' state was unreachable.
+  const isWorkoutCompleted = (date: Date, workout: WorkoutSchedule, allowDateOnlyFallback = true): boolean => {
     const dateStr = formatDateLocal(date)
     const keyWithProgram = `${dateStr}:${workout.workoutId}:${workout.clientProgramId}`
     const keyWithoutProgram = `${dateStr}:${workout.workoutId}`
-    return completedWorkouts[keyWithProgram] === true ||
-           completedWorkouts[keyWithoutProgram] === true ||
-           completedWorkouts[dateStr] === true
+    if (completedWorkouts[keyWithProgram] === true) return true
+    if (completedWorkouts[keyWithoutProgram] === true) return true
+    if (allowDateOnlyFallback && completedWorkouts[dateStr] === true) return true
+    return false
   }
 
   // Get status for a specific date
   const getDateStatus = (date: Date): 'completed' | 'partial' | 'skipped' | 'upcoming' | 'rest' => {
     const workouts = getWorkoutsForDate(date)
-    
+
     if (workouts.length === 0) return 'rest'
-    
+
     const todayStart = new Date(today)
     todayStart.setHours(0, 0, 0, 0)
     const dateStart = new Date(date)
     dateStart.setHours(0, 0, 0, 0)
-    
+
     // If date is before program started, treat as rest (not skipped)
     if (programStartDate) {
       const programStart = new Date(programStartDate + 'T00:00:00')
@@ -157,9 +164,13 @@ export default function WorkoutCalendar({ scheduleByDay, scheduleByWeekAndDay, c
         return 'rest'
       }
     }
-    
-    const completedCount = workouts.filter(w => isWorkoutCompleted(date, w)).length
-    
+
+    // Only allow the tier-3 (date-only) fallback when there's exactly one
+    // workout scheduled that day — otherwise it aliases per-workout
+    // completions to "everything done" (see comment on isWorkoutCompleted).
+    const allowFallback = workouts.length === 1
+    const completedCount = workouts.filter(w => isWorkoutCompleted(date, w, allowFallback)).length
+
     if (completedCount === workouts.length) return 'completed'
     if (completedCount > 0) return 'partial'
     if (dateStart < todayStart) return 'skipped'

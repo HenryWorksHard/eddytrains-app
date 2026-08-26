@@ -5,6 +5,24 @@
  */
 import type { SupabaseClient } from '@supabase/supabase-js'
 
+/**
+ * Epley 1RM estimator. Single source of truth — /api/progress and
+ * /1rm-tracking previously had two different implementations that
+ * disagreed by ~3% for the same lift (one always applied the formula,
+ * the other special-cased reps=1). Audit fix (2026-08-23).
+ *
+ * Standard Epley: 1RM = weight * (1 + reps/30).
+ * For reps=1, both forms collapse to weight, but the multiplier form
+ * gives weight * 1.0333... — we short-circuit to keep the "actual 1RM"
+ * exactly what the user lifted.
+ */
+export function estimateOneRm(weight: number, reps: number): number {
+  if (!Number.isFinite(weight) || !Number.isFinite(reps)) return 0
+  if (weight <= 0 || reps <= 0) return 0
+  if (reps === 1) return weight
+  return weight * (1 + reps / 30)
+}
+
 export type Period = 'day' | 'week' | 'month' | '3months' | 'year'
 
 export type TonnagePoint = { label: string; value: number }

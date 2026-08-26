@@ -95,7 +95,10 @@ export default function ExerciseLogger({
   }
 
   // Count logged sets
-  const loggedCount = Array.from(logs.values()).filter(l => l.weight !== null || l.reps !== null).length
+  // Audit fix (2026-08-23): require BOTH weight AND reps to count a set
+  // as logged. Previously "|| null" meant typing just a weight (or just
+  // reps) flipped the workout to auto-complete with half-empty data.
+  const loggedCount = Array.from(logs.values()).filter(l => l.weight !== null && l.reps !== null).length
   const totalSets = exercise.sets.length
   const allLogged = loggedCount === totalSets && totalSets > 0
 
