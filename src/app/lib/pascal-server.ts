@@ -7,6 +7,7 @@ import {
   todayInTz,
   type PascalTier,
 } from './pascal'
+import { entitlementOrFilter } from './entitlements'
 
 export type PascalResult = {
   score: number
@@ -61,7 +62,8 @@ export async function recomputeAndPersistPascal(
         )
       `)
       .eq('client_id', userId)
-      .eq('is_active', true),
+      .eq('is_active', true)
+      .or(entitlementOrFilter()),
 
     supabase
       .from('workout_completions')

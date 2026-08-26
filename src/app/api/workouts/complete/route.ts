@@ -2,6 +2,7 @@ import { createClient } from '../../../lib/supabase/server'
 import { NextRequest, NextResponse } from 'next/server'
 import { recomputeAndPersistPascal } from '../../../lib/pascal-server'
 import { formatDateToString, parseLocalDate } from '../../../lib/dateUtils'
+import { entitlementOrFilter } from '@/app/lib/entitlements'
 
 export async function POST(request: NextRequest) {
   const supabase = await createClient()
@@ -104,6 +105,7 @@ export async function POST(request: NextRequest) {
       `)
       .eq('client_id', user.id)
       .eq('is_active', true)
+      .or(entitlementOrFilter())
       .limit(1)
       .single()
 

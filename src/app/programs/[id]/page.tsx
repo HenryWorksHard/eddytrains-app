@@ -2,6 +2,7 @@ import { createClient } from '../../lib/supabase/server'
 import { redirect, notFound } from 'next/navigation'
 import BottomNav from '../../components/BottomNav'
 import Link from 'next/link'
+import { entitlementOrFilter } from '@/app/lib/entitlements'
 
 // Force dynamic rendering - no caching
 export const dynamic = 'force-dynamic'
@@ -74,6 +75,7 @@ export default async function ProgramDetailPage({ params }: { params: Promise<{ 
     .eq('client_id', user.id)
     .eq('program_id', id)
     .eq('is_active', true)
+    .or(entitlementOrFilter())
     .single()
 
   if (!clientProgram) {

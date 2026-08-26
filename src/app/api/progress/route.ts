@@ -1,6 +1,7 @@
 import { createClient } from '../../lib/supabase/server'
 import { NextRequest, NextResponse } from 'next/server'
 import { estimateOneRm } from '../../lib/tonnage'
+import { entitlementOrFilter } from '@/app/lib/entitlements'
 
 export async function GET(request: NextRequest) {
   const supabase = await createClient()
@@ -114,7 +115,8 @@ export async function GET(request: NextRequest) {
         )
       `)
       .eq('client_id', user.id)
-      .eq('is_active', true),
+      .eq('is_active', true)
+      .or(entitlementOrFilter()),
   ])
 
   const oneRMs = oneRMsResult.data || []
