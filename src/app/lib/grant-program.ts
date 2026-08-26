@@ -59,6 +59,8 @@ export async function grantPurchasedProgram(
     .eq('source', 'purchased')
     .eq('is_active', true)
     .or(`end_date.gte.${today},end_date.is.null`)
+    .order('end_date', { ascending: false, nullsFirst: true })
+    .limit(1)
     .maybeSingle()
 
   if (existing) {
