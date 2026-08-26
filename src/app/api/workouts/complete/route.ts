@@ -1,7 +1,7 @@
 import { createClient } from '../../../lib/supabase/server'
 import { NextRequest, NextResponse } from 'next/server'
 import { recomputeAndPersistPascal } from '../../../lib/pascal-server'
-import { formatDateToString } from '../../../lib/dateUtils'
+import { formatDateToString, parseLocalDate } from '../../../lib/dateUtils'
 
 export async function POST(request: NextRequest) {
   const supabase = await createClient()
@@ -45,7 +45,23 @@ export async function POST(request: NextRequest) {
       .select('id')
       .single()
     if (newLogErr) {
-      console.error('Error creating workout_log shell:', newLogErr)
+      // Audit fix (2026-08-23): the unique constraint on
+      // (client_id, workout_id, scheduled_date) can trip if the client's
+      // autosave created the shell concurrently. Previously we just logged
+      // and left workoutLogId null → the completion row got a null
+      // workout_log_id and the trainer portal couldn't join to set data.
+      // Now re-query for the row the race winner created.
+      console.error('Error creating workout_log shell, re-querying:', newLogErr)
+      const { data: raceWinner } = await supabase
+        .from('workout_logs')
+        .select('id')
+        .eq('client_id', user.id)
+        .eq('workout_id', workoutId)
+        .eq('scheduled_date', scheduledDate)
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .maybeSingle()
+      workoutLogId = raceWinner?.id ?? null
     } else {
       workoutLogId = newLog.id
     }
@@ -122,23 +138,26 @@ export async function POST(request: NextRequest) {
 
     const completedDates = new Set(completions?.map(c => c.scheduled_date) || [])
 
-    // Calculate streak
+    // Calculate streak.
+    // Audit fix (2026-08-23): anchor the walk on `scheduledDate` (the
+    // user-local date of the workout we just completed) instead of the
+    // server's new Date() which is UTC in prod. For a user far from UTC
+    // (e.g. AEST completing at 8am local = 22:00 UTC prior day), the
+    // server "today" and the client-stored scheduled_date disagreed, so
+    // completedDates.has(serverToday) missed and the streak read 0.
+    // parseLocalDate builds a Date from the plain Y-M-D so getDay()
+    // yields the correct weekday regardless of server tz.
     let streak = 0
-    const today = new Date()
-    today.setHours(0, 0, 0, 0)
+    const anchor = parseLocalDate(scheduledDate)
 
-    // Start checking from today
-    const checkDate = new Date(today)
-
-    // Check if today is completed (it should be, we just completed it)
-    if (scheduledDays.has(today.getDay())) {
-      const todayStr = formatDateToString(today)
-      if (completedDates.has(todayStr)) {
-        streak = 1
-      }
+    // Check if the completed day itself counts (it should — we just
+    // completed it) before walking backwards.
+    if (scheduledDays.has(anchor.getDay()) && completedDates.has(scheduledDate)) {
+      streak = 1
     }
 
-    // Go back day by day checking scheduled days
+    // Go back day by day checking scheduled days.
+    const checkDate = new Date(anchor)
     checkDate.setDate(checkDate.getDate() - 1)
     for (let i = 0; i < 365; i++) {
       const dayOfWeek = checkDate.getDay()

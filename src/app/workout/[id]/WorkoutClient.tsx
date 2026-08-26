@@ -541,25 +541,47 @@ export default function WorkoutClient({ workoutId, exercises, oneRMs, personalBe
     // Awaitable force-save. CompleteWorkoutButton calls this before
     // POSTing /api/workouts/complete so the last debounced set never
     // races the completion (Halley bug, 2026-06-29).
-    // Strategy: clear pending debounce → wait for any in-flight save
-    // to settle → save the latest pending snapshot. Capped at timeoutMs
-    // so a stuck save never blocks the complete flow indefinitely.
-    const flushPendingSaves = async (timeoutMs = 3000): Promise<void> => {
+    //
+    // Audit fix (2026-08-23): the previous version was a "fake flush" —
+    // it waited once for an in-flight save, then fired saveWorkoutLogs()
+    // ONCE. But saveWorkoutLogs early-returns if a save is still running
+    // (and after the PR-A requeue fix, may schedule another save that
+    // this function never awaited). So flush could return while data was
+    // still pending. Now we LOOP: drain pending → wait for the save to
+    // settle → re-check pending, until it's empty or we hit the timeout.
+    const flushPendingSaves = async (timeoutMs = 5000): Promise<void> => {
       if (saveTimeoutRef.current) {
         clearTimeout(saveTimeoutRef.current)
       }
       const pendingBefore = pendingLogsRef.current.size
       const wasSaving = isSavingRef.current
       const start = Date.now()
-      while (isSavingRef.current && Date.now() - start < timeoutMs) {
-        await new Promise((r) => setTimeout(r, 50))
+
+      const timeLeft = () => timeoutMs - (Date.now() - start)
+      const waitForIdle = async () => {
+        while (isSavingRef.current && timeLeft() > 0) {
+          await new Promise((r) => setTimeout(r, 40))
+        }
       }
+
+      // Loop until there is nothing pending and nothing saving, or we run
+      // out of time. Each iteration: wait for any current save to finish,
+      // then if rows are still pending kick a fresh save.
+      while (timeLeft() > 0) {
+        await waitForIdle()
+        if (pendingLogsRef.current.size === 0) break
+        // Rows still pending and no save running — start one and loop.
+        await saveWorkoutLogs()
+      }
+      // Final settle so an in-flight save started on the last iteration
+      // completes before we return.
+      await waitForIdle()
+
       const waitedMs = Date.now() - start
       const pendingAfterWait = pendingLogsRef.current.size
-      // Log this critical decision point — did we have unsaved work at
-      // Complete-tap time? Did we successfully flush it? This tells us
-      // whether the "no set data on completed workouts" pattern is
-      // caused by users tapping Complete before any autosave happened.
+      // Telemetry: did we have unsaved work at Complete-tap time, and did
+      // we successfully flush it? pending_after should now almost always
+      // be 0; a non-zero value means we timed out with a stuck save.
       postDiagnostic({
         event_type: 'flush_before_complete',
         workout_log_id: workoutLogIdRef.current,
@@ -571,9 +593,6 @@ export default function WorkoutClient({ workoutId, exercises, oneRMs, personalBe
           timed_out: waitedMs >= timeoutMs,
         },
       })
-      if (pendingLogsRef.current.size > 0) {
-        await saveWorkoutLogs()
-      }
     }
     ;(window as unknown as { __cmpdFlushWorkoutSaves?: () => Promise<void> }).__cmpdFlushWorkoutSaves = flushPendingSaves
 

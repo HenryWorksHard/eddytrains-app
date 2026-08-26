@@ -51,10 +51,26 @@ export async function POST(request: NextRequest) {
       .select('id')
       .single()
     if (newLogErr || !newLog) {
-      console.error('Error creating workout_log shell:', newLogErr)
-      return NextResponse.json({ error: 'Failed to create session' }, { status: 500 })
+      // Audit fix (2026-08-23): recover from a unique-constraint race
+      // (autosave/complete created the shell concurrently) instead of
+      // 500ing.
+      console.error('Error creating workout_log shell, re-querying:', newLogErr)
+      const { data: raceWinner } = await supabase
+        .from('workout_logs')
+        .select('id')
+        .eq('client_id', user.id)
+        .eq('workout_id', workoutId)
+        .eq('scheduled_date', scheduledDate)
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .maybeSingle()
+      if (!raceWinner) {
+        return NextResponse.json({ error: 'Failed to create session' }, { status: 500 })
+      }
+      workoutLogId = raceWinner.id
+    } else {
+      workoutLogId = newLog.id
     }
-    workoutLogId = newLog.id
   }
 
   const { data: swap, error } = await supabase
