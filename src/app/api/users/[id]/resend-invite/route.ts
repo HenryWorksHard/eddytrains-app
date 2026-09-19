@@ -1,3 +1,4 @@
+import { getVerifiedUser } from '@/app/lib/auth-claims'
 import { createClient } from '@supabase/supabase-js'
 import { createClient as createServerClient } from '@/app/lib/supabase/server'
 import { NextRequest, NextResponse } from 'next/server'
@@ -23,7 +24,7 @@ export async function POST(
 
     // Auth: caller must be admin/trainer/company_admin/super_admin
     const supabase = await createServerClient()
-    const { data: { user: caller } } = await supabase.auth.getUser()
+    const caller = await getVerifiedUser(supabase)
     if (!caller) {
       return NextResponse.json({ error: 'Not authenticated' }, { status: 401 })
     }

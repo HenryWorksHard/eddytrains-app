@@ -1,4 +1,5 @@
 'use client'
+import { getVerifiedUser } from '@/app/lib/auth-claims'
 
 import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
@@ -92,7 +93,7 @@ export default function NutritionCalculatorPage() {
   }, [calcData])
 
   async function checkAccess() {
-    const { data: { user } } = await supabase.auth.getUser()
+    const user = await getVerifiedUser(supabase)
     if (!user) {
       router.push('/login')
       return
@@ -136,7 +137,7 @@ export default function NutritionCalculatorPage() {
 
   async function savePlan() {
     setSaving(true)
-    const { data: { user } } = await supabase.auth.getUser()
+    const user = await getVerifiedUser(supabase)
     if (!user || !macros) return
 
     const planData = {

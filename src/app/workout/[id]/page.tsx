@@ -1,3 +1,4 @@
+import { getVerifiedUser } from '@/app/lib/auth-claims'
 import { createClient } from '../../lib/supabase/server'
 import { redirect, notFound } from 'next/navigation'
 import BottomNav from '../../components/BottomNav'
@@ -87,7 +88,7 @@ export default async function WorkoutDetailPage({
   const { clientProgramId, scheduledDate } = await searchParams
   const supabase = await createClient()
   
-  const { data: { user } } = await supabase.auth.getUser()
+  const user = await getVerifiedUser(supabase)
   
   if (!user) {
     redirect('/login')
@@ -101,53 +102,54 @@ export default async function WorkoutDetailPage({
   // the sets landed on one date and the Complete button created a second,
   // empty log on the other. The empty one was newer, so the app showed no
   // weights and it looked like nothing had saved.
-  const { data: tzProfile } = await supabase
-    .from('profiles')
-    .select('timezone')
-    .eq('id', user.id)
-    .maybeSingle()
-  const today = todayInTz(tzProfile?.timezone || 'Australia/Adelaide')
+  // Completion check for the date being viewed. It needs the resolved date,
+  // and the timezone lookup is only required when the URL didn't carry one.
+  const completionFor = (date: string) => {
+    let query = supabase
+      .from('workout_completions')
+      .select('id')
+      .eq('client_id', user.id)
+      .eq('workout_id', workoutId)
+      .eq('scheduled_date', date)
+    if (clientProgramId) {
+      query = query.eq('client_program_id', clientProgramId)
+    }
+    return query.maybeSingle()
+  }
 
-  // Use scheduledDate from the URL when viewing a past workout, falling
-  // back to today for the normal "do today's workout" flow. This single
-  // value is handed to BOTH children so they can never disagree.
-  const effectiveDate = scheduledDate || today
-
-  // PHASE 1: Run all independent queries in parallel
+  // Everything independent runs in ONE parallel round. Previously this page
+  // made four sequential trips (timezone -> 6 queries -> every workout_log id
+  // -> every set in that history plus the ENTIRE workout_exercises table), so
+  // it got slower with every session a client logged.
   const [
-    completionResult,
+    tzResult,
     oneRMsResult,
-    workoutLogsResult,
+    pbSetsResult,
     workoutResult,
     finishersResult,
-    customSetsResult
+    customSetsResult,
+    urlDateCompletionResult,
   ] = await Promise.all([
-    // Completion check for the date being viewed (not hardcoded today)
-    (async () => {
-      let query = supabase
-        .from('workout_completions')
-        .select('id')
-        .eq('client_id', user.id)
-        .eq('workout_id', workoutId)
-        .eq('scheduled_date', effectiveDate)
+    scheduledDate
+      ? Promise.resolve({ data: null })
+      : supabase.from('profiles').select('timezone').eq('id', user.id).maybeSingle(),
 
-      if (clientProgramId) {
-        query = query.eq('client_program_id', clientProgramId)
-      }
-      return query.single()
-    })(),
-    
     // User's 1RMs
     supabase
       .from('client_1rms')
       .select('exercise_name, weight_kg')
       .eq('client_id', user.id),
-    
-    // Workout logs for PB calculation
+
+    // Every logged set for personal bests, in one query. The exercise name
+    // comes from the embedded workout_exercises row instead of loading the
+    // whole table, and the owner filter is a join instead of an IN list of
+    // every workout_log id the client has ever had.
     supabase
-      .from('workout_logs')
-      .select('id')
-      .eq('client_id', user.id),
+      .from('set_logs')
+      .select('weight_kg, reps_completed, exercise_name, swapped_exercise_name, workout_exercises(exercise_name), workout_logs!inner(client_id)')
+      .eq('workout_logs.client_id', user.id)
+      .not('weight_kg', 'is', null)
+      .not('reps_completed', 'is', null),
     
     // Main workout with exercises
     supabase
@@ -199,50 +201,44 @@ export default async function WorkoutDetailPage({
     // Custom exercise sets (if clientProgramId provided)
     clientProgramId 
       ? supabase.from('client_exercise_sets').select('*').eq('client_program_id', clientProgramId)
-      : Promise.resolve({ data: null })
+      : Promise.resolve({ data: null }),
+
+    // When the URL already names the date, the completion check can join
+    // this round too.
+    scheduledDate ? completionFor(scheduledDate) : Promise.resolve(null),
   ])
 
+  // "Today" has to be resolved in the CLIENT's timezone, not the server's.
+  // Vercel runs in UTC, so an Adelaide client training in the evening is
+  // already on the next local date — 21:33 UTC is 07:03 the following day for
+  // them. Resolving it as UTC here while the browser resolved it locally is
+  // what produced two workout_log rows for one session (Chris, Sept 2026).
+  // This single value is handed to BOTH children so they can never disagree.
+  const tzProfile = tzResult.data as { timezone?: string | null } | null
+  const effectiveDate = scheduledDate || todayInTz(tzProfile?.timezone || 'Australia/Adelaide')
+
+  const completionResult = urlDateCompletionResult ?? (await completionFor(effectiveDate))
   const isCompleted = !!completionResult.data
   const oneRMs: Client1RM[] = oneRMsResult.data || []
   const workout = workoutResult.data
   const finisherWorkouts = finishersResult.data
-
-  // Debug logging
-  console.log('Workout query for ID:', workoutId)
-  console.log('Workout result:', workout ? 'Found' : 'NOT FOUND')
-  console.log('Workout error:', workoutResult.error)
-  if (workout) {
-    console.log('Workout name:', workout.name)
-    console.log('Workout exercises count:', workout.workout_exercises?.length || 0)
-    console.log('Workout notes:', workout.notes ? 'Has notes' : 'No notes')
-    console.log('Raw workout_exercises:', JSON.stringify(workout.workout_exercises?.slice(0, 2)))
-  }
 
   if (!workout) {
     console.error('404 - Workout not found for ID:', workoutId, 'User:', user.id)
     notFound()
   }
 
-  // PHASE 2: Calculate personal bests (needs workout logs)
+  // Personal bests, from the sets fetched in the parallel round above.
   let personalBests: { exercise_name: string; weight_kg: number; reps: number }[] = []
-  
-  const workoutLogIds = workoutLogsResult.data?.map(log => log.id) || []
-  if (workoutLogIds.length > 0) {
-    const [setLogsResult, exercisesResult] = await Promise.all([
-      supabase
-        .from('set_logs')
-        .select('exercise_id, weight_kg, reps_completed, exercise_name, swapped_exercise_name')
-        .in('workout_log_id', workoutLogIds)
-        .not('weight_kg', 'is', null)
-        .not('reps_completed', 'is', null),
-      supabase
-        .from('workout_exercises')
-        .select('id, exercise_name')
-    ])
 
-    const allSetLogs = setLogsResult.data || []
-    const exerciseNameLookup = new Map(exercisesResult.data?.map(e => [e.id, e.exercise_name]) || [])
-
+  const allSetLogs = (pbSetsResult.data || []) as unknown as Array<{
+    weight_kg: number | null
+    reps_completed: number | null
+    exercise_name: string | null
+    swapped_exercise_name: string | null
+    workout_exercises: { exercise_name: string | null } | null
+  }>
+  if (allSetLogs.length > 0) {
     const personalBestsMap = new Map<string, { weight_kg: number; reps: number; estimated1RM: number }>()
 
     allSetLogs.forEach(log => {
@@ -252,9 +248,9 @@ export default async function WorkoutDetailPage({
       // the snapshot. This also fixes the audit finding where a swapped
       // exercise's PR was bucketed under the ORIGINAL slot name.
       const exerciseName =
-        (log as { swapped_exercise_name?: string | null }).swapped_exercise_name ||
-        (log as { exercise_name?: string | null }).exercise_name ||
-        exerciseNameLookup.get(log.exercise_id)
+        log.swapped_exercise_name ||
+        log.exercise_name ||
+        log.workout_exercises?.exercise_name
       if (!exerciseName || !log.weight_kg || !log.reps_completed) return
       
       // Shared estimator so the in-workout PR badge matches /progress +

@@ -1,4 +1,5 @@
 'use client'
+import { getVerifiedUser } from '@/app/lib/auth-claims'
 
 import { useState, useEffect, useCallback } from 'react'
 import { ChevronDown, ChevronUp, Check } from 'lucide-react'
@@ -135,7 +136,7 @@ export default function ExerciseLogger({
     setSaving(true)
     try {
       // Get user for user_id
-      const { data: { user } } = await supabase.auth.getUser()
+      const user = await getVerifiedUser(supabase)
       if (!user) {
         setSaving(false)
         return

@@ -1,4 +1,5 @@
 'use client'
+import { getVerifiedUser } from '@/app/lib/auth-claims'
 
 import { useState, useEffect } from 'react'
 import { useRouter, useParams, useSearchParams } from 'next/navigation'
@@ -879,7 +880,7 @@ export default function UserProfilePage() {
       // trainer could see + clone from clients across every org that
       // RLS didn't block. The clone POST is server-checked, but the
       // picker itself was leaking names + emails cross-org.
-      const { data: { user: authUser } } = await supabase.auth.getUser()
+      const authUser = await getVerifiedUser(supabase)
       let orgId: string | null = null
       if (authUser) {
         const { data: me } = await supabase

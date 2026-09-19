@@ -1,4 +1,5 @@
 'use client'
+import { getVerifiedUser } from '@/app/lib/auth-claims'
 
 import { useState, useEffect } from 'react'
 import { createClient } from '@/app/lib/supabase/client'
@@ -30,7 +31,7 @@ export default function CompanyClientsPage() {
   }, [])
 
   async function fetchClientsAndTrainers() {
-    const { data: { user } } = await supabase.auth.getUser()
+    const user = await getVerifiedUser(supabase)
     if (!user) return
 
     // Get user's company

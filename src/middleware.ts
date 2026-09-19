@@ -1,9 +1,10 @@
 import { createServerClient } from '@supabase/ssr'
 import { NextResponse, type NextRequest } from 'next/server'
 import { signPayload, verifyPayload } from '@/app/lib/impersonation'
+import { getVerifiedUser } from '@/app/lib/auth-claims'
 
 // Short-lived cookie that caches the middleware-relevant profile fields.
-// Skips the DB roundtrip on most requests — auth.getUser() already runs
+// Skips the DB roundtrip on most requests — session verification already runs
 // on every call, adding a profiles query + an organizations query meant
 // every navigation paid a 200-400ms cost on mobile networks.
 //
@@ -112,14 +113,16 @@ export async function middleware(request: NextRequest) {
     }
   )
 
-  const authResult = await withTimeout(supabase.auth.getUser(), 5000)
+  // Session verified locally against the project's ES256 public key instead
+  // of a round trip to the auth server on every request (see lib/auth-claims).
+  // Expired sessions are still refreshed first, and the cookie writes land on
+  // supabaseResponse exactly as before.
+  const authResult = await withTimeout(getVerifiedUser(supabase), 5000)
   if (authResult === TIMED_OUT) {
-    console.error('[middleware] auth.getUser timed out — failing open')
+    console.error('[middleware] session verification timed out — failing open')
     return supabaseResponse
   }
-  const {
-    data: { user },
-  } = authResult
+  const user = authResult
 
   const pathname = request.nextUrl.pathname
 
@@ -312,6 +315,8 @@ export async function middleware(request: NextRequest) {
 
 export const config = {
   matcher: [
-    '/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)',
+    // Static files never need a session check. Fonts, the web manifest and
+    // other assets used to run full auth verification on every request.
+    '/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp|avif|ico|json|webmanifest|txt|xml|woff|woff2|ttf|otf|mp4|webm|mp3)$).*)',
   ],
 }

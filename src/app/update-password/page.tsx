@@ -1,4 +1,5 @@
 'use client'
+import { getVerifiedUser } from '@/app/lib/auth-claims'
 
 import { useState, useEffect, Suspense } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
@@ -159,7 +160,7 @@ function UpdatePasswordForm() {
       if (updateError) throw updateError
 
       // Mark password as changed in profile
-      const { data: { user } } = await supabase.auth.getUser()
+      const user = await getVerifiedUser(supabase)
       if (user) {
         await supabase
           .from('profiles')

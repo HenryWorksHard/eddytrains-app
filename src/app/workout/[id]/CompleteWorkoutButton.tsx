@@ -1,4 +1,5 @@
 'use client'
+import { getVerifiedUser } from '@/app/lib/auth-claims'
 
 import { useState, useEffect, useRef } from 'react'
 import { useRouter } from 'next/navigation'
@@ -379,7 +380,7 @@ export default function CompleteWorkoutButton({
     // never undo that, so it's best-effort.
     if (rating && (rating.rating > 0 || rating.difficulty || rating.notes)) {
       try {
-        const { data: { user } } = await supabase.auth.getUser()
+        const user = await getVerifiedUser(supabase)
         if (user) {
           const scheduledDate = resolveScheduledDate()
           const { data: workoutLog } = await supabase

@@ -1,4 +1,5 @@
 'use client'
+import { getVerifiedUser } from '@/app/lib/auth-claims'
 
 import { useState, useRef, useEffect, useCallback } from 'react'
 import { createClient } from '../lib/supabase/client'
@@ -130,7 +131,7 @@ export default function ProgressPicturesClient({ initialImages }: Props) {
 
     setUploading(true)
     try {
-      const { data: { user } } = await supabase.auth.getUser()
+      const user = await getVerifiedUser(supabase)
       if (!user) throw new Error('Not authenticated')
 
       // Compress image for faster upload

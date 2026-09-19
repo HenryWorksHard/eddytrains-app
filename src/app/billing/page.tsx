@@ -1,4 +1,5 @@
 'use client';
+import { getVerifiedUser } from '@/app/lib/auth-claims'
 
 import { Suspense, useEffect, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
@@ -299,7 +300,7 @@ function BillingContent() {
     setSelectedTier(tier);
     
     try {
-      const { data: { user } } = await supabase.auth.getUser();
+      const user = await getVerifiedUser(supabase);
       
       const response = await fetch('/api/stripe/checkout', {
         method: 'POST',

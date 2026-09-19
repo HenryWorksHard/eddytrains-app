@@ -1,4 +1,5 @@
 'use client'
+import { getVerifiedUser } from '@/app/lib/auth-claims'
 
 import { memo, useState, useEffect, useCallback, useRef } from 'react'
 import { ChevronDown, ChevronUp, RefreshCw, X, Check, Trophy, Search, ArrowLeftRight, History, Loader2, Ban, RotateCcw } from 'lucide-react'
@@ -469,7 +470,7 @@ function ExerciseCardInner({
   // Get client ID and muscle group on mount
   useEffect(() => {
     const init = async () => {
-      const { data: { user } } = await supabase.auth.getUser()
+      const user = await getVerifiedUser(supabase)
       if (user) setClientId(user.id)
       
       // Get muscle group for this exercise

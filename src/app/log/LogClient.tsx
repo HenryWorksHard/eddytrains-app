@@ -1,4 +1,5 @@
 'use client'
+import { getVerifiedUser } from '@/app/lib/auth-claims'
 
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
@@ -134,7 +135,7 @@ export default function LogClient({ scheduleByDay }: LogClientProps) {
   // Load historical workout data from workout_logs for past dates
   const loadHistoricalWorkouts = async (): Promise<WorkoutSchedule[] | null> => {
     setLoadingHistory(true)
-    const { data: { user } } = await supabase.auth.getUser()
+    const user = await getVerifiedUser(supabase)
     if (!user) {
       setLoadingHistory(false)
       return null
@@ -237,7 +238,7 @@ export default function LogClient({ scheduleByDay }: LogClientProps) {
   }
 
   const fetchCompletionStatus = async (activeWorkouts?: WorkoutSchedule[] | null) => {
-    const { data: { user } } = await supabase.auth.getUser()
+    const user = await getVerifiedUser(supabase)
     if (!user) return
 
     // Check completions
@@ -394,7 +395,7 @@ export default function LogClient({ scheduleByDay }: LogClientProps) {
   // Complete workout
   const completeWorkout = async (workoutId: string, clientProgramId: string) => {
     setSaving(true)
-    const { data: { user } } = await supabase.auth.getUser()
+    const user = await getVerifiedUser(supabase)
     if (!user) {
       setSaving(false)
       return
@@ -429,7 +430,7 @@ export default function LogClient({ scheduleByDay }: LogClientProps) {
       return workoutLogIds[workoutId]
     }
 
-    const { data: { user } } = await supabase.auth.getUser()
+    const user = await getVerifiedUser(supabase)
     if (!user) return null
 
     // ALWAYS check for existing first to prevent duplicates

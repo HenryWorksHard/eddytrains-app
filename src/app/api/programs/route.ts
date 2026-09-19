@@ -1,3 +1,4 @@
+import { getVerifiedUser } from '@/app/lib/auth-claims'
 import { createClient } from '../../lib/supabase/server'
 import { NextResponse } from 'next/server'
 import { entitlementOrFilter } from '@/app/lib/entitlements'
@@ -5,7 +6,7 @@ import { entitlementOrFilter } from '@/app/lib/entitlements'
 export async function GET() {
   const supabase = await createClient()
   
-  const { data: { user } } = await supabase.auth.getUser()
+  const user = await getVerifiedUser(supabase)
   
   if (!user) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })

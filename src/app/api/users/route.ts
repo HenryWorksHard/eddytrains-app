@@ -1,3 +1,4 @@
+import { getVerifiedUser } from '@/app/lib/auth-claims'
 import { createClient } from '@supabase/supabase-js'
 import { createClient as createServerClient } from '@/app/lib/supabase/server'
 import { NextRequest, NextResponse } from 'next/server'
@@ -23,7 +24,7 @@ function getAdminClient() {
 // Get current user's profile info
 async function getCurrentUserProfile() {
   const supabase = await createServerClient()
-  const { data: { user } } = await supabase.auth.getUser()
+  const user = await getVerifiedUser(supabase)
   if (!user) return null
   
   const { data: profile } = await supabase
@@ -51,7 +52,7 @@ export async function GET() {
 
     // Get current user from auth session (still needed for cookie context below)
     const supabase = await createServerClient()
-    const { data: { user } } = await supabase.auth.getUser()
+    const user = await getVerifiedUser(supabase)
 
     if (!user) {
       return unauthorized()

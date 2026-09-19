@@ -1,3 +1,4 @@
+import { getVerifiedUser } from '@/app/lib/auth-claims'
 import { createClient } from '../../lib/supabase/server'
 import { redirect, notFound } from 'next/navigation'
 import BottomNav from '../../components/BottomNav'
@@ -52,7 +53,7 @@ export default async function ProgramDetailPage({ params }: { params: Promise<{ 
   const { id } = await params
   const supabase = await createClient()
   
-  const { data: { user } } = await supabase.auth.getUser()
+  const user = await getVerifiedUser(supabase)
   
   if (!user) {
     redirect('/login')

@@ -1,3 +1,4 @@
+import { getVerifiedUser } from '@/app/lib/auth-claims'
 import { createClient } from '@/app/lib/supabase/server'
 import { Settings, User, Bell, Database, Shield, Image as ImageIcon, Building2 } from 'lucide-react'
 import DangerZone from '@/components/DangerZone'
@@ -10,7 +11,7 @@ export default async function SettingsPage() {
   const supabase = await createClient()
   
   // Get current admin user
-  const { data: { user } } = await supabase.auth.getUser()
+  const user = await getVerifiedUser(supabase)
   
   const { data: profile } = await supabase
     .from('profiles')

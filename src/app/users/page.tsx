@@ -1,4 +1,5 @@
 'use client'
+import { getVerifiedUser } from '@/app/lib/auth-claims'
 
 import { useEffect, useState } from 'react'
 import Link from 'next/link'
@@ -219,7 +220,7 @@ export default function UsersPage() {
     // caller's org. Previously any trainer saw programs/plans from every
     // org that RLS didn't block — cross-tenant leak, and assigning across
     // orgs is a foot-gun.
-    const { data: { user: authUser } } = await supabase.auth.getUser()
+    const authUser = await getVerifiedUser(supabase)
     let orgId: string | null = null
     if (authUser) {
       const { data: me } = await supabase

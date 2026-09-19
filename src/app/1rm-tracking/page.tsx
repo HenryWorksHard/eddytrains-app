@@ -1,3 +1,4 @@
+import { getVerifiedUser } from '@/app/lib/auth-claims'
 import { createClient } from '../lib/supabase/server'
 import { redirect } from 'next/navigation'
 import BottomNav from '../components/BottomNav'
@@ -7,7 +8,7 @@ import { estimateOneRm } from '../lib/tonnage'
 export default async function OneRMPage() {
   const supabase = await createClient()
   
-  const { data: { user } } = await supabase.auth.getUser()
+  const user = await getVerifiedUser(supabase)
   
   if (!user) {
     redirect('/login')
