@@ -1,4 +1,5 @@
 'use client'
+import { getVerifiedUser } from '@/app/lib/auth-claims'
 
 import { useState, useEffect, useRef } from 'react'
 import { useParams, useRouter } from 'next/navigation'
@@ -110,7 +111,7 @@ export default function CoachSessionPage() {
   // Get current trainer's ID
   useEffect(() => {
     async function getTrainerId() {
-      const { data: { user } } = await supabase.auth.getUser()
+      const user = await getVerifiedUser(supabase)
       if (user) {
         setTrainerId(user.id)
       }

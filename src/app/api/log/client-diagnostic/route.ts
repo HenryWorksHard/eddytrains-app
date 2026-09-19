@@ -1,3 +1,4 @@
+import { getVerifiedUser } from '@/app/lib/auth-claims'
 import { NextRequest, NextResponse } from 'next/server'
 import { getSupabaseAdmin } from '@/lib/supabase-admin'
 import { createClient } from '@/app/lib/supabase/server'
@@ -40,9 +41,7 @@ const ALLOWED_TYPES = new Set<DiagnosticEvent['event_type']>([
 export async function POST(req: NextRequest) {
   try {
     const supabase = await createClient()
-    const {
-      data: { user },
-    } = await supabase.auth.getUser()
+    const user = await getVerifiedUser(supabase)
     if (!user) {
       // Drop silently — we don't want to burn 401s on telemetry.
       return NextResponse.json({ ok: true, dropped: 'no_user' })

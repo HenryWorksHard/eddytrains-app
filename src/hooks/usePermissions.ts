@@ -1,4 +1,5 @@
 'use client';
+import { getVerifiedUser } from '@/app/lib/auth-claims'
 
 import { useState, useEffect } from 'react';
 import { createClient } from '@/app/lib/supabase/client';
@@ -24,7 +25,7 @@ export function usePermissions() {
 
   useEffect(() => {
     async function loadPermissions() {
-      const { data: { user } } = await supabase.auth.getUser();
+      const user = await getVerifiedUser(supabase);
       if (!user) {
         setState(prev => ({ ...prev, loading: false }));
         return;

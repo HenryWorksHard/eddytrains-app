@@ -1,6 +1,7 @@
+import { getVerifiedUser } from '@/app/lib/auth-claims'
 import { createClient } from '../../lib/supabase/server'
 import { formatDateToString, parseLocalDate } from '../../lib/dateUtils'
-import { NextRequest, NextResponse } from 'next/server'
+import { NextRequest, NextResponse, after } from 'next/server'
 import { entitlementOrFilter } from '@/app/lib/entitlements'
 
 // Calendar history window: previous month + current month + next month.
@@ -13,7 +14,7 @@ const CALENDAR_MONTHS_FORWARD = 1  // next month
 export async function GET(request: NextRequest) {
   const supabase = await createClient()
 
-  const { data: { user } } = await supabase.auth.getUser()
+  const user = await getVerifiedUser(supabase)
 
   if (!user) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
@@ -41,7 +42,6 @@ export async function GET(request: NextRequest) {
     userProgramsResult,
     todayCompletionsResult,
     monthCompletionsResult,
-    programStartResult,
     streakRowResult,
     latestPhotoResult,
   ] = await Promise.all([
@@ -94,15 +94,6 @@ export async function GET(request: NextRequest) {
       .gte('scheduled_date', windowStart)
       .lte('scheduled_date', windowEnd),
 
-    supabase
-      .from('client_programs')
-      .select('start_date')
-      .eq('client_id', user.id)
-      .eq('is_active', true)
-      .or(entitlementOrFilter(todayStr))
-      .order('start_date', { ascending: true })
-      .limit(1),
-
     // Longest streak comes from the persistent streak table. Current
     // streak is computed below from monthCompletions + schedule.
     supabase
@@ -126,7 +117,12 @@ export async function GET(request: NextRequest) {
   const userPrograms = userProgramsResult.data
   const todayCompletions = todayCompletionsResult.data
   const monthCompletions = monthCompletionsResult.data
-  const programStartDates = programStartResult.data
+  // Earliest start among the client's live programs. This used to be a second
+  // client_programs query with the same filter; the main query already has it.
+  const programStartDates = (userProgramsResult.data || [])
+    .map((cp) => ({ start_date: (cp as { start_date?: string | null }).start_date ?? null }))
+    .filter((cp): cp is { start_date: string } => !!cp.start_date)
+    .sort((a, b) => a.start_date.localeCompare(b.start_date))
   const streakRow = streakRowResult.data
 
   // Build schedule data by week and day
@@ -369,20 +365,33 @@ export async function GET(request: NextRequest) {
   // falsely mark the client as "trained today" and destroy the
   // went-dark signal that trainer views + alerts rely on. The complete
   // route owns last_workout_date.
+  //
+  // Written only when the value actually changed: this used to upsert on every
+  // single home-screen load. And it runs via after(), which keeps the function
+  // alive until the write lands without holding up the response — a bare
+  // un-awaited promise can be frozen mid-flight once a serverless response
+  // has been sent.
   if (streakIsAuthoritative) {
     const priorLongest = streakRow?.longest_streak || 0
     const nextLongest = Math.max(priorLongest, currentStreak)
-    supabase
-      .from('client_streaks')
-      .upsert(
-        {
-          client_id: user.id,
-          current_streak: currentStreak,
-          longest_streak: nextLongest,
-        },
-        { onConflict: 'client_id' }
-      )
-      .then(() => {})
+    const changed =
+      !streakRow ||
+      streakRow.current_streak !== currentStreak ||
+      priorLongest !== nextLongest
+    if (changed) {
+      after(async () => {
+        await supabase
+          .from('client_streaks')
+          .upsert(
+            {
+              client_id: user.id,
+              current_streak: currentStreak,
+              longest_streak: nextLongest,
+            },
+            { onConflict: 'client_id' }
+          )
+      })
+    }
   }
 
   // Schedule by day for calendar

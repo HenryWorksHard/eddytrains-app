@@ -1,3 +1,4 @@
+import { getVerifiedUser } from '@/app/lib/auth-claims'
 import { createClient } from './supabase/server'
 import { createClient as createSupabaseClient } from '@supabase/supabase-js'
 import { headers } from 'next/headers'
@@ -32,15 +33,19 @@ export async function getAuthContext(): Promise<AuthContext | null> {
   if (authToken) {
     try {
       const admin = getAdminClient()
-      const { data } = await admin.auth.getUser(authToken)
-      userId = data?.user?.id ?? null
-      email = data?.user?.email ?? null
+      // Capacitor bearer token, verified locally (ES256 JWKS) rather than a
+      // round trip to the auth server. See lib/auth-claims.
+      const { data, error } = await admin.auth.getClaims(authToken)
+      if (!error && data?.claims?.sub) {
+        userId = data.claims.sub
+        email = typeof data.claims.email === 'string' ? data.claims.email : null
+      }
     } catch { /* fall through */ }
   } else {
     const supabase = await createClient()
-    const { data } = await supabase.auth.getUser()
-    userId = data?.user?.id ?? null
-    email = data?.user?.email ?? null
+    const verified = await getVerifiedUser(supabase)
+    userId = verified?.id ?? null
+    email = verified?.email ?? null
   }
 
   if (!userId) return null

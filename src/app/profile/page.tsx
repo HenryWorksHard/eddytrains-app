@@ -1,4 +1,5 @@
 'use client'
+import { getVerifiedUser } from '@/app/lib/auth-claims'
 
 import { useEffect, useState, useRef } from 'react'
 import { useRouter } from 'next/navigation'
@@ -97,7 +98,7 @@ export default function ProfilePage() {
 
   useEffect(() => {
     async function loadProfile() {
-      const { data: { user } } = await supabase.auth.getUser()
+      const user = await getVerifiedUser(supabase)
       
       if (!user) {
         router.push('/login')
@@ -231,7 +232,7 @@ export default function ProfilePage() {
     
     try {
       // Get the authenticated user's ID directly
-      const { data: { user } } = await supabase.auth.getUser()
+      const user = await getVerifiedUser(supabase)
       if (!user) {
         alert('Please log in again')
         return
@@ -320,7 +321,7 @@ export default function ProfilePage() {
     if (!profile) return
     const trimmed = next.name.trim().slice(0, 20)
     try {
-      const { data: { user } } = await supabase.auth.getUser()
+      const user = await getVerifiedUser(supabase)
       if (!user) return
       const { error } = await supabase
         .from('profiles')

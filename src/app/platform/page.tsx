@@ -1,4 +1,5 @@
 'use client';
+import { getVerifiedUser } from '@/app/lib/auth-claims'
 
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
@@ -105,7 +106,7 @@ export default function PlatformPage() {
   }, []);
 
   async function loadData() {
-    const { data: { user } } = await supabase.auth.getUser();
+    const user = await getVerifiedUser(supabase);
     if (!user) {
       router.push('/login');
       return;

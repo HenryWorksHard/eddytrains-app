@@ -1,4 +1,5 @@
 'use client'
+import { getVerifiedUser } from '@/app/lib/auth-claims'
 
 import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
@@ -118,7 +119,7 @@ export default function Sidebar() {
       try {
         const response = await fetch('/api/me')
         if (!response.ok) {
-          const { data: { user } } = await supabase.auth.getUser()
+          const user = await getVerifiedUser(supabase)
           if (!user) {
             router.push('/login')
             return

@@ -1,4 +1,5 @@
 'use client'
+import { getVerifiedUser } from '@/app/lib/auth-claims'
 
 import { useState } from 'react'
 import { createClient } from '../lib/supabase/client'
@@ -71,7 +72,7 @@ export default function OneRMClient({ initialOneRMs, progressData }: Props) {
   const handleSave = async () => {
     setSaving(true)
     try {
-      const { data: { user } } = await supabase.auth.getUser()
+      const user = await getVerifiedUser(supabase)
       if (!user) throw new Error('Not authenticated')
 
       // Save non-zero values

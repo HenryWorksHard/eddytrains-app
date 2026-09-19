@@ -1,3 +1,4 @@
+import { getVerifiedUser } from '@/app/lib/auth-claims'
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/app/lib/supabase/server'
 import {
@@ -13,7 +14,7 @@ export async function POST(request: NextRequest) {
   const supabase = await createClient()
 
   // Verify user is super_admin
-  const { data: { user } } = await supabase.auth.getUser()
+  const user = await getVerifiedUser(supabase)
   if (!user) {
     return NextResponse.json({ error: 'Not authenticated' }, { status: 401 })
   }
@@ -62,7 +63,7 @@ export async function POST(request: NextRequest) {
 // End impersonation - clear cookie
 export async function DELETE() {
   const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
+  const user = await getVerifiedUser(supabase)
   if (!user) {
     return NextResponse.json({ error: 'Not authenticated' }, { status: 401 })
   }

@@ -1,3 +1,4 @@
+import { getVerifiedUser } from '@/app/lib/auth-claims'
 import { NextResponse } from 'next/server';
 import Stripe from 'stripe';
 import { getStripe } from '@/lib/stripe';
@@ -15,7 +16,7 @@ import { IMPERSONATION_COOKIE } from '@/app/lib/org-context';
  */
 async function authorize(organizationId: string) {
   const supabase = await createServerClient();
-  const { data: { user } } = await supabase.auth.getUser();
+  const user = await getVerifiedUser(supabase);
   if (!user) {
     return { ok: false as const, status: 401, error: 'Not authenticated' };
   }

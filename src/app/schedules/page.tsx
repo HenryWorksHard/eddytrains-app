@@ -1,4 +1,5 @@
 'use client'
+import { getVerifiedUser } from '@/app/lib/auth-claims'
 
 import { useState, useEffect, Suspense } from 'react'
 import { useSearchParams } from 'next/navigation'
@@ -130,7 +131,7 @@ function SchedulesPageContent() {
       // cross-tenant leak + a trainer could accidentally assign a program
       // to another trainer. Resolve the caller's org first, then scope
       // both queries to that org.
-      const { data: { user } } = await supabase.auth.getUser()
+      const user = await getVerifiedUser(supabase)
       let orgId: string | null = null
       if (user) {
         const { data: me } = await supabase

@@ -1,3 +1,4 @@
+import { getVerifiedUser } from '@/app/lib/auth-claims'
 import { createClient } from './supabase/server'
 import { createClient as createSupabaseClient } from '@supabase/supabase-js'
 import { cookies } from 'next/headers'
@@ -38,15 +39,16 @@ export async function getEffectiveOrgId(): Promise<string | null> {
   if (authToken) {
     try {
       const adminClient = getAdminClient()
-      const { data } = await adminClient.auth.getUser(authToken)
-      user = data?.user ?? null
+      // Verify the Capacitor bearer token locally (ES256 JWKS) instead of a
+      // round trip to the auth server. See lib/auth-claims.
+      const { data, error } = await adminClient.auth.getClaims(authToken)
+      user = !error && data?.claims?.sub ? { id: data.claims.sub } : null
     } catch (e) {
       console.error('[getEffectiveOrgId] Admin client error:', e)
     }
   } else {
     const supabase = await createClient()
-    const result = await supabase.auth.getUser()
-    user = result.data?.user ?? null
+    user = await getVerifiedUser(supabase)
   }
 
   if (!user) {
@@ -86,7 +88,7 @@ export async function getEffectiveOrgId(): Promise<string | null> {
  */
 export async function isSuperAdmin(): Promise<boolean> {
   const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
+  const user = await getVerifiedUser(supabase)
   if (!user) return false
 
   const { data: profile } = await supabase

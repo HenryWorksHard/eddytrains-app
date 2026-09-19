@@ -1,3 +1,4 @@
+import { getVerifiedUser } from '@/app/lib/auth-claims'
 import { createClient } from '@supabase/supabase-js'
 import { createClient as createServerClient } from '@/app/lib/supabase/server'
 import { NextResponse } from 'next/server'
@@ -16,7 +17,7 @@ function getAdminClient() {
 export async function GET() {
   try {
     const supabase = await createServerClient()
-    const { data: { user } } = await supabase.auth.getUser()
+    const user = await getVerifiedUser(supabase)
 
     if (!user) {
       return NextResponse.json({ error: 'Not authenticated' }, { status: 401 })

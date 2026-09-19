@@ -1,4 +1,5 @@
 'use client';
+import { getVerifiedUser } from '@/app/lib/auth-claims'
 
 import { useState, useEffect } from 'react';
 import { createClient } from '@/app/lib/supabase/client';
@@ -31,7 +32,7 @@ export default function DangerZone() {
 
   useEffect(() => {
     async function loadOrg() {
-      const { data: { user } } = await supabase.auth.getUser();
+      const user = await getVerifiedUser(supabase);
       if (!user) return;
 
       const { data: profile } = await supabase

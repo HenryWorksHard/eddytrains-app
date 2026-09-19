@@ -1,4 +1,5 @@
 'use client'
+import { getVerifiedUser } from '@/app/lib/auth-claims'
 
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
@@ -14,7 +15,7 @@ export default function TodayWorkoutPage() {
     const findTodayWorkout = async () => {
       const supabase = createClient()
       
-      const { data: { user } } = await supabase.auth.getUser()
+      const user = await getVerifiedUser(supabase)
       if (!user) {
         router.push('/login')
         return

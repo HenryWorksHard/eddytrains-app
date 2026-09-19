@@ -1,3 +1,4 @@
+import { getVerifiedUser } from '@/app/lib/auth-claims'
 import { createClient } from '../lib/supabase/server'
 import { redirect } from 'next/navigation'
 import BottomNav from '../components/BottomNav'
@@ -11,7 +12,7 @@ export const revalidate = 60
 export default async function SchedulePage() {
   const supabase = await createClient()
   
-  const { data: { user } } = await supabase.auth.getUser()
+  const user = await getVerifiedUser(supabase)
   
   if (!user) {
     redirect('/login')

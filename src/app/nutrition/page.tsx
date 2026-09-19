@@ -1,3 +1,4 @@
+import { getVerifiedUser } from '@/app/lib/auth-claims'
 import { createClient } from '../lib/supabase/server'
 import { createClient as createAdminClient } from '@supabase/supabase-js'
 import { redirect } from 'next/navigation'
@@ -28,7 +29,7 @@ function getAdminClient() {
 export default async function NutritionPage() {
   const supabase = await createClient()
   
-  const { data: { user } } = await supabase.auth.getUser()
+  const user = await getVerifiedUser(supabase)
   
   if (!user) {
     redirect('/login')

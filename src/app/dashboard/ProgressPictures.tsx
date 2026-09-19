@@ -1,4 +1,5 @@
 'use client'
+import { getVerifiedUser } from '@/app/lib/auth-claims'
 
 import { useState, useEffect, useRef } from 'react'
 import { createClient } from '../lib/supabase/client'
@@ -26,7 +27,7 @@ export default function ProgressPictures() {
 
   const fetchImages = async () => {
     try {
-      const { data: { user } } = await supabase.auth.getUser()
+      const user = await getVerifiedUser(supabase)
       if (!user) return
 
       const { data, error } = await supabase
@@ -55,7 +56,7 @@ export default function ProgressPictures() {
 
     setUploading(true)
     try {
-      const { data: { user } } = await supabase.auth.getUser()
+      const user = await getVerifiedUser(supabase)
       if (!user) throw new Error('Not authenticated')
 
       // Upload to storage

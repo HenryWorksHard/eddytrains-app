@@ -1,4 +1,5 @@
 'use client'
+import { getVerifiedUser } from '@/app/lib/auth-claims'
 
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { createClient } from '../../lib/supabase/client'
@@ -223,7 +224,7 @@ export default function WorkoutClient({ workoutId, exercises, oneRMs, personalBe
 
   // Load existing session for today (resume partial workout)
   const loadTodaySession = async () => {
-    const { data: { user } } = await supabase.auth.getUser()
+    const user = await getVerifiedUser(supabase)
     if (!user) return
 
     // Check if there's an existing workout_log for today's scheduled workout
@@ -322,7 +323,7 @@ export default function WorkoutClient({ workoutId, exercises, oneRMs, personalBe
   }
 
   const loadPreviousLogs = async () => {
-    const { data: { user } } = await supabase.auth.getUser()
+    const user = await getVerifiedUser(supabase)
     if (!user) return
 
     console.log('[loadPreviousLogs] Loading for workout:', workoutId)
@@ -650,6 +651,13 @@ export default function WorkoutClient({ workoutId, exercises, oneRMs, personalBe
     error_message?: string | null
     context?: Record<string, unknown>
   }) => {
+    // Only failures are sent now. save_attempt / save_success existed to
+    // chase the 2026-08 empty-completion bug, which is closed — and they cost
+    // two extra round trips on EVERY set save (400 of them in a 4-hour window
+    // of production logs). They were also keepalive requests, and browsers
+    // cap in-flight keepalive traffic: flooding it competes with the one
+    // keepalive request that must land, the workout completion itself.
+    if (payload.event_type === 'save_attempt' || payload.event_type === 'save_success') return
     try {
       fetch('/api/log/client-diagnostic', {
         method: 'POST',
@@ -717,7 +725,7 @@ export default function WorkoutClient({ workoutId, exercises, oneRMs, personalBe
     console.log('[saveWorkoutLogs] Logs to save:', Array.from(logsToProcess.values()))
     
     try {
-      const { data: { user } } = await supabase.auth.getUser()
+      const user = await getVerifiedUser(supabase)
       if (!user) {
         console.log('[saveWorkoutLogs] No user found!')
         // Silent JWT-expiry pattern — top hypothesis for the 88%
@@ -728,7 +736,7 @@ export default function WorkoutClient({ workoutId, exercises, oneRMs, personalBe
           workout_log_id: workoutLogIdRef.current,
           n_pending_rows: nPending,
           error_code: 'no_user',
-          error_message: 'supabase.auth.getUser() returned null — likely JWT expired or session lost',
+          error_message: 'no verified session — likely JWT expired or session lost',
         })
         hasUnsavedRef.current = true // didn't persist; still dirty
         setSaveError(true)

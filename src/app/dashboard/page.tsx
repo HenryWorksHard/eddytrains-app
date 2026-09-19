@@ -1,3 +1,4 @@
+import { getVerifiedUser } from '@/app/lib/auth-claims'
 import { createClient } from '@/app/lib/supabase/server'
 import { redirect } from 'next/navigation'
 import ClientDashboard from './ClientDashboard'
@@ -9,7 +10,7 @@ export const dynamic = 'force-dynamic'
 async function getUserRole() {
   const supabase = await createClient()
   
-  const { data: { user } } = await supabase.auth.getUser()
+  const user = await getVerifiedUser(supabase)
   if (!user) return null
   
   const { data: profile } = await supabase

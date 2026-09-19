@@ -1,4 +1,5 @@
 'use client'
+import { getVerifiedUser } from '@/app/lib/auth-claims'
 
 import { useEffect, useMemo, useState } from 'react'
 import Link from 'next/link'
@@ -294,7 +295,7 @@ export default function WorkoutCalendar({ scheduleByDay, scheduleByWeekAndDay, c
       console.log('🔍 [Calendar] Fetching details for workout:', workoutId, 'date:', dateStr)
 
       // Get current user for filtering
-      const { data: { user } } = await supabase.auth.getUser()
+      const user = await getVerifiedUser(supabase)
       if (!user) {
         console.error('[Calendar] No user found for fetching workout details')
         setWorkoutDetails([])

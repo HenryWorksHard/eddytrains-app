@@ -1,4 +1,5 @@
 'use client'
+import { getVerifiedUser } from '@/app/lib/auth-claims'
 
 import { useEffect, useState } from 'react'
 import { createClient } from '@/app/lib/supabase/client'
@@ -15,7 +16,7 @@ export default function RoleBasedLayout({ children }: RoleBasedLayoutProps) {
   useEffect(() => {
     async function getRole() {
       const supabase = createClient()
-      const { data: { user } } = await supabase.auth.getUser()
+      const user = await getVerifiedUser(supabase)
       
       if (user) {
         const { data: profile } = await supabase
