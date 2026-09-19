@@ -5,6 +5,7 @@ import BackButton from '../../components/BackButton'
 import CompleteWorkoutButton from './CompleteWorkoutButton'
 import WorkoutClient from './WorkoutClient'
 import { estimateOneRm } from '../../lib/tonnage'
+import { todayInTz } from '@/app/lib/pascal'
 
 // Cache for 30 seconds
 export const revalidate = 30
@@ -92,9 +93,24 @@ export default async function WorkoutDetailPage({
     redirect('/login')
   }
 
-  const today = new Date().toISOString().split('T')[0]
+  // "Today" has to be resolved in the CLIENT's timezone, not the server's.
+  // Vercel runs in UTC, so an Adelaide client training in the evening is
+  // already on the next local date — 21:33 UTC is 07:03 the following day for
+  // them. Resolving it as UTC here while the browser resolved it locally is
+  // what produced two workout_log rows for one session (Chris, Sept 2026):
+  // the sets landed on one date and the Complete button created a second,
+  // empty log on the other. The empty one was newer, so the app showed no
+  // weights and it looked like nothing had saved.
+  const { data: tzProfile } = await supabase
+    .from('profiles')
+    .select('timezone')
+    .eq('id', user.id)
+    .maybeSingle()
+  const today = todayInTz(tzProfile?.timezone || 'Australia/Adelaide')
+
   // Use scheduledDate from the URL when viewing a past workout, falling
-  // back to today for the normal "do today's workout" flow.
+  // back to today for the normal "do today's workout" flow. This single
+  // value is handed to BOTH children so they can never disagree.
   const effectiveDate = scheduledDate || today
 
   // PHASE 1: Run all independent queries in parallel
@@ -413,7 +429,7 @@ export default async function WorkoutDetailPage({
             oneRMs={oneRMs}
             personalBests={personalBests}
             clientProgramId={clientProgramId}
-            scheduledDate={scheduledDate}
+            scheduledDate={effectiveDate}
             finishers={finishers}
           />
         ) : !workout.notes ? (

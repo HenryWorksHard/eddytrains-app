@@ -126,25 +126,9 @@ export async function POST(request: NextRequest) {
         })
         .eq('id', workout.id)
 
-      // For exercises, we'll do a simpler approach: delete and recreate
-      // (exercises don't have client logs tied to them directly)
-      
-      // Get existing exercises for this workout
-      const { data: existingExercises } = await supabaseAdmin
-        .from('workout_exercises')
-        .select('id')
-        .eq('workout_id', workout.id)
-      
-      // Delete existing exercises (cascades to sets)
-      if (existingExercises && existingExercises.length > 0) {
-        await supabaseAdmin
-          .from('workout_exercises')
-          .delete()
-          .eq('workout_id', workout.id)
-      }
-
-      // Recreate exercises
-      await createExercises(supabaseAdmin, workout.id, workout.exercises)
+      // Reconcile exercises in place. See syncExercises — deleting and
+      // recreating them detaches the client's logged sets.
+      await syncExercises(supabaseAdmin, workout.id, workout.exercises)
 
       // Handle finisher update
       if (workout.finisher) {
@@ -169,13 +153,8 @@ export async function POST(request: NextRequest) {
             })
             .eq('id', existingFinisher.id)
 
-          // Delete and recreate finisher exercises
-          await supabaseAdmin
-            .from('workout_exercises')
-            .delete()
-            .eq('workout_id', existingFinisher.id)
-
-          await createExercises(supabaseAdmin, existingFinisher.id, workout.finisher.exercises)
+          // Same reconciliation for the finisher's exercises.
+          await syncExercises(supabaseAdmin, existingFinisher.id, workout.finisher.exercises)
         } else {
           // Create new finisher
           await createFinisher(supabaseAdmin, id, workout.id, workout.finisher)
@@ -235,6 +214,129 @@ export async function POST(request: NextRequest) {
       },
       { status: 500 }
     )
+  }
+}
+
+/**
+ * Reconcile a workout's exercises against what the trainer just submitted,
+ * reusing the existing row wherever the exercise is still in the workout.
+ *
+ * This replaced a delete-and-recreate whose comment claimed "exercises don't
+ * have client logs tied to them directly". That was wrong: set_logs.exercise_id
+ * references workout_exercises.id. Before the cascade fix a program edit
+ * therefore DELETED the client's logged sets. Since that FK became ON DELETE
+ * SET NULL the rows survive, but their exercise_id is nulled - so the weights
+ * are still in the database and the app can no longer find them. To the client
+ * that is indistinguishable from the original bug: "my weights didn't save".
+ *
+ * Keeping workout_exercises.id stable is what actually fixes it. An exercise
+ * still present keeps its row (and every set_log hanging off it); only
+ * exercises the trainer genuinely removed are deleted.
+ */
+async function syncExercises(supabaseAdmin: any, workoutId: string, exercises: any[]) {
+  const incoming = exercises || []
+
+  const { data: existingRows } = await supabaseAdmin
+    .from('workout_exercises')
+    .select('id, exercise_id, order_index')
+    .eq('workout_id', workoutId)
+    .order('order_index', { ascending: true })
+
+  // The same exercise can legitimately appear twice in one workout, so hold a
+  // queue per exercise and pair them up in order rather than by single lookup.
+  const reusable = new Map<string, string[]>()
+  for (const row of existingRows || []) {
+    if (!row.exercise_id) continue
+    const key = String(row.exercise_id)
+    if (!reusable.has(key)) reusable.set(key, [])
+    reusable.get(key)!.push(row.id)
+  }
+
+  for (const exercise of incoming) {
+    const { data: exerciseRef } = await supabaseAdmin
+      .from('exercises')
+      .select('id')
+      .eq('name', exercise.exerciseName)
+      .maybeSingle()
+
+    const payload = {
+      workout_id: workoutId,
+      exercise_id: exercise.exerciseId,
+      exercise_name: exercise.exerciseName,
+      exercise_uuid: exerciseRef?.id || null,
+      category: exercise.category || 'strength',
+      order_index: exercise.order,
+      notes: exercise.notes || null,
+      superset_group: exercise.supersetGroup || null,
+    }
+
+    const key = exercise.exerciseId ? String(exercise.exerciseId) : null
+    let rowId: string | undefined = key ? reusable.get(key)?.shift() : undefined
+
+    if (rowId) {
+      const { error: updateError } = await supabaseAdmin
+        .from('workout_exercises')
+        .update(payload)
+        .eq('id', rowId)
+      if (updateError) {
+        console.error('Exercise update error:', updateError)
+        throw updateError
+      }
+      // The prescription sets are replaced wholesale. That is safe: they hang
+      // off workout_exercises and cascade, and no client data references them
+      // (set_logs point at workout_exercises, not at exercise_sets).
+      await supabaseAdmin.from('exercise_sets').delete().eq('exercise_id', rowId)
+    } else {
+      const { data: created, error: insertError } = await supabaseAdmin
+        .from('workout_exercises')
+        .insert(payload)
+        .select('id')
+        .single()
+      if (insertError) {
+        console.error('Exercise insert error:', insertError)
+        throw insertError
+      }
+      rowId = created.id
+    }
+
+    if (exercise.sets?.length > 0 && rowId) {
+      const targetId = rowId
+      const setsToInsert = exercise.sets.map((set: any) => ({
+        exercise_id: targetId,
+        set_number: set.setNumber,
+        reps: set.reps,
+        intensity_type: set.intensityType,
+        intensity_value: set.intensityValue,
+        rest_seconds: set.restSeconds,
+        rest_bracket: set.restBracket || '90-120',
+        weight_type: set.weightType || 'freeweight',
+        notes: set.notes || null,
+        cardio_type: set.cardioType || null,
+        cardio_value: set.cardioValue || null,
+        cardio_unit: set.cardioUnit || null,
+        heart_rate_zone: set.heartRateZone || null,
+        work_time: set.workTime || null,
+        rest_time: set.restTime || null,
+        hyrox_station: set.hyroxStation || null,
+        hyrox_distance: set.hyroxDistance || null,
+        hyrox_unit: set.hyroxUnit || null,
+        hyrox_target_time: set.hyroxTargetTime || null,
+        hyrox_weight_class: set.hyroxWeightClass || null,
+      }))
+      const { error: setsError } = await supabaseAdmin
+        .from('exercise_sets')
+        .insert(setsToInsert)
+      if (setsError) {
+        console.error('Sets insert error:', setsError)
+        throw setsError
+      }
+    }
+  }
+
+  // Anything left unmatched is an exercise the trainer actually removed.
+  const staleIds = Array.from(reusable.values()).flat()
+  if (staleIds.length > 0) {
+    await supabaseAdmin.from('workout_exercises').delete().in('id', staleIds)
   }
 }
 

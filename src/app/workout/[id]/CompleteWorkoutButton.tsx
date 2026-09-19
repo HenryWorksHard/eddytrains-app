@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import { Star, X } from 'lucide-react'
 import { mutate } from 'swr'
@@ -230,6 +230,110 @@ export default function CompleteWorkoutButton({
     return () => observer.disconnect()
   }, [])
 
+  // The completion is sent the moment Complete is tapped — NOT after the
+  // rating. Previously nothing was sent, not even the backgrounding beacon,
+  // until the client picked a rating and tapped Done or Skip. Tap Complete,
+  // see "How was it?", lock the phone: every set was saved but the workout
+  // was never marked complete, so the week showed it as missed. (Chris,
+  // 19 Sep 2026: 18 sets saved across all six exercises, no completion.)
+  // The rating is optional metadata; it now follows the completion rather
+  // than gating it.
+  const completionRef = useRef<Promise<boolean> | null>(null)
+
+  // scheduledDateProp is the authoritative source; fall back to local
+  // "today" only when the parent didn't provide one (rare).
+  const resolveScheduledDate = () => {
+    if (scheduledDateProp) return scheduledDateProp
+    const now = new Date()
+    return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`
+  }
+
+  const startCompletion = (): Promise<boolean> => {
+    if (completionRef.current) return completionRef.current
+
+    // Build the payload SYNCHRONOUSLY, before any await, so a swipe-out on
+    // the very first frame still has something for the beacon to send.
+    const tz = Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC'
+    const completionPayload = JSON.stringify({
+      workoutId,
+      clientProgramId,
+      scheduledDate: resolveScheduledDate(),
+      tz,
+    })
+
+    let beaconSent = false
+    const sendCompletionBeacon = () => {
+      if (beaconSent || typeof navigator === 'undefined' || !navigator.sendBeacon) return
+      try {
+        const blob = new Blob([completionPayload], { type: 'application/json' })
+        if (navigator.sendBeacon('/api/workouts/complete', blob)) beaconSent = true
+      } catch (e) {
+        console.warn('[CompleteWorkout] beacon send failed:', e)
+      }
+    }
+    const onHiddenBeacon = () => {
+      if (document.visibilityState === 'hidden') sendCompletionBeacon()
+    }
+    // Registered now, while the rating modal is still on screen, so leaving
+    // the app from the modal still lands the completion.
+    if (typeof document !== 'undefined') {
+      document.addEventListener('visibilitychange', onHiddenBeacon)
+      window.addEventListener('pagehide', sendCompletionBeacon)
+    }
+
+    const run = (async () => {
+      try {
+        // Flush pending set autosaves first so the last set's debounce
+        // can't lose a race with the completion (Halley bug, 2026-06-29).
+        // The flush is capped internally, so it can't block completion.
+        const flushFn = (window as unknown as { __cmpdFlushWorkoutSaves?: () => Promise<void> }).__cmpdFlushWorkoutSaves
+        if (flushFn) {
+          try {
+            await flushFn()
+          } catch (e) {
+            console.warn('[CompleteWorkout] flush before complete failed (continuing):', e)
+          }
+        }
+
+        // keepalive lets the fetch survive the page going away; combined
+        // with the beacon that's two independent routes for the write.
+        const response = await fetch('/api/workouts/complete', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          keepalive: true,
+          body: completionPayload,
+        })
+        if (!response.ok) throw new Error('Failed to complete workout')
+
+        // Push the updated Pascal score into SWR and force the dashboard to
+        // refetch, so today's completion shows the moment they land there.
+        try {
+          const result = await response.clone().json()
+          if (result?.pascal) {
+            mutate(`/api/pascal?tz=${encodeURIComponent(tz)}`, result.pascal, false)
+          }
+        } catch {
+          // Response may not be JSON in edge failure modes; ignore.
+        }
+        mutate((key) => typeof key === 'string' && key.startsWith('/api/dashboard'))
+        return true
+      } catch (error) {
+        console.error('Failed to complete workout:', error)
+        // Last-ditch: if iOS killed the fetch, the beacon may still land it.
+        sendCompletionBeacon()
+        return false
+      } finally {
+        if (typeof document !== 'undefined') {
+          document.removeEventListener('visibilitychange', onHiddenBeacon)
+          window.removeEventListener('pagehide', sendCompletionBeacon)
+        }
+      }
+    })()
+
+    completionRef.current = run
+    return run
+  }
+
   const handleComplete = () => {
     if (isCompleted || isLoading) return
     // One-time explainer under the "How was it?" copy so clients
@@ -243,190 +347,84 @@ export default function CompleteWorkoutButton({
     } catch {
       // localStorage unavailable — skip the explainer
     }
+    startCompletion()
     setShowRatingModal(true)
   }
 
   const submitWorkoutCompletion = async (rating?: WorkoutRating) => {
     setIsSubmittingRating(true)
-    // Full-screen overlay from the very first async boundary — prevents
-    // the user tapping around or exiting the app while save is in flight.
-    setSavingLabel('Just a moment...')
+    setSavingLabel('Saving your workout...')
     setShowSavingOverlay(true)
-    // Optimistically flip to completed state IMMEDIATELY so the inline
-    // button shows the green check + "Completed" without a spinner flash.
-    // If the POST below errors we'll revert and surface the error.
+    // Flip to the green "Completed" pill straight away; reverted below if
+    // the completion turns out to have failed.
     setOptimisticComplete(true)
     setOptimisticError(null)
 
-    // Build the completion payload SYNCHRONOUSLY, before we register the
-    // beacon listeners. Audit finding (2026-08-23): in PR #38 the payload
-    // was assigned only AFTER auth.getUser() + up to 3s of flushPending
-    // Saves — meaning if the user swiped out during that window, the
-    // beacon fired with `!completionPayload` and the fetch hadn't started
-    // yet, so nothing was written. Building it up-front means even a
-    // swipe-out on frame 1 gets a beacon send.
-    //
-    // scheduledDateProp is the authoritative source; fall back to local
-    // "today" only when the parent didn't provide one (rare).
-    const scheduledDateForBeacon = (() => {
-      if (scheduledDateProp) return scheduledDateProp
-      const now = new Date()
-      return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`
-    })()
-    const tz = Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC'
-    const completionPayload = JSON.stringify({
-      workoutId,
-      clientProgramId,
-      scheduledDate: scheduledDateForBeacon,
-      tz,
-    })
-    let beaconSent = false
-    const sendCompletionBeacon = () => {
-      if (beaconSent || typeof navigator === 'undefined' || !navigator.sendBeacon) return
+    // Usually already in flight (started on tap) or finished by now.
+    const ok = await (completionRef.current ?? startCompletion())
+
+    if (!ok) {
+      // Clear it so tapping Complete again starts a fresh attempt.
+      completionRef.current = null
+      setOptimisticComplete(false)
+      setOptimisticError("Couldn't save — tap to retry")
+      setShowRatingModal(false)
+      setShowSavingOverlay(false)
+      setIsSubmittingRating(false)
+      setIsLoading(false)
+      return
+    }
+
+    // The workout is complete at this point. A failed rating write must
+    // never undo that, so it's best-effort.
+    if (rating && (rating.rating > 0 || rating.difficulty || rating.notes)) {
       try {
-        const blob = new Blob([completionPayload], { type: 'application/json' })
-        const ok = navigator.sendBeacon('/api/workouts/complete', blob)
-        if (ok) beaconSent = true
-      } catch (e) {
-        console.warn('[CompleteWorkout] beacon send failed:', e)
-      }
-    }
-    const onHiddenBeacon = () => {
-      if (document.visibilityState === 'hidden') sendCompletionBeacon()
-    }
-    // Register listeners immediately so a very early swipe-out is still
-    // covered by the beacon. Removed in the finally block below.
-    if (typeof document !== 'undefined') {
-      document.addEventListener('visibilitychange', onHiddenBeacon)
-      window.addEventListener('pagehide', sendCompletionBeacon)
-    }
-
-    try {
-      const { data: { user } } = await supabase.auth.getUser()
-      if (!user) return
-
-      // Flush any pending set-log autosaves BEFORE marking the workout
-      // complete. Without this, a user tapping Complete while the last
-      // set's 500ms debounce is still pending would race: the completion
-      // POST fires immediately, navigation away tears down the WorkoutClient,
-      // and the debounced save never lands. Capped at 3s so a stuck save
-      // can't block completion indefinitely (Halley bug, 2026-06-29).
-      setSavingLabel('Saving your sets...')
-      const flushFn = (window as unknown as { __cmpdFlushWorkoutSaves?: () => Promise<void> }).__cmpdFlushWorkoutSaves
-      if (flushFn) {
-        try {
-          await flushFn()
-        } catch (e) {
-          console.warn('[CompleteWorkout] flush before complete failed (continuing):', e)
-        }
-      }
-
-      // Use the pre-computed scheduledDate (already used for the beacon
-      // payload) so beacon and fetch send the same bytes.
-      const scheduledDate = scheduledDateForBeacon
-
-      // Complete the workout. The server returns the user's updated
-      // Pascal score alongside the completion; we push it into SWR's
-      // cache so the dashboard shows the bump instantly on navigation.
-      setSavingLabel('Finishing up...')
-      // Re-use the pre-built completionPayload (already contains
-      // workoutId, clientProgramId, scheduledDate, tz) — beacon and fetch
-      // now send the same bytes.
-      const response = await fetch('/api/workouts/complete', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        // keepalive lets the fetch survive page unload / navigation for
-        // up to ~60s. Combined with the beacon fallback above, this
-        // gives us two independent guarantees that the completion write
-        // lands even if the user exits mid-save.
-        keepalive: true,
-        body: completionPayload,
-      })
-
-      if (!response.ok) {
-        throw new Error('Failed to complete workout')
-      }
-
-      // Update Pascal SWR cache + force dashboard to refetch its own data
-      // (so today's completion shows in the Today strike-through list).
-      try {
-        const result = await response.clone().json()
-        if (result?.pascal) {
-          mutate(`/api/pascal?tz=${encodeURIComponent(tz)}`, result.pascal, false)
-        }
-      } catch {
-        // Response may not be JSON in edge failure modes; ignore.
-      }
-      mutate((key) => typeof key === 'string' && key.startsWith('/api/dashboard'))
-
-      // Save rating to workout_logs if provided
-      if (rating && (rating.rating > 0 || rating.difficulty || rating.notes)) {
-        // Find the workout_log for this workout using the same scheduledDate
-        const { data: workoutLog } = await supabase
-          .from('workout_logs')
-          .select('id')
-          .eq('client_id', user.id)
-          .eq('workout_id', workoutId)
-          .eq('scheduled_date', scheduledDate)
-          .order('completed_at', { ascending: false })
-          .limit(1)
-          .single()
-
-        if (workoutLog) {
-          // Update existing log with rating info
-          await supabase
+        const { data: { user } } = await supabase.auth.getUser()
+        if (user) {
+          const scheduledDate = resolveScheduledDate()
+          const { data: workoutLog } = await supabase
             .from('workout_logs')
-            .update({
-              rating: rating.rating > 0 ? rating.rating : null,
-              difficulty: rating.difficulty,
-              notes: rating.notes || null
-            })
-            .eq('id', workoutLog.id)
-        } else {
-          // Create new workout_log with rating
-          await supabase
-            .from('workout_logs')
-            .insert({
+            .select('id')
+            .eq('client_id', user.id)
+            .eq('workout_id', workoutId)
+            .eq('scheduled_date', scheduledDate)
+            .order('completed_at', { ascending: false })
+            .limit(1)
+            .maybeSingle()
+
+          const ratingFields = {
+            rating: rating.rating > 0 ? rating.rating : null,
+            difficulty: rating.difficulty,
+            notes: rating.notes || null,
+          }
+
+          if (workoutLog) {
+            await supabase.from('workout_logs').update(ratingFields).eq('id', workoutLog.id)
+          } else {
+            await supabase.from('workout_logs').insert({
               client_id: user.id,
               workout_id: workoutId,
               completed_at: new Date().toISOString(),
               scheduled_date: scheduledDate,
-              rating: rating.rating > 0 ? rating.rating : null,
-              difficulty: rating.difficulty,
-              notes: rating.notes || null
+              ...ratingFields,
             })
+          }
         }
+      } catch (e) {
+        console.warn('[CompleteWorkout] rating save failed (workout still complete):', e)
       }
-
-      setIsCompleted(true)
-      setShowRatingModal(false)
-      setNavigatingHome(true)
-
-      setTimeout(() => {
-        router.replace('/dashboard?completed=true')
-      }, 600)
-    } catch (error) {
-      console.error('Failed to complete workout:', error)
-      // Try a beacon send as a last-ditch save attempt before we surface
-      // the error to the user. If iOS killed the primary fetch, the beacon
-      // may still land the completion write. Fire-and-forget — we don't
-      // know whether it succeeded, but it's better than nothing.
-      sendCompletionBeacon()
-      // Revert optimistic state so the user can retry.
-      setOptimisticComplete(false)
-      setOptimisticError("Couldn't save — tap to retry")
-    } finally {
-      // Clean up the beacon listeners — the flow has ended one way or
-      // another. Leaving them attached would fire a beacon on every
-      // future visibilitychange.
-      if (typeof document !== 'undefined') {
-        document.removeEventListener('visibilitychange', onHiddenBeacon)
-        window.removeEventListener('pagehide', sendCompletionBeacon)
-      }
-      setShowSavingOverlay(false)
-      setIsSubmittingRating(false)
-      setIsLoading(false)
     }
+
+    setIsCompleted(true)
+    setShowRatingModal(false)
+    setNavigatingHome(true)
+    setShowSavingOverlay(false)
+    setIsSubmittingRating(false)
+    setIsLoading(false)
+
+    setTimeout(() => {
+      router.replace('/dashboard?completed=true')
+    }, 600)
   }
 
   const handleRatingSubmit = (rating: WorkoutRating) => {
