@@ -20,7 +20,9 @@ export async function GET() {
       
       const { data: exercises, error } = await supabase
         .from('exercises')
-        .select('*')
+        // Only the columns the picker uses. select('*') dragged tutorial steps,
+        // GIF and tutorial URLs for ~1,460 exercises on every request.
+        .select('id, name, category, equipment, movement_pattern, primary_muscles, secondary_muscles, difficulty, tags, exercise_type')
         .order('name', { ascending: true })
         .range(from, to)
       
@@ -41,8 +43,6 @@ export async function GET() {
       }
     }
     
-    console.log(`Fetched ${allExercises.length} exercises from database (${page} pages)`)
-    
     // Transform to match expected format
     const formattedExercises = allExercises.map(ex => ({
       id: ex.id || ex.uuid || ex.name.toLowerCase().replace(/\s+/g, '_'),
@@ -58,10 +58,14 @@ export async function GET() {
       exerciseType: ex.exercise_type || 'strength', // strength, cardio, steps, timed
     }))
     
-    return NextResponse.json({ 
-      exercises: formattedExercises,
-      count: formattedExercises.length 
-    })
+    // The library is identical for everyone and only changes through
+    // migrations (nothing in the app writes to it), so let Vercel's edge serve
+    // it. Fresh for an hour, and a stale copy is served instantly for up to a
+    // day while it refreshes in the background.
+    return NextResponse.json(
+      { exercises: formattedExercises, count: formattedExercises.length },
+      { headers: { 'Cache-Control': 'public, s-maxage=3600, stale-while-revalidate=86400' } }
+    )
     
   } catch (error) {
     console.error('Error in exercises API:', error)

@@ -29,7 +29,7 @@ export async function GET(request: NextRequest) {
     // Build query
     let query = adminClient
       .from('profiles')
-      .select('id, full_name, is_active, created_at, status, trainer_id')
+      .select('id, full_name, email, is_active, created_at, status, trainer_id')
       .eq('role', 'client')
       .order('created_at', { ascending: false })
 
@@ -42,16 +42,12 @@ export async function GET(request: NextRequest) {
 
     if (error) throw error
 
-    // Get auth users for email addresses
-    const { data: authUsers } = await adminClient.auth.admin.listUsers()
-
-    const usersWithEmail = profiles?.map(p => {
-      const authUser = authUsers?.users?.find(u => u.id === p.id)
-      return {
-        ...p,
-        email: authUser?.email || 'Unknown'
-      }
-    }) || []
+    // Email straight from profiles; auth.admin.listUsers() only returns the
+    // first 50 accounts and cost an admin API call per load.
+    const usersWithEmail = profiles?.map(p => ({
+      ...p,
+      email: p.email || 'Unknown',
+    })) || []
 
     return NextResponse.json({ users: usersWithEmail })
   } catch (error) {
