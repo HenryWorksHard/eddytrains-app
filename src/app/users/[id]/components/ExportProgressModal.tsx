@@ -2,8 +2,9 @@
 
 import { useState, useEffect } from 'react'
 import { X, Download, Loader2, FileText, Calendar } from 'lucide-react'
-import { jsPDF } from 'jspdf'
-import autoTable from 'jspdf-autotable'
+// jsPDF + autotable (and the html2canvas/canvg they drag in) are ~600 KB.
+// They're loaded on the Export click rather than whenever a trainer opens the
+// Progress tab, which is the only thing most visits to it do.
 
 interface ExportProgressModalProps {
   isOpen: boolean
@@ -103,6 +104,10 @@ export default function ExportProgressModal({ isOpen, onClose, clientId, clientN
     setExporting(true)
     
     try {
+      const [{ jsPDF }, { default: autoTable }] = await Promise.all([
+        import('jspdf'),
+        import('jspdf-autotable'),
+      ])
       const doc = new jsPDF()
       const pageWidth = doc.internal.pageSize.getWidth()
       let yPos = 20
