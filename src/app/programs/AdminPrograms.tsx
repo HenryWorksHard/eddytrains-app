@@ -1,7 +1,7 @@
 import { createClient } from '@/app/lib/supabase/server'
 import { getEffectiveOrgId } from '@/app/lib/org-context'
 import Link from 'next/link'
-import { Plus, Dumbbell, ChevronRight } from 'lucide-react'
+import { Plus, Dumbbell, ChevronRight, AlertTriangle, Link2 } from 'lucide-react'
 import ProgramCard from '@/components/ProgramCard'
 import Sidebar from '@/components/Sidebar'
 
@@ -14,6 +14,8 @@ interface Program {
   difficulty: string
   is_active: boolean
   created_at: string
+  program_kind: string
+  slug: string | null
 }
 
 const categories = [
@@ -25,27 +27,27 @@ const categories = [
 
 async function getPrograms(): Promise<Program[]> {
   const supabase = await createClient()
-  
+
   const orgId = await getEffectiveOrgId()
   if (!orgId) return []
-  
+
   const { data } = await supabase
     .from('programs')
     .select('*')
     .eq('organization_id', orgId)
     .order('created_at', { ascending: false })
-  
+
   return (data as Program[]) || []
 }
 
 function groupByCategory(programs: Program[]) {
   const grouped: Record<string, Program[]> = {}
-  
+
   categories.forEach(cat => {
     grouped[cat.id] = []
   })
   grouped['other'] = []
-  
+
   programs.forEach(program => {
     const cat = program.category?.toLowerCase() || 'other'
     if (grouped[cat]) {
@@ -54,13 +56,25 @@ function groupByCategory(programs: Program[]) {
       grouped['other'].push(program)
     }
   })
-  
+
   return grouped
 }
 
-export default async function AdminPrograms() {
-  const programs = await getPrograms()
+export default async function AdminPrograms({ kind }: { kind?: string }) {
+  const allPrograms = await getPrograms()
+
+  // Two libraries, one table. 'custom' is what a trainer builds for specific
+  // clients; 'catalog' is the sellable rehab set the landing page points at.
+  const activeKind = kind === 'catalog' ? 'catalog' : 'custom'
+  const customPrograms = allPrograms.filter(p => p.program_kind !== 'catalog')
+  const catalogPrograms = allPrograms.filter(p => p.program_kind === 'catalog')
+  const programs = activeKind === 'catalog' ? catalogPrograms : customPrograms
   const groupedPrograms = groupByCategory(programs)
+
+  const tabs = [
+    { id: 'custom', label: 'Client Programs', count: customPrograms.length },
+    { id: 'catalog', label: 'Rehab Catalog', count: catalogPrograms.length },
+  ]
 
   const getCategoryColor = (catId: string) => {
     switch (catId) {
@@ -81,10 +95,14 @@ export default async function AdminPrograms() {
           <div className="flex items-center justify-between">
             <div>
               <h1 className="text-3xl font-bold text-white">Programs</h1>
-              <p className="text-zinc-400 mt-1">Manage your fitness programs by category</p>
+              <p className="text-zinc-400 mt-1">
+                {activeKind === 'catalog'
+                  ? 'Rehab programs sold on the landing page'
+                  : 'Programs you build for individual clients'}
+              </p>
             </div>
             <Link
-              href="/programs/new"
+              href={activeKind === 'catalog' ? '/programs/new?kind=catalog' : '/programs/new'}
               className="flex items-center gap-2 bg-yellow-400 hover:bg-yellow-500 text-black px-4 py-2 rounded-xl font-medium transition-colors"
             >
               <Plus className="w-5 h-5" />
@@ -92,12 +110,76 @@ export default async function AdminPrograms() {
             </Link>
           </div>
 
-          {/* Programs by Category */}
-          {programs.length > 0 ? (
+          {/* Library tabs */}
+          <div className="flex gap-2 border-b border-zinc-800">
+            {tabs.map(tab => (
+              <Link
+                key={tab.id}
+                href={tab.id === 'custom' ? '/programs' : `/programs?kind=${tab.id}`}
+                className={`px-4 py-2.5 text-sm font-medium border-b-2 -mb-px transition-colors ${
+                  activeKind === tab.id
+                    ? 'border-yellow-400 text-white'
+                    : 'border-transparent text-zinc-400 hover:text-white'
+                }`}
+              >
+                {tab.label}
+                <span className="ml-2 text-xs text-zinc-500">{tab.count}</span>
+              </Link>
+            ))}
+          </div>
+
+          {/* Catalog view — flat grid, because what matters here is the slug
+              that ties each program to the landing page, not the category. */}
+          {activeKind === 'catalog' ? (
+            catalogPrograms.length > 0 ? (
+              <div className="space-y-4">
+                <div className="flex items-start gap-3 p-4 rounded-xl border bg-zinc-400/5 border-zinc-800 text-zinc-400">
+                  <Link2 className="w-5 h-5 shrink-0 mt-0.5" />
+                  <p className="text-sm">
+                    Each catalog program needs a slug matching an entry in the landing site&apos;s
+                    program list. That slug is how a purchase knows which program to hand over.
+                  </p>
+                </div>
+                <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-4">
+                  {catalogPrograms.map((program) => (
+                    <div key={program.id} className="space-y-1.5">
+                      <ProgramCard program={program} />
+                      {program.slug ? (
+                        <p className="text-xs text-zinc-500 pl-1 font-mono">{program.slug}</p>
+                      ) : (
+                        <p className="text-xs text-amber-400/80 pl-1 flex items-center gap-1.5">
+                          <AlertTriangle className="w-3 h-3" />
+                          No slug — can&apos;t be sold yet
+                        </p>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ) : (
+              <div className="card p-12 text-center">
+                <div className="w-16 h-16 rounded-full bg-zinc-800 flex items-center justify-center mx-auto mb-4">
+                  <Dumbbell className="w-8 h-8 text-zinc-500" />
+                </div>
+                <h3 className="text-xl font-semibold text-white mb-2">No catalog programs yet</h3>
+                <p className="text-zinc-400 mb-6">
+                  These are the rehab programs people buy from the landing page. Build one here,
+                  give it a slug, and it becomes sellable.
+                </p>
+                <Link
+                  href="/programs/new?kind=catalog"
+                  className="inline-flex items-center gap-2 bg-yellow-400 hover:bg-yellow-500 text-black px-6 py-3 rounded-xl font-medium transition-colors"
+                >
+                  <Plus className="w-5 h-5" />
+                  Create Catalog Program
+                </Link>
+              </div>
+            )
+          ) : programs.length > 0 ? (
             <div className="space-y-8">
               {categories.map((category) => {
                 const categoryPrograms = groupedPrograms[category.id]
-                
+
                 return (
                   <div key={category.id} className="space-y-4">
                     {/* Category Header */}

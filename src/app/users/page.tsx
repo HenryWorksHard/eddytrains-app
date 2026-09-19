@@ -17,6 +17,7 @@ interface User {
   status: string | null
   password_changed: boolean | null
   access_paused: boolean | null
+  client_type: string | null
   can_access_strength: boolean
   can_access_cardio: boolean
   can_access_hyrox: boolean
@@ -27,6 +28,7 @@ interface Program {
   id: string
   name: string
   category: string
+  program_kind: string | null
 }
 
 interface NutritionPlan {
@@ -128,6 +130,11 @@ export default function UsersPage() {
   // Audit fix (2026-08-23): the search box was decorative (no value/onChange).
   // Wire it to actually filter the roster by name or email.
   const [search, setSearch] = useState('')
+  // Coached clients (Eddy invites and programs them personally) and program
+  // members (bought a rehab program on the landing page) share one roster —
+  // same org, same tooling — but they're different books of work, so they get
+  // their own tab. See profiles.client_type.
+  const [tab, setTab] = useState<'coached' | 'self_serve'>('coached')
   const supabase = createClient()
   
   // Bulk selection state
@@ -179,19 +186,28 @@ export default function UsersPage() {
     setSelectedUsers(newSelected)
   }
 
+  // Rows in the active tab. client_type is null for anything created before
+  // the column existed — treat that as coached, which is what it was.
+  const tabUsers = users.filter(u =>
+    tab === 'self_serve' ? u.client_type === 'self_serve' : u.client_type !== 'self_serve'
+  )
+
+  const coachedCount = users.filter(u => u.client_type !== 'self_serve').length
+  const selfServeCount = users.length - coachedCount
+
   // Filter roster by the search box (name or email, case-insensitive).
   const filteredUsers = search.trim()
-    ? users.filter(u => {
+    ? tabUsers.filter(u => {
         const q = search.trim().toLowerCase()
         return (u.full_name?.toLowerCase().includes(q) ?? false) || u.email.toLowerCase().includes(q)
       })
-    : users
+    : tabUsers
 
   const toggleSelectAll = () => {
-    if (selectedUsers.size === users.length) {
+    if (selectedUsers.size === filteredUsers.length) {
       setSelectedUsers(new Set())
     } else {
-      setSelectedUsers(new Set(users.map(u => u.id)))
+      setSelectedUsers(new Set(filteredUsers.map(u => u.id)))
     }
   }
 
@@ -215,7 +231,7 @@ export default function UsersPage() {
     }
 
     if (action === 'program' && programs.length === 0) {
-      const query = supabase.from('programs').select('id, name, category').order('name')
+      const query = supabase.from('programs').select('id, name, category, program_kind').eq('is_active', true).order('name')
       if (orgId) query.eq('organization_id', orgId)
       const { data } = await query
       setPrograms(data || [])
@@ -316,7 +332,11 @@ export default function UsersPage() {
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
           <h1 className="text-2xl lg:text-3xl font-bold text-white">Clients</h1>
-          <p className="text-zinc-400 text-sm lg:text-base mt-1">Manage your fitness clients</p>
+          <p className="text-zinc-400 text-sm lg:text-base mt-1">
+            {tab === 'self_serve'
+              ? 'People who bought a program from the landing page'
+              : 'Clients you coach and program personally'}
+          </p>
         </div>
         <div className="flex items-center gap-2 lg:gap-3">
           <button
@@ -334,6 +354,30 @@ export default function UsersPage() {
             <span className="hidden sm:inline">Add</span> Client
           </Link>
         </div>
+      </div>
+
+      {/* Roster tabs */}
+      <div className="flex gap-2 border-b border-zinc-800">
+        {([
+          { id: 'coached', label: 'My Clients', count: coachedCount },
+          { id: 'self_serve', label: 'Program Members', count: selfServeCount },
+        ] as const).map(t => (
+          <button
+            key={t.id}
+            onClick={() => {
+              setTab(t.id)
+              setSelectedUsers(new Set())
+            }}
+            className={`px-4 py-2.5 text-sm font-medium border-b-2 -mb-px transition-colors ${
+              tab === t.id
+                ? 'border-yellow-400 text-white'
+                : 'border-transparent text-zinc-400 hover:text-white'
+            }`}
+          >
+            {t.label}
+            <span className="ml-2 text-xs text-zinc-500">{t.count}</span>
+          </button>
+        ))}
       </div>
 
       {/* Filters */}
@@ -393,7 +437,7 @@ export default function UsersPage() {
       )}
 
       {/* Users — mobile card view (sm:hidden) */}
-      {users.length > 0 && (
+      {filteredUsers.length > 0 && (
         <div className="space-y-2 sm:hidden">
           {filteredUsers.map((user) => (
             <div
@@ -459,26 +503,44 @@ export default function UsersPage() {
         </div>
       )}
 
-      {/* Empty state — shown on all viewports when zero users */}
-      {users.length === 0 && (
+      {/* Empty state — shown on all viewports when the active tab has no rows */}
+      {filteredUsers.length === 0 && (
         <div className="card p-6 lg:p-12 text-center">
           <div className="w-12 h-12 lg:w-16 lg:h-16 rounded-full bg-zinc-800 flex items-center justify-center mx-auto mb-3 lg:mb-4">
             <UserPlus className="w-6 h-6 lg:w-8 lg:h-8 text-zinc-500" />
           </div>
-          <h3 className="text-lg lg:text-xl font-semibold text-white mb-2">No clients yet</h3>
-          <p className="text-zinc-400 text-sm lg:text-base mb-4 lg:mb-6">Get started by adding your first client</p>
-          <Link
-            href="/users/new"
-            className="inline-flex items-center gap-2 bg-yellow-400 hover:bg-yellow-500 text-black px-4 lg:px-6 py-2.5 lg:py-3 rounded-lg lg:rounded-xl text-sm lg:text-base font-medium transition-colors"
-          >
-            <UserPlus className="w-4 h-4 lg:w-5 lg:h-5" />
-            Add Your First User
-          </Link>
+          {search.trim() ? (
+            <>
+              <h3 className="text-lg lg:text-xl font-semibold text-white mb-2">No matches</h3>
+              <p className="text-zinc-400 text-sm lg:text-base">
+                Nothing in this tab matches &ldquo;{search.trim()}&rdquo;
+              </p>
+            </>
+          ) : tab === 'self_serve' ? (
+            <>
+              <h3 className="text-lg lg:text-xl font-semibold text-white mb-2">No program members yet</h3>
+              <p className="text-zinc-400 text-sm lg:text-base">
+                People who buy a rehab program from the landing page land here automatically.
+              </p>
+            </>
+          ) : (
+            <>
+              <h3 className="text-lg lg:text-xl font-semibold text-white mb-2">No clients yet</h3>
+              <p className="text-zinc-400 text-sm lg:text-base mb-4 lg:mb-6">Get started by adding your first client</p>
+              <Link
+                href="/users/new"
+                className="inline-flex items-center gap-2 bg-yellow-400 hover:bg-yellow-500 text-black px-4 lg:px-6 py-2.5 lg:py-3 rounded-lg lg:rounded-xl text-sm lg:text-base font-medium transition-colors"
+              >
+                <UserPlus className="w-4 h-4 lg:w-5 lg:h-5" />
+                Add Your First User
+              </Link>
+            </>
+          )}
         </div>
       )}
 
       {/* Users Table — hidden on mobile, shown sm+ */}
-      {users.length > 0 && (
+      {filteredUsers.length > 0 && (
         <div className="card hidden sm:block">
           <div className="table-container">
             <table>
@@ -487,7 +549,7 @@ export default function UsersPage() {
                   <th className="w-12 hidden sm:table-cell">
                     <input
                       type="checkbox"
-                      checked={selectedUsers.size === users.length && users.length > 0}
+                      checked={selectedUsers.size === filteredUsers.length && filteredUsers.length > 0}
                       onChange={toggleSelectAll}
                       className="w-4 h-4 rounded border-zinc-600 text-yellow-400 focus:ring-yellow-400 focus:ring-offset-0 bg-zinc-700"
                     />
@@ -634,9 +696,20 @@ export default function UsersPage() {
                       className="w-full px-4 py-3 bg-zinc-800 border border-zinc-700 rounded-xl text-white focus:outline-none focus:ring-2 focus:ring-yellow-400"
                     >
                       <option value="">Choose a program...</option>
-                      {programs.map(p => (
-                        <option key={p.id} value={p.id}>{p.name} ({p.category})</option>
-                      ))}
+                      {/* The two libraries stay visually separate here too, so a
+                          sellable rehab program is never picked by accident. */}
+                      <optgroup label="Client Programs">
+                        {programs.filter(p => p.program_kind !== 'catalog').map(p => (
+                          <option key={p.id} value={p.id}>{p.name} ({p.category})</option>
+                        ))}
+                      </optgroup>
+                      {programs.some(p => p.program_kind === 'catalog') && (
+                        <optgroup label="Rehab Catalog">
+                          {programs.filter(p => p.program_kind === 'catalog').map(p => (
+                            <option key={p.id} value={p.id}>{p.name} ({p.category})</option>
+                          ))}
+                        </optgroup>
+                      )}
                     </select>
                   </div>
                   <div>

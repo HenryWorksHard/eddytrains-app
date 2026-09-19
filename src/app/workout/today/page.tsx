@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '../../lib/supabase/client'
 import BottomNav from '../../components/BottomNav'
+import { entitlementOrFilter } from '@/app/lib/entitlements'
 
 export default function TodayWorkoutPage() {
   const router = useRouter()
@@ -36,8 +37,7 @@ export default function TodayWorkoutPage() {
         `)
         .eq('client_id', user.id)
         .eq('is_active', true)
-        .lte('start_date', today)
-        .or(`end_date.gte.${today},end_date.is.null`)
+        .or(entitlementOrFilter(today))
         .order('start_date', { ascending: false })
         .limit(5)
 

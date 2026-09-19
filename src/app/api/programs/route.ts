@@ -1,5 +1,6 @@
 import { createClient } from '../../lib/supabase/server'
 import { NextResponse } from 'next/server'
+import { entitlementOrFilter } from '@/app/lib/entitlements'
 
 export async function GET() {
   const supabase = await createClient()
@@ -18,8 +19,7 @@ export async function GET() {
     .select(`*, program:programs (*)`)
     .eq('client_id', user.id)
     .eq('is_active', true)
-    .lte('start_date', today)
-    .or(`end_date.gte.${today},end_date.is.null`)
+    .or(entitlementOrFilter(today))
     .order('start_date', { ascending: false })
 
   const clientPrograms = activePrograms || []

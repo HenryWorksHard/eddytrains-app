@@ -307,7 +307,12 @@ export async function POST(request: NextRequest) {
     if (!ctx) return unauthorized()
     if (!isTrainerRole(ctx.role)) return forbidden()
 
-    const { email, full_name, permissions, trainer_id } = await request.json()
+    const { email, full_name, permissions, trainer_id, client_type } = await request.json()
+
+    // How this client arrived. Trainer invites (the only path today) are
+    // 'coached'; the landing-page purchase flow will pass 'self_serve'.
+    // Anything unrecognised falls back to coached rather than erroring.
+    const clientType = client_type === 'self_serve' ? 'self_serve' : 'coached'
 
     if (!email) {
       return NextResponse.json({ error: 'Email is required' }, { status: 400 })
@@ -413,6 +418,7 @@ export async function POST(request: NextRequest) {
         slug: slug,
         full_name: full_name || email.split('@')[0],
         role: 'client',
+        client_type: clientType,
         organization_id: organization_id || null,
         trainer_id: assignedTrainerId,
         company_id: assignedCompanyId,

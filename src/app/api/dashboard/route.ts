@@ -1,6 +1,7 @@
 import { createClient } from '../../lib/supabase/server'
 import { formatDateToString, parseLocalDate } from '../../lib/dateUtils'
 import { NextRequest, NextResponse } from 'next/server'
+import { entitlementOrFilter } from '@/app/lib/entitlements'
 
 // Calendar history window: previous month + current month + next month.
 // 3 months is enough for typical streak walks (~60-90 days back) and
@@ -73,7 +74,8 @@ export async function GET(request: NextRequest) {
         )
       `)
       .eq('client_id', user.id)
-      .eq('is_active', true),
+      .eq('is_active', true)
+      .or(entitlementOrFilter(todayStr)),
 
     // "Today's" completions — used to strike through today's scheduled
     // workouts on the home screen.
@@ -97,6 +99,7 @@ export async function GET(request: NextRequest) {
       .select('start_date')
       .eq('client_id', user.id)
       .eq('is_active', true)
+      .or(entitlementOrFilter(todayStr))
       .order('start_date', { ascending: true })
       .limit(1),
 

@@ -1,6 +1,7 @@
 import { createClient } from '@supabase/supabase-js'
 import { NextRequest, NextResponse } from 'next/server'
 import { getAuthContext, unauthorized, forbidden, isTrainerRole, getEffectiveOrgIdStrict } from '@/app/lib/auth-guard'
+import { resolveCatalogFields } from '@/app/lib/catalog'
 
 export async function POST(request: NextRequest) {
   const supabaseAdmin = createClient(
@@ -14,7 +15,8 @@ export async function POST(request: NextRequest) {
     if (!isTrainerRole(ctx.role)) return forbidden()
 
     const body = await request.json()
-    const { id, name, description, category, difficulty, durationWeeks, isActive, workouts } = body
+    const { id, name, description, category, difficulty, durationWeeks, isActive, workouts, programKind, slug } = body
+    const catalogFields = resolveCatalogFields(programKind, slug)
 
     // Assert the target program belongs to caller's effective org.
     const { data: programRow } = await supabaseAdmin
@@ -38,6 +40,7 @@ export async function POST(request: NextRequest) {
         difficulty,
         duration_weeks: durationWeeks,
         is_active: isActive,
+        ...catalogFields,
       })
       .eq('id', id)
 

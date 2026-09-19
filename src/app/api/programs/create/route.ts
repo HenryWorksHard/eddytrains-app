@@ -2,6 +2,7 @@ import { createClient } from '@supabase/supabase-js'
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient as createServerClient } from '@/app/lib/supabase/server'
 import { getEffectiveOrgId } from '@/app/lib/org-context'
+import { resolveCatalogFields } from '@/app/lib/catalog'
 
 export async function POST(request: NextRequest) {
   const supabaseAdmin = createClient(
@@ -36,7 +37,8 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json()
-    const { name, description, category, difficulty, durationWeeks, isActive, workouts } = body
+    const { name, description, category, difficulty, durationWeeks, isActive, workouts, programKind, slug } = body
+    const catalogFields = resolveCatalogFields(programKind, slug)
 
     // 1. Create the program with organization_id
     const { data: program, error: programError } = await supabaseAdmin
@@ -49,6 +51,7 @@ export async function POST(request: NextRequest) {
         duration_weeks: durationWeeks || 4,
         is_active: isActive,
         organization_id: effectiveOrgId,
+        ...catalogFields,
       })
       .select()
       .single()

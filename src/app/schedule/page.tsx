@@ -3,6 +3,7 @@ import { redirect } from 'next/navigation'
 import BottomNav from '../components/BottomNav'
 import ScheduleClient from './ScheduleClient'
 import { COMPLETION_LOOKBACK_DAYS } from '../lib/constants'
+import { isExpired } from '@/app/lib/entitlements'
 
 // Force dynamic rendering - no caching
 export const revalidate = 60
@@ -20,7 +21,7 @@ export default async function SchedulePage() {
   const todayStr = today.toISOString().split('T')[0]
   
   // Get user's active AND future programs with workouts (including week_number)
-  const { data: clientPrograms } = await supabase
+  const { data: clientProgramsRaw } = await supabase
     .from('client_programs')
     .select(`
       id,
@@ -29,6 +30,7 @@ export default async function SchedulePage() {
       end_date,
       duration_weeks,
       is_active,
+      source,
       phase_name,
       programs (
         id,
@@ -47,6 +49,11 @@ export default async function SchedulePage() {
     .eq('client_id', user.id)
     .or(`is_active.eq.true,start_date.gt.${todayStr}`)
     .order('start_date', { ascending: true })
+
+  // The schedule deliberately shows upcoming blocks as well as live ones, so
+  // it asks for "not expired" rather than "trainable today" — but a purchased
+  // program whose licence has lapsed still drops off. See lib/entitlements.
+  const clientPrograms = (clientProgramsRaw || []).filter(cp => !isExpired(cp, todayStr))
 
   // Get workout completions for the lookback period
   const lookbackDate = new Date()

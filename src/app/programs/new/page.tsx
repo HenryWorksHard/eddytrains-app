@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import { useRouter } from 'next/navigation'
+import { useRouter, useSearchParams } from 'next/navigation'
 import Link from 'next/link'
 import { ArrowLeft, Save, Loader2, ChevronDown } from 'lucide-react'
 import WorkoutBuilder, { Workout } from '@/components/WorkoutBuilder'
@@ -35,6 +35,15 @@ export default function CreateProgramPage() {
   const [durationWeeks, setDurationWeeks] = useState(4)
   const [isActive, setIsActive] = useState(true)
 
+  // 'catalog' programs are the ones sold on the landing page; 'custom' are
+  // built for named clients. The Programs page links here with ?kind=catalog
+  // from the Rehab Catalog tab.
+  const searchParams = useSearchParams()
+  const [programKind, setProgramKind] = useState<'custom' | 'catalog'>(
+    searchParams.get('kind') === 'catalog' ? 'catalog' : 'custom'
+  )
+  const [slug, setSlug] = useState('')
+
   // Workouts
   const [workouts, setWorkouts] = useState<Workout[]>([])
 
@@ -43,6 +52,11 @@ export default function CreateProgramPage() {
     
     if (!name.trim()) {
       setError('Program name is required')
+      return
+    }
+
+    if (programKind === 'catalog' && !slug.trim()) {
+      setError('Catalog programs need a landing page slug so purchases can find them')
       return
     }
 
@@ -68,6 +82,8 @@ export default function CreateProgramPage() {
           durationWeeks,
           isActive,
           workouts,
+          programKind,
+          slug,
         }),
       })
 
@@ -206,6 +222,53 @@ export default function CreateProgramPage() {
               placeholder="Describe the program goals, target audience, and what to expect..."
             />
           </div>
+
+          {/* Library — which of the two program libraries this belongs to */}
+          <div className="md:col-span-2">
+            <label className="block text-sm font-medium text-zinc-400 mb-2">
+              Library
+            </label>
+            <div className="grid sm:grid-cols-2 gap-3">
+              {([
+                { value: 'custom', title: 'Client Program', hint: 'Built for specific clients you coach' },
+                { value: 'catalog', title: 'Rehab Catalog', hint: 'Sold on the landing page' },
+              ] as const).map(opt => (
+                <button
+                  key={opt.value}
+                  type="button"
+                  onClick={() => setProgramKind(opt.value)}
+                  className={`text-left p-4 rounded-xl border transition-colors ${
+                    programKind === opt.value
+                      ? 'border-yellow-400 bg-yellow-400/10'
+                      : 'border-zinc-700 bg-zinc-800 hover:border-zinc-600'
+                  }`}
+                >
+                  <span className="block font-medium text-white">{opt.title}</span>
+                  <span className="block text-sm text-zinc-400 mt-0.5">{opt.hint}</span>
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Slug — only meaningful for catalog programs */}
+          {programKind === 'catalog' && (
+            <div className="md:col-span-2">
+              <label className="block text-sm font-medium text-zinc-400 mb-2">
+                Landing page slug *
+              </label>
+              <input
+                type="text"
+                value={slug}
+                onChange={(e) => setSlug(e.target.value)}
+                className="w-full px-4 py-3 bg-zinc-800 border border-zinc-700 rounded-xl text-white placeholder-zinc-500 focus:outline-none focus:ring-2 focus:ring-yellow-400 font-mono"
+                placeholder="e.g., shoulder"
+              />
+              <p className="text-sm text-zinc-500 mt-2">
+                Must match the program id on the landing site. This is how a purchase
+                knows which program to hand over.
+              </p>
+            </div>
+          )}
 
           {/* Difficulty */}
           <div>

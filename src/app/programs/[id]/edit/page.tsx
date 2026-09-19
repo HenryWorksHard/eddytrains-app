@@ -41,6 +41,10 @@ export default function EditProgramPage({ params }: PageProps) {
   const [difficulty, setDifficulty] = useState('intermediate')
   const [durationWeeks, setDurationWeeks] = useState<number | null>(null)
   const [isActive, setIsActive] = useState(true)
+  // Which library this program lives in, and (for catalog) the slug the
+  // landing page sells it under. See lib/catalog.ts.
+  const [programKind, setProgramKind] = useState<'custom' | 'catalog'>('custom')
+  const [slug, setSlug] = useState('')
 
   // Workouts
   const [workouts, setWorkouts] = useState<Workout[]>([])
@@ -64,6 +68,8 @@ export default function EditProgramPage({ params }: PageProps) {
         setDifficulty(program.difficulty)
         setDurationWeeks(program.duration_weeks)
         setIsActive(program.is_active)
+        setProgramKind(program.program_kind === 'catalog' ? 'catalog' : 'custom')
+        setSlug(program.slug || '')
 
         // Transform to our format
         const transformedWorkouts: Workout[] = (workoutsData || []).map((w: any) => ({
@@ -203,6 +209,8 @@ export default function EditProgramPage({ params }: PageProps) {
           difficulty,
           durationWeeks,
           isActive,
+          programKind,
+          slug,
           workouts,
         }),
       })
@@ -370,6 +378,53 @@ export default function EditProgramPage({ params }: PageProps) {
                   <ChevronDown className="absolute right-4 top-1/2 -translate-y-1/2 w-5 h-5 text-zinc-500 pointer-events-none" />
                 </div>
               </div>
+
+              {/* Library */}
+              <div className="md:col-span-2">
+                <label className="block text-sm font-medium text-zinc-400 mb-2">
+                  Library
+                </label>
+                <div className="grid sm:grid-cols-2 gap-3">
+                  {([
+                    { value: 'custom', title: 'Client Program', hint: 'Built for specific clients you coach' },
+                    { value: 'catalog', title: 'Rehab Catalog', hint: 'Sold on the landing page' },
+                  ] as const).map(opt => (
+                    <button
+                      key={opt.value}
+                      type="button"
+                      onClick={() => setProgramKind(opt.value)}
+                      className={`text-left p-4 rounded-xl border transition-colors ${
+                        programKind === opt.value
+                          ? 'border-yellow-400 bg-yellow-400/10'
+                          : 'border-zinc-700 bg-zinc-800 hover:border-zinc-600'
+                      }`}
+                    >
+                      <span className="block font-medium text-white">{opt.title}</span>
+                      <span className="block text-sm text-zinc-400 mt-0.5">{opt.hint}</span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Slug — only meaningful for catalog programs */}
+              {programKind === 'catalog' && (
+                <div className="md:col-span-2">
+                  <label className="block text-sm font-medium text-zinc-400 mb-2">
+                    Landing page slug *
+                  </label>
+                  <input
+                    type="text"
+                    value={slug}
+                    onChange={(e) => setSlug(e.target.value)}
+                    className="w-full px-4 py-3 bg-zinc-800 border border-zinc-700 rounded-xl text-white placeholder-zinc-500 focus:outline-none focus:ring-2 focus:ring-yellow-400 font-mono"
+                    placeholder="e.g., shoulder"
+                  />
+                  <p className="text-sm text-zinc-500 mt-2">
+                    Must match the program id on the landing site. This is how a purchase
+                    knows which program to hand over.
+                  </p>
+                </div>
+              )}
 
               {/* Difficulty */}
               <div>
