@@ -4,6 +4,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createClient as createServerClient } from '@/app/lib/supabase/server'
 import { getEffectiveOrgId } from '@/app/lib/org-context'
 import { resolveCatalogFields } from '@/app/lib/catalog'
+import { saveProgramWorkouts } from '@/app/lib/program-save'
 
 export async function POST(request: NextRequest) {
   const supabaseAdmin = createClient(
@@ -62,192 +63,13 @@ export async function POST(request: NextRequest) {
       throw programError
     }
 
-    // 2. Create workouts
+    // 2. Workouts, exercises, sets and finishers. A brand-new program is the
+    // "every workout is new" case of the shared save, which writes it in a
+    // handful of round trips instead of one per exercise and per set batch.
+    // (It also keeps superset_group on finisher exercises, which this route
+    // used to drop until the program was next edited.)
     if (workouts && workouts.length > 0 && program) {
-      for (const workout of workouts) {
-        const { data: workoutData, error: workoutError } = await supabaseAdmin
-          .from('program_workouts')
-          .insert({
-            program_id: program.id,
-            name: workout.name,
-            day_of_week: workout.dayOfWeek,
-            order_index: workout.order,
-            notes: workout.notes || null,
-            is_emom: workout.isEmom || false,
-            emom_interval: workout.emomInterval || null,
-            warmup_exercises: workout.warmupExercises || [],
-            recovery_notes: workout.recoveryNotes || null,
-            week_number: workout.weekNumber || 1,
-          })
-          .select()
-          .single()
-
-        if (workoutError) {
-          console.error('Workout insert error:', workoutError)
-          throw workoutError
-        }
-
-        // 3. Create workout exercises
-        if (workout.exercises?.length > 0 && workoutData) {
-          for (const exercise of workout.exercises) {
-            // Look up exercise_uuid from exercises table
-            const { data: exerciseRef } = await supabaseAdmin
-              .from('exercises')
-              .select('id')
-              .eq('name', exercise.exerciseName)
-              .single()
-            
-            const { data: exerciseData, error: exerciseError } = await supabaseAdmin
-              .from('workout_exercises')
-              .insert({
-                workout_id: workoutData.id,
-                exercise_id: exercise.exerciseId,
-                exercise_name: exercise.exerciseName,
-                exercise_uuid: exerciseRef?.id || null, // FK to exercises table
-                category: exercise.category || 'strength', // Save exercise category
-                order_index: exercise.order,
-                notes: exercise.notes || null,
-                superset_group: exercise.supersetGroup || null,
-              })
-              .select()
-              .single()
-
-            if (exerciseError) {
-              console.error('Exercise insert error:', exerciseError)
-              throw exerciseError
-            }
-
-            // 4. Create exercise sets
-            if (exercise.sets?.length > 0 && exerciseData) {
-              const setsToInsert = exercise.sets.map((set: any) => ({
-                exercise_id: exerciseData.id,
-                set_number: set.setNumber,
-                reps: set.reps,
-                intensity_type: set.intensityType,
-                intensity_value: set.intensityValue,
-                rest_seconds: set.restSeconds,
-                rest_bracket: set.restBracket || '90-120',
-                weight_type: set.weightType || 'freeweight',
-                notes: set.notes || null,
-                // Cardio fields
-                cardio_type: set.cardioType || null,
-                cardio_value: set.cardioValue || null,
-                cardio_unit: set.cardioUnit || null,
-                heart_rate_zone: set.heartRateZone || null,
-                work_time: set.workTime || null,
-                rest_time: set.restTime || null,
-                // Hyrox fields
-                hyrox_station: set.hyroxStation || null,
-                hyrox_distance: set.hyroxDistance || null,
-                hyrox_unit: set.hyroxUnit || null,
-                hyrox_target_time: set.hyroxTargetTime || null,
-                hyrox_weight_class: set.hyroxWeightClass || null,
-              }))
-
-              const { error: setsError } = await supabaseAdmin
-                .from('exercise_sets')
-                .insert(setsToInsert)
-
-              if (setsError) {
-                console.error('Sets insert error:', setsError)
-                throw setsError
-              }
-            }
-          }
-        }
-
-        // 5. Create finisher (sub-workout) if exists
-        if (workout.finisher && workoutData) {
-          const { data: finisherData, error: finisherError } = await supabaseAdmin
-            .from('program_workouts')
-            .insert({
-              program_id: program.id,
-              parent_workout_id: workoutData.id,
-              name: workout.finisher.name,
-              category: workout.finisher.category,
-              order_index: 0,
-              notes: workout.finisher.notes || null,
-              is_emom: workout.finisher.isEmom || false,
-              emom_interval: workout.finisher.emomInterval || null,
-              is_superset: workout.finisher.isSuperset || false,
-            })
-            .select()
-            .single()
-
-          if (finisherError) {
-            console.error('Finisher insert error:', finisherError)
-            throw finisherError
-          }
-
-          // Create finisher exercises
-          if (workout.finisher.exercises?.length > 0 && finisherData) {
-            for (const exercise of workout.finisher.exercises) {
-              // Look up exercise_uuid from exercises table
-              const { data: exerciseRef } = await supabaseAdmin
-                .from('exercises')
-                .select('id')
-                .eq('name', exercise.exerciseName)
-                .single()
-              
-              const { data: exerciseData, error: exerciseError } = await supabaseAdmin
-                .from('workout_exercises')
-                .insert({
-                  workout_id: finisherData.id,
-                  exercise_id: exercise.exerciseId,
-                  exercise_name: exercise.exerciseName,
-                  exercise_uuid: exerciseRef?.id || null, // FK to exercises table
-                  category: exercise.category || 'strength', // Save exercise category
-                  order_index: exercise.order,
-                  notes: exercise.notes || null,
-                })
-                .select()
-                .single()
-
-              if (exerciseError) {
-                console.error('Finisher exercise insert error:', exerciseError)
-                throw exerciseError
-              }
-
-              // Create finisher exercise sets
-              if (exercise.sets?.length > 0 && exerciseData) {
-                const setsToInsert = exercise.sets.map((set: any) => ({
-                  exercise_id: exerciseData.id,
-                  set_number: set.setNumber,
-                  reps: set.reps,
-                  intensity_type: set.intensityType,
-                  intensity_value: set.intensityValue,
-                  rest_seconds: set.restSeconds,
-                  rest_bracket: set.restBracket || '90-120',
-                  weight_type: set.weightType || 'freeweight',
-                  notes: set.notes || null,
-                  // Cardio fields
-                  cardio_type: set.cardioType || null,
-                  cardio_value: set.cardioValue || null,
-                  cardio_unit: set.cardioUnit || null,
-                  heart_rate_zone: set.heartRateZone || null,
-                  work_time: set.workTime || null,
-                  rest_time: set.restTime || null,
-                  // Hyrox fields
-                  hyrox_station: set.hyroxStation || null,
-                  hyrox_distance: set.hyroxDistance || null,
-                  hyrox_unit: set.hyroxUnit || null,
-                  hyrox_target_time: set.hyroxTargetTime || null,
-                  hyrox_weight_class: set.hyroxWeightClass || null,
-                }))
-
-                const { error: setsError } = await supabaseAdmin
-                  .from('exercise_sets')
-                  .insert(setsToInsert)
-
-                if (setsError) {
-                  console.error('Finisher sets insert error:', setsError)
-                  throw setsError
-                }
-              }
-            }
-          }
-        }
-      }
+      await saveProgramWorkouts(supabaseAdmin, program.id, workouts)
     }
 
     return NextResponse.json({ success: true, programId: program.id })
