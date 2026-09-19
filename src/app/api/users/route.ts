@@ -115,17 +115,15 @@ export async function GET() {
     
     if (error) throw error
 
-    // Get auth users for email addresses
-    const { data: authUsers } = await adminClient.auth.admin.listUsers()
-    
-    const usersWithEmail = profiles?.map(p => {
-      const authUser = authUsers?.users?.find(u => u.id === p.id)
-      return {
-        ...p,
-        email: authUser?.email || 'Unknown',
-        last_sign_in: authUser?.last_sign_in_at
-      }
-    }) || []
+    // Email comes straight from profiles (verified in sync with auth). This
+    // used to call auth.admin.listUsers() on every roster load — a slow admin
+    // API call that also returns only the first 50 accounts, so anyone past
+    // that would have shown as 'Unknown'. last_sign_in was fetched too but is
+    // never displayed.
+    const usersWithEmail = profiles?.map(p => ({
+      ...p,
+      email: p.email || 'Unknown',
+    })) || []
     
     return NextResponse.json({ 
       users: usersWithEmail,
@@ -369,10 +367,20 @@ export async function POST(request: NextRequest) {
       }
     }
     
-    // Check if email already exists in auth — surface a clean error instead of DB violation
-    const { data: existingList } = await adminClient.auth.admin.listUsers()
+    // Friendly duplicate check. This used auth.admin.listUsers(), which only
+    // returns the first 50 accounts — there are already more than 50, so it was
+    // silently missing some. profiles is checked here, and the definitive check
+    // is createUser itself below, which rejects any registered email and is
+    // mapped to this same response.
     const emailLower = email.toLowerCase()
-    const existing = existingList?.users?.find(u => u.email?.toLowerCase() === emailLower)
+    const { data: existing } = await adminClient
+      .from('profiles')
+      .select('id')
+      // Escape LIKE wildcards: '_' is common in emails and would otherwise
+      // match any character.
+      .ilike('email', emailLower.replace(/[\\%_]/g, '\\$&'))
+      .limit(1)
+      .maybeSingle()
     if (existing) {
       return NextResponse.json({
         error: 'A user with this email already exists',
@@ -404,6 +412,13 @@ export async function POST(request: NextRequest) {
         full_name: full_name || email.split('@')[0]
       }
     })
+
+    if (createError && /already (been )?registered|already exists/i.test(createError.message)) {
+      return NextResponse.json({
+        error: 'A user with this email already exists',
+        details: 'If this is a client you previously created, use the "Resend invite" option from the users list.'
+      }, { status: 409 })
+    }
 
     if (createError || !newUser?.user) {
       console.error('Create user error:', createError)
