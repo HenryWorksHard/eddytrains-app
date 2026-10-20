@@ -130,7 +130,13 @@ export async function middleware(request: NextRequest) {
   // load while the Supabase JS client processes the recovery token from
   // the URL hash. /api/auth/send-password-reset must also be public —
   // a forgotten-password submission obviously runs while logged out.
-  const publicRoutes = ['/login', '/signup', '/api/signup', '/reset-password', '/update-password', '/auth/callback', '/join', '/api/exercises', '/accept-invite', '/api/accept-invite', '/api/auth/send-password-reset', '/api/auth/sign-out-cleanup', '/api/log/client-diagnostic', '/privacy', '/access-paused']
+  //
+  // /api/intake is public for the same kind of reason: the landing site posts
+  // an injury form to it server to server and there is no session involved.
+  // It is not unauthenticated — the route itself requires a shared secret —
+  // but it must not be redirected to /login, because a redirect is a 307 that
+  // a caller reads as success.
+  const publicRoutes = ['/login', '/signup', '/api/signup', '/reset-password', '/update-password', '/auth/callback', '/join', '/api/exercises', '/accept-invite', '/api/accept-invite', '/api/auth/send-password-reset', '/api/auth/sign-out-cleanup', '/api/log/client-diagnostic', '/api/intake', '/privacy', '/access-paused']
   const isPublicRoute = publicRoutes.some(route => pathname.startsWith(route))
 
   if (!user && !isPublicRoute) {

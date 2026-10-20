@@ -735,3 +735,129 @@ export async function sendWelcomeAfterSignupEmail({
 
   return { id: result.data?.id }
 }
+
+/**
+ * Tells Eddy an injury intake form came in from the landing page.
+ *
+ * This one goes to the practice, not to a client, so it does not read from
+ * email_template_settings: a toggle that could silently stop enquiry alerts is
+ * exactly the failure this whole path exists to prevent. The destination is
+ * INTAKE_NOTIFY_TO, defaulting to the CMPD inbox.
+ *
+ * The answers are included in full so the email is readable on a phone without
+ * opening the app, and reply-to is set to the person who filled it in so a
+ * reply goes straight back to them.
+ */
+export async function sendIntakeNotificationEmail({
+  id,
+  name,
+  email,
+  phone,
+  areas,
+  redFlags,
+  fields,
+}: {
+  id: string
+  name: string
+  email: string | null
+  phone: string | null
+  areas: string[]
+  redFlags: string[]
+  fields: { label: string; value: string }[]
+}): Promise<{ id: string | null | undefined }> {
+  const resend = getResend()
+  const to = process.env.INTAKE_NOTIFY_TO || 'cmpdcollective@gmail.com'
+  const appUrl = getAppUrl()
+  const link = `${appUrl}/enquiries/${id}`
+
+  const esc = (s: string) =>
+    s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+
+  const flagBlock = redFlags.length
+    ? `<tr><td style="padding-bottom:24px;">
+         <div style="background:#2a1a00; border:1px solid #facc15; border-radius:12px; padding:16px; color:#facc15; font-size:14px; line-height:1.6;">
+           <strong>Screening flag.</strong> Answered yes to:<br>${redFlags.map((f) => esc(f)).join('<br>')}
+           <br><br>Read this one before you book anything.
+         </div>
+       </td></tr>`
+    : ''
+
+  const rows = fields
+    .map(
+      (f) => `
+        <tr>
+          <td style="padding:12px 0; border-bottom:1px solid #27272a;">
+            <div style="color:#71717a; font-size:12px; padding-bottom:4px;">${esc(f.label)}</div>
+            <div style="color:#e4e4e7; font-size:15px; line-height:1.5; white-space:pre-wrap;">${esc(f.value || '(blank)')}</div>
+          </td>
+        </tr>`,
+    )
+    .join('')
+
+  const html = `
+    <!doctype html>
+    <html>
+      <body style="margin:0; padding:0; background:#0a0a0a; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;">
+        <table width="100%" cellpadding="0" cellspacing="0" style="background:#0a0a0a; padding:48px 24px;">
+          <tr>
+            <td align="center">
+              <table width="620" cellpadding="0" cellspacing="0" style="max-width:620px; background:#18181b; border-radius:16px; padding:40px;">
+                <tr>
+                  <td style="color:#fff; font-size:24px; font-weight:700; padding-bottom:8px;">
+                    New injury enquiry
+                  </td>
+                </tr>
+                <tr>
+                  <td style="color:#d4d4d8; font-size:16px; line-height:1.6; padding-bottom:24px;">
+                    <strong>${esc(name)}</strong>${areas.length ? ` &middot; ${esc(areas.join(', '))}` : ''}<br>
+                    ${email ? `<a href="mailto:${esc(email)}" style="color:#facc15; text-decoration:none;">${esc(email)}</a><br>` : ''}
+                    ${phone ? `<a href="tel:${esc(phone)}" style="color:#facc15; text-decoration:none;">${esc(phone)}</a>` : ''}
+                  </td>
+                </tr>
+                ${flagBlock}
+                <tr>
+                  <td style="padding-bottom:24px;">
+                    <a href="${link}" style="display:inline-block; background:#facc15; color:#000; padding:14px 28px; border-radius:12px; font-weight:700; text-decoration:none; font-size:16px;">
+                      Open it in the app
+                    </a>
+                  </td>
+                </tr>
+                <tr>
+                  <td style="color:#71717a; font-size:12px; padding-bottom:8px; text-transform:uppercase; letter-spacing:0.05em;">
+                    What they said
+                  </td>
+                </tr>
+                <tr>
+                  <td>
+                    <table width="100%" cellpadding="0" cellspacing="0">${rows}</table>
+                  </td>
+                </tr>
+                <tr>
+                  <td style="color:#52525b; font-size:12px; line-height:1.5; padding-top:20px;">
+                    Sent from the injury form on cmpdcollective.com. Reply to this email and it goes to them.
+                  </td>
+                </tr>
+              </table>
+            </td>
+          </tr>
+        </table>
+      </body>
+    </html>
+  `
+
+  const result = await resend.emails.send({
+    from: getFromAddress(),
+    to,
+    // Straight back to the person who filled it in.
+    replyTo: email || (await getReplyTo()),
+    subject: `New injury enquiry: ${name}${redFlags.length ? ' [screening flag]' : ''}`,
+    html,
+    tags: [{ name: 'template', value: 'intake_notification' }],
+  })
+
+  if (result.error) {
+    throw new Error(`Resend error: ${result.error.message}`)
+  }
+
+  return { id: result.data?.id }
+}
