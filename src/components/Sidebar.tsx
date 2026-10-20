@@ -23,6 +23,7 @@ import {
   Shield,
   UserCheck,
   Mail,
+  Inbox,
   Menu,
   X,
 } from 'lucide-react'
@@ -33,6 +34,7 @@ import BrandMark from './BrandMark'
 // Super Admin nav (Louis only - platform control)
 const superAdminNavItems = [
   { name: 'Platform', href: '/platform', icon: Shield },
+  { name: 'Enquiries', href: '/enquiries', icon: Inbox },
   { name: 'Companies', href: '/platform/companies', icon: Building2 },
   { name: 'Trainers', href: '/platform/trainers', icon: UserCheck },
   { name: 'Emails', href: '/platform/emails', icon: Mail },
@@ -44,6 +46,7 @@ const companyAdminNavItems = [
   { name: 'Dashboard', href: '/dashboard', icon: LayoutDashboard },
   { name: 'Trainers', href: '/company/trainers', icon: UserCheck },
   { name: 'All Clients', href: '/company/clients', icon: Users },
+  { name: 'Enquiries', href: '/enquiries', icon: Inbox },
   { name: 'Programs', href: '/programs', icon: Dumbbell },
   { name: 'Settings', href: '/settings', icon: Settings },
 ]
@@ -52,6 +55,7 @@ const companyAdminNavItems = [
 const trainerNavItems = [
   { name: 'Dashboard', href: '/dashboard', icon: LayoutDashboard },
   { name: 'Clients', href: '/users', icon: Users },
+  { name: 'Enquiries', href: '/enquiries', icon: Inbox },
   { name: 'Programs', href: '/programs', icon: Dumbbell },
   { name: 'Nutrition', href: '/nutrition', icon: Apple },
   { name: 'Settings', href: '/settings', icon: Settings },
@@ -61,6 +65,7 @@ const trainerNavItems = [
 const soloTrainerNavItems = [
   { name: 'Dashboard', href: '/dashboard', icon: LayoutDashboard },
   { name: 'Clients', href: '/users', icon: Users },
+  { name: 'Enquiries', href: '/enquiries', icon: Inbox },
   { name: 'Programs', href: '/programs', icon: Dumbbell },
   { name: 'Nutrition', href: '/nutrition', icon: Apple },
   { name: 'Billing', href: '/billing', icon: CreditCard },
