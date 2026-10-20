@@ -56,17 +56,20 @@ alter table public.intake_submissions enable row level security;
 -- directly if a later page queries from the browser. There is deliberately no
 -- policy for anon: nothing on the public internet can read this table.
 --
--- Both predicates are wrapped in a sub-select so Postgres evaluates them once
--- per query as an InitPlan rather than once per row. Unwrapped, this is the
--- difference between ~18ms and ~226ms on the tables we already measured.
+-- The predicate is wrapped in a sub-select so Postgres evaluates it once per
+-- query as an InitPlan rather than once per row. Unwrapped, that is the
+-- difference between ~18ms and ~226ms on the tables already measured here.
+--
+-- Deliberately checks profiles.role directly rather than calling
+-- is_super_admin(): the role list already includes super_admin, and this way
+-- the migration depends on no helper function and can be pasted as is.
 drop policy if exists "Staff read intake submissions"   on public.intake_submissions;
 drop policy if exists "Staff update intake submissions" on public.intake_submissions;
 
 create policy "Staff read intake submissions" on public.intake_submissions
   as permissive for select to authenticated
   using (
-    (select public.is_super_admin())
-    or (select exists (
+    (select exists (
       select 1 from public.profiles p
       where p.id = (select auth.uid())
         and p.role in ('trainer','admin','company_admin','super_admin')
@@ -76,8 +79,7 @@ create policy "Staff read intake submissions" on public.intake_submissions
 create policy "Staff update intake submissions" on public.intake_submissions
   as permissive for update to authenticated
   using (
-    (select public.is_super_admin())
-    or (select exists (
+    (select exists (
       select 1 from public.profiles p
       where p.id = (select auth.uid())
         and p.role in ('trainer','admin','company_admin','super_admin')
