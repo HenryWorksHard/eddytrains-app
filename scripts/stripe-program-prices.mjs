@@ -22,7 +22,7 @@
 import Stripe from 'stripe'
 import fs from 'node:fs'
 
-const RATE_PER_WEEK = 15 // AUD
+const RATE_PER_WEEK = 20 // AUD
 const CURRENCY = 'aud'
 
 const PROGRAMS = [
