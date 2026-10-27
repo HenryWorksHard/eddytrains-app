@@ -5,16 +5,6 @@ import Link from 'next/link'
 import useSWR from 'swr'
 import { SlideOutMenu, HamburgerButton } from '../components/SlideOutMenu'
 import WorkoutCalendar from '../components/WorkoutCalendar'
-import Pascal, {
-  type PascalColorTheme,
-  type PascalSkinTone,
-  type PascalOutfit,
-  type PascalCharacter,
-  PASCAL_COLOR_KEYS,
-  PASCAL_SKIN_KEYS,
-  PASCAL_OUTFIT_KEYS,
-  PASCAL_CHARACTER_KEYS,
-} from '@/components/Pascal'
 
 interface Workout {
   workoutId: string
@@ -49,11 +39,6 @@ interface DashboardClientProps {
   streak?: number
   longestStreak?: number
   lastProgressPhotoDate?: string | null
-  pascalName?: string | null
-  pascalColor?: string | null
-  pascalSkin?: string | null
-  pascalOutfit?: string | null
-  pascalCharacter?: string | null
 }
 
 type PascalData = { score: number; max: number; stage: number; tier: 1 | 2 | 3 | 4 }
@@ -195,46 +180,32 @@ function CompactTilesRow({
   )
 }
 
-function greetingFor(tier: 1 | 2 | 3 | 4): string {
+/** One word for where the week stands. Said plainly, not in character. */
+function adherenceLabel(tier: 1 | 2 | 3 | 4): string {
   switch (tier) {
     case 1:
-      return "Ugh. Help me out?"
+      return 'Behind'
     case 2:
-      return "Let's go train."
+      return 'Building'
     case 3:
-      return 'Feeling sharp!'
+      return 'On plan'
     case 4:
-      return "Look at us!"
+      return 'Ahead'
   }
 }
 
-export default function DashboardClient({ firstName, workoutsByDay, programCount, completedWorkouts, scheduleByDay, scheduleByWeekAndDay, calendarCompletions, completionsByDate, programStartDate, maxWeek = 1, programWeekMeta, streak = 0, lastProgressPhotoDate = null, pascalName = null, pascalColor = null, pascalSkin = null, pascalOutfit = null, pascalCharacter = null }: DashboardClientProps) {
-  // Customizable mascot — fall back to defaults if user hasn't set values.
-  const buddyName = (pascalName && pascalName.trim()) || 'Pascal'
-  const buddyColor: PascalColorTheme = (pascalColor && (PASCAL_COLOR_KEYS as string[]).includes(pascalColor))
-    ? (pascalColor as PascalColorTheme)
-    : 'yellow'
-  const buddySkin: PascalSkinTone | null = (pascalSkin && (PASCAL_SKIN_KEYS as string[]).includes(pascalSkin))
-    ? (pascalSkin as PascalSkinTone)
-    : null
-  const buddyOutfit: PascalOutfit = (pascalOutfit && (PASCAL_OUTFIT_KEYS as string[]).includes(pascalOutfit))
-    ? (pascalOutfit as PascalOutfit)
-    : 'none'
-  const buddyCharacter: PascalCharacter = (pascalCharacter && (PASCAL_CHARACTER_KEYS as string[]).includes(pascalCharacter))
-    ? (pascalCharacter as PascalCharacter)
-    : 'classic'
+export default function DashboardClient({ firstName, workoutsByDay, programCount, completedWorkouts, scheduleByDay, scheduleByWeekAndDay, calendarCompletions, completionsByDate, programStartDate, maxWeek = 1, programWeekMeta, streak = 0, lastProgressPhotoDate = null }: DashboardClientProps) {
   const completedSet = new Set(completedWorkouts)
   const [mounted, setMounted] = useState(false)
   const [greeting, setGreeting] = useState('Hello')
   const [todayDayOfWeek, setTodayDayOfWeek] = useState(new Date().getDay())
   const [todayDateStr, setTodayDateStr] = useState('')
   const [menuOpen, setMenuOpen] = useState(false)
-  const [showPascalGreeting, setShowPascalGreeting] = useState(false)
-  const [pascalTyped, setPascalTyped] = useState('')
 
-  // Pascal mascot score — cached for 5 minutes alongside the other
-  // client-side SWR calls. Fetched with the user's IANA tz so the
-  // daily rollover aligns with their local midnight.
+  // Weekly adherence — cached for 5 minutes alongside the other client-side
+  // SWR calls, with the user's IANA tz so the rollover matches their midnight.
+  // The endpoint keeps its old name; the mascot it fed is gone, the figure it
+  // computes is the part worth keeping.
   const tz = typeof window !== 'undefined' ? Intl.DateTimeFormat().resolvedOptions().timeZone : 'UTC'
   const { data: pascalData } = useSWR<PascalData>(`/api/pascal?tz=${encodeURIComponent(tz)}`, pascalFetcher, {
     revalidateOnFocus: false,
@@ -277,45 +248,10 @@ export default function DashboardClient({ firstName, workoutsByDay, programCount
     
     // Format date in user's locale
     setTodayDateStr(now.toLocaleDateString(undefined, { day: 'numeric', month: 'long' }))
-
-    // Show Pascal's greeting bubble once per browser session.
-    try {
-      const key = 'cmpd:pascal-greeted'
-      if (!sessionStorage.getItem(key)) {
-        setShowPascalGreeting(true)
-        sessionStorage.setItem(key, '1')
-      }
-    } catch {
-      // sessionStorage unavailable (private mode) — skip.
-    }
   }, [])
 
   // Typewriter reveal: one char every ~35ms until the full line is shown.
   // Then auto-dismiss a few seconds after the last character.
-  useEffect(() => {
-    if (!showPascalGreeting || !pascalData) {
-      setPascalTyped('')
-      return
-    }
-    const full = greetingFor(pascalData.tier)
-    setPascalTyped('')
-    let i = 0
-    const tick = setInterval(() => {
-      i++
-      setPascalTyped(full.slice(0, i))
-      if (i >= full.length) clearInterval(tick)
-    }, 35)
-
-    const dismiss = setTimeout(
-      () => setShowPascalGreeting(false),
-      full.length * 35 + 4000
-    )
-
-    return () => {
-      clearInterval(tick)
-      clearTimeout(dismiss)
-    }
-  }, [showPascalGreeting, pascalData])
 
   const todayWorkouts = workoutsByDay[todayDayOfWeek] || []
   const tomorrowDayOfWeek = (todayDayOfWeek + 1) % 7
@@ -365,107 +301,41 @@ export default function DashboardClient({ firstName, workoutsByDay, programCount
       {/* Header - pure black to seamlessly meet the iOS status bar safe-area strip (body bg = #000). */}
       <header className="relative bg-black border-b border-zinc-800">
         <div className="px-4 pt-14 pb-4">
-          {/* Greeting - Top. Tighter spacing than before so Pascal + workout
-             card sit closer to the fold. */}
+          {/* Greeting - Top. */}
           <div className="text-center mb-2">
             <p className="text-zinc-500 text-xs">{greeting},</p>
             <h1 className="text-xl font-bold text-white leading-tight">{firstName}</h1>
           </div>
 
-          {/* Pascal — fitness-consistency mascot. Compact 96px hero with
-             enough top padding for the speech bubble (-top-7) to sit above
-             his head without colliding with the greeting. */}
-          <div className="flex flex-col items-center mb-3 pt-6">
-            <div className="relative w-[96px] h-[96px] flex items-center justify-center">
-              {pascalData ? (
-                <Pascal
-                  score={pascalData.score}
-                  size={96}
-                  colorTheme={buddyColor}
-                  skinTone={buddySkin}
-                  outfit={buddyOutfit}
-                  character={buddyCharacter}
-                />
-              ) : (
-                <div className="w-[80px] h-[80px] rounded-2xl bg-zinc-800/40 animate-pulse" />
-              )}
-              {/* Speech bubble — floats directly above Pascal's head with a
-                 downward-pointing tail. Centered horizontally and capped at
-                 80vw so it never triggers the sideways-swipe overflow that
-                 the old right-anchored bubble caused on narrow phones. */}
-              {pascalData && showPascalGreeting && (
-                <button
-                  type="button"
-                  onClick={() => setShowPascalGreeting(false)}
-                  className="pascal-bubble absolute left-1/2 -translate-x-1/2 -top-7 max-w-[80vw] whitespace-nowrap text-center bg-white text-black text-xs font-medium leading-snug rounded-full px-3 py-1.5 shadow-lg"
-                  aria-label="Dismiss Pascal's greeting"
-                >
-                  <span>
-                    {pascalTyped}
-                    {pascalTyped.length < greetingFor(pascalData.tier).length && (
-                      <span className="pascal-caret" aria-hidden>
-                        ▎
-                      </span>
-                    )}
-                  </span>
-                  <span className="pascal-bubble-tail" aria-hidden />
-                </button>
-              )}
-            </div>
-            {pascalData && (
-              <div className="text-center mt-1">
-                <p className="text-white text-sm font-semibold truncate max-w-[160px] mx-auto leading-tight">
-                  {buddyName}
-                </p>
-                <p className="text-zinc-500 text-[11px] tabular-nums mt-0.5">
-                  {pascalData.score} / {pascalData.max} · Stage {pascalData.stage}
-                </p>
+          {/* Weekly adherence. The same figure the mascot used to animate:
+             sessions completed in the last seven days against the programmed
+             weekly total, shown as the number it always was. */}
+          {pascalData && (
+            <div className="mb-3 rounded-xl border border-zinc-800 bg-zinc-900/60 px-4 py-3">
+              <div className="flex items-baseline justify-between">
+                <span className="text-[11px] font-medium uppercase tracking-wider text-zinc-500">
+                  This week
+                </span>
+                <span className="text-[11px] font-medium text-zinc-400">
+                  {adherenceLabel(pascalData.tier)}
+                </span>
               </div>
-            )}
-          </div>
-
-          <style jsx>{`
-            @keyframes pascal-bubble-in {
-              0% {
-                opacity: 0;
-                transform: translateY(6px) scale(0.94);
-              }
-              100% {
-                opacity: 1;
-                transform: translateY(0) scale(1);
-              }
-            }
-            .pascal-bubble {
-              animation: pascal-bubble-in 320ms cubic-bezier(0.2, 0.8, 0.2, 1) both;
-              transform-origin: bottom left;
-            }
-            /* Tail points down, under the centered bubble, toward Pascal's head. */
-            .pascal-bubble-tail {
-              position: absolute;
-              left: 50%;
-              transform: translateX(-50%);
-              bottom: -6px;
-              width: 0;
-              height: 0;
-              border-left: 6px solid transparent;
-              border-right: 6px solid transparent;
-              border-top: 7px solid #ffffff;
-            }
-            @keyframes pascal-caret-blink {
-              0%, 50% { opacity: 1; }
-              51%, 100% { opacity: 0; }
-            }
-            .pascal-caret {
-              display: inline-block;
-              margin-left: 1px;
-              animation: pascal-caret-blink 900ms steps(1, end) infinite;
-              color: #52525b;
-            }
-            @media (prefers-reduced-motion: reduce) {
-              .pascal-bubble, .pascal-caret { animation: none; }
-            }
-          `}</style>
-
+              <div className="mt-1.5 flex items-baseline gap-1.5">
+                <span className="text-2xl font-bold tabular-nums text-white">
+                  {pascalData.score}%
+                </span>
+                <span className="text-xs text-zinc-500">of your weekly target</span>
+              </div>
+              {/* Capped at 100 so the bar stays readable; beyond that the
+                 number and the label beside it already say it. */}
+              <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-zinc-800">
+                <div
+                  className="h-full rounded-full bg-yellow-400 transition-[width] duration-500"
+                  style={{ width: `${Math.min(100, Math.max(0, pascalData.score))}%` }}
+                />
+              </div>
+            </div>
+          )}
           {/* Today Banner - compact */}
           <div className="bg-zinc-800/50 rounded-lg px-3 py-2 flex items-center gap-2">
             <div className="w-8 h-8 bg-yellow-400/20 rounded-lg flex items-center justify-center">
