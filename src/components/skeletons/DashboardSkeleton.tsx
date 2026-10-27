@@ -2,7 +2,7 @@
  * Skeleton loader for the client dashboard.
  *
  * Shape mirrors ClientDashboardContent: top bar (hamburger + streak pill),
- * greeting + Pascal hero, "Today's Workout" card, "Tomorrow" row,
+ * greeting + weekly adherence, "Today's Workout" card, "Tomorrow" row,
  * 2-col Goal+Photo tiles, and the month calendar.
  *
  * BottomNav lives in the page itself, not the layout, so we omit it here —
@@ -23,7 +23,7 @@ export default function DashboardSkeleton() {
         </div>
       </div>
 
-      {/* Hero: greeting + Pascal + score */}
+      {/* Hero: greeting + weekly adherence */}
       <div className="px-4 pt-6 pb-4 flex flex-col items-center gap-3">
         <div className="h-5 w-40 bg-zinc-800 animate-pulse rounded" />
         <div className="w-[120px] h-[120px] bg-zinc-800 animate-pulse rounded-2xl" />

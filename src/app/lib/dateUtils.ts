@@ -54,3 +54,20 @@ export function getDaysAgoString(days: number): string {
   date.setDate(date.getDate() - days)
   return formatDateToString(date)
 }
+
+/**
+ * Today as YYYY-MM-DD in a given IANA timezone.
+ *
+ * Needed wherever "what day is it for this user" has to agree between the
+ * server and a phone in another timezone — a workout logged at 11pm in
+ * Adelaide must not land on tomorrow's date because the server is in UTC.
+ * That mismatch is what produced duplicate session logs in September.
+ */
+export function todayInTz(tz: string): string {
+  const now = new Date().toLocaleString('en-US', { timeZone: tz })
+  const d = new Date(now)
+  const y = d.getFullYear()
+  const m = String(d.getMonth() + 1).padStart(2, '0')
+  const dd = String(d.getDate()).padStart(2, '0')
+  return `${y}-${m}-${dd}`
+}

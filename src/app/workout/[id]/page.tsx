@@ -6,7 +6,7 @@ import BackButton from '../../components/BackButton'
 import CompleteWorkoutButton from './CompleteWorkoutButton'
 import WorkoutClient from './WorkoutClient'
 import { estimateOneRm } from '../../lib/tonnage'
-import { todayInTz } from '@/app/lib/pascal'
+import { todayInTz } from '@/app/lib/dateUtils'
 
 // Cache for 30 seconds
 export const revalidate = 30

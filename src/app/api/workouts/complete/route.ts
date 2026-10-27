@@ -1,7 +1,6 @@
 import { getVerifiedUser } from '@/app/lib/auth-claims'
 import { createClient } from '../../../lib/supabase/server'
 import { NextRequest, NextResponse } from 'next/server'
-import { recomputeAndPersistPascal } from '../../../lib/pascal-server'
 import { formatDateToString, parseLocalDate } from '../../../lib/dateUtils'
 import { entitlementOrFilter } from '@/app/lib/entitlements'
 
@@ -203,17 +202,8 @@ export async function POST(request: NextRequest) {
     // Don't fail the request if streak update fails
   }
 
-  // Bring Pascal up to date so the dashboard reflects the bump instantly
-  // when the user returns. Any decay/missed-day penalties between
-  // last_processed_date and today are applied alongside the new +10.
-  let pascal = null
-  try {
-    pascal = await recomputeAndPersistPascal(supabase, user.id, tz || 'UTC')
-  } catch (pascalError) {
-    console.error('Error updating Pascal score:', pascalError)
-  }
 
-  return NextResponse.json({ success: true, completion: data, pascal })
+  return NextResponse.json({ success: true, completion: data })
 }
 
 export async function GET(request: NextRequest) {

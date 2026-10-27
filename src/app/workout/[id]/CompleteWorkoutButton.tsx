@@ -306,17 +306,14 @@ export default function CompleteWorkoutButton({
         })
         if (!response.ok) throw new Error('Failed to complete workout')
 
-        // Push the updated Pascal score into SWR and force the dashboard to
-        // refetch, so today's completion shows the moment they land there.
-        try {
-          const result = await response.clone().json()
-          if (result?.pascal) {
-            mutate(`/api/pascal?tz=${encodeURIComponent(tz)}`, result.pascal, false)
-          }
-        } catch {
-          // Response may not be JSON in edge failure modes; ignore.
-        }
-        mutate((key) => typeof key === 'string' && key.startsWith('/api/dashboard'))
+        // Drop the dashboard and the adherence figure so today's completion
+        // shows the moment they land there. Both are recomputed on request,
+        // so invalidating is enough — there is nothing to hand them.
+        mutate(
+          (key) =>
+            typeof key === 'string' &&
+            (key.startsWith('/api/dashboard') || key.startsWith('/api/adherence')),
+        )
         return true
       } catch (error) {
         console.error('Failed to complete workout:', error)

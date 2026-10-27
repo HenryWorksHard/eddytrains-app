@@ -47,7 +47,7 @@ export async function GET(request: NextRequest) {
   ] = await Promise.all([
     supabase
       .from('profiles')
-      .select('full_name, pascal_name, pascal_color, pascal_skin, pascal_outfit, pascal_character')
+      .select('full_name')
       .eq('id', user.id)
       .single(),
 
@@ -447,11 +447,5 @@ export async function GET(request: NextRequest) {
     scheduledDays: Array.from(scheduledDays),
     // Progress photo prompt state
     lastProgressPhotoDate: (latestPhotoResult.data?.created_at as string | null) || null,
-    // Pascal customization — null fields fall back to defaults client-side.
-    pascalName: (profile?.pascal_name as string | null) || null,
-    pascalColor: (profile?.pascal_color as string | null) || null,
-    pascalSkin: (profile?.pascal_skin as string | null) || null,
-    pascalOutfit: (profile?.pascal_outfit as string | null) || null,
-    pascalCharacter: (profile?.pascal_character as string | null) || null,
   })
 }
