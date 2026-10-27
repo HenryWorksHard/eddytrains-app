@@ -23,11 +23,23 @@ export default function DashboardSkeleton() {
         </div>
       </div>
 
-      {/* Hero: greeting + weekly adherence */}
-      <div className="px-4 pt-6 pb-4 flex flex-col items-center gap-3">
-        <div className="h-5 w-40 bg-zinc-800 animate-pulse rounded" />
-        <div className="w-[120px] h-[120px] bg-zinc-800 animate-pulse rounded-2xl" />
-        <div className="h-4 w-32 bg-zinc-800 animate-pulse rounded" />
+      {/* Hero: greeting + the weekly adherence card.
+         Mirrors the real one's shape — a centred greeting over a full-width
+         bordered card — so the hand-off does not move anything. The 120px
+         square here used to stand in for the mascot; there is no mascot. */}
+      <div className="px-4 pt-6 pb-4">
+        <div className="flex flex-col items-center gap-1.5 mb-3">
+          <div className="h-3 w-20 bg-zinc-800 animate-pulse rounded" />
+          <div className="h-6 w-28 bg-zinc-800 animate-pulse rounded" />
+        </div>
+        <div className="rounded-xl border border-zinc-800 bg-zinc-900/60 px-4 py-3">
+          <div className="flex items-center justify-between">
+            <div className="h-3 w-16 bg-zinc-800 animate-pulse rounded" />
+            <div className="h-3 w-12 bg-zinc-800 animate-pulse rounded" />
+          </div>
+          <div className="mt-1.5 h-7 w-32 bg-zinc-800 animate-pulse rounded" />
+          <div className="mt-2 h-1.5 w-full bg-zinc-800 animate-pulse rounded-full" />
+        </div>
       </div>
 
       <main className="px-4 pb-6 space-y-6">
