@@ -8,7 +8,7 @@
  * change is a Stripe-side job with no code change and no deploy, and there is
  * no list of ids to keep in sync with anything.
  *
- * Prices are $15 AUD per week of programming.
+ * Prices are $19.99 AUD per week, rounded to a .99 ending.
  *
  *   Test run:   node scripts/stripe-program-prices.mjs --key sk_test_...
  *   Dry run:    node scripts/stripe-program-prices.mjs --dry
@@ -22,16 +22,20 @@
 import Stripe from 'stripe'
 import fs from 'node:fs'
 
-const RATE_PER_WEEK = 20 // AUD
+const RATE_PER_WEEK = 19.99 // AUD
 const CURRENCY = 'aud'
 
+// Priced at the weekly rate, then rounded to a .99 ending so each one reads as
+// a price rather than the output of a multiplication. 8 x 19.99 is 159.92; we
+// charge 159.99. Never more than 12c from the exact figure. These must match
+// cmpd-landing/app/programs.ts, which is what the buyer is shown.
 const PROGRAMS = [
-  { slug: 'shoulder',   name: 'Shoulder Strength',          weeks: 8 },
-  { slug: 'lower-back', name: 'Lower Back Strength',        weeks: 8 },
-  { slug: 'knee',       name: 'Knee Strength',              weeks: 10 },
-  { slug: 'hip',        name: 'Hip & Glute Strength',       weeks: 8 },
-  { slug: 'neck',       name: 'Neck & Upper Back Strength', weeks: 6 },
-  { slug: 'return',     name: 'Return to Training',         weeks: 12 },
+  { slug: 'shoulder',   name: 'Shoulder Strength',          weeks: 8,  price: 159.99 },
+  { slug: 'lower-back', name: 'Lower Back Strength',        weeks: 8,  price: 159.99 },
+  { slug: 'knee',       name: 'Knee Strength',              weeks: 10, price: 199.99 },
+  { slug: 'hip',        name: 'Hip & Glute Strength',       weeks: 8,  price: 159.99 },
+  { slug: 'neck',       name: 'Neck & Upper Back Strength', weeks: 6,  price: 119.99 },
+  { slug: 'return',     name: 'Return to Training',         weeks: 12, price: 239.99 },
 ]
 
 const args = process.argv.slice(2)
@@ -72,13 +76,15 @@ if (live && !has('--live') && !dry) {
 const stripe = new Stripe(key)
 const lookupKey = (slug) => `cmpd_program_${slug}`
 
-console.log(`${dry ? 'DRY RUN' : live ? 'LIVE MODE' : 'TEST MODE'} — $${RATE_PER_WEEK} ${CURRENCY.toUpperCase()} per week\n`)
+console.log(`${dry ? 'DRY RUN' : live ? 'LIVE MODE' : 'TEST MODE'} — $${RATE_PER_WEEK} ${CURRENCY.toUpperCase()} per week, rounded to .99\n`)
 console.log('program                 weeks   price   per session   action')
 console.log('-'.repeat(68))
 
 for (const p of PROGRAMS) {
-  const dollars = p.weeks * RATE_PER_WEEK
-  const cents = dollars * 100
+  const dollars = p.price
+  // Rounded, because 159.99 * 100 is 15998.999999999998 in floating point and
+  // Stripe would be handed the wrong amount.
+  const cents = Math.round(dollars * 100)
   const perSession = (dollars / (p.weeks * 4)).toFixed(2)
   const lk = lookupKey(p.slug)
 
@@ -121,7 +127,7 @@ for (const p of PROGRAMS) {
 
   console.log(
     `${p.name.padEnd(24)}${String(p.weeks).padStart(4)}   ` +
-    `$${String(dollars).padEnd(6)}$${perSession.padEnd(13)}${action}`,
+    `$${String(dollars).padEnd(8)}$${perSession.padEnd(13)}${action}`,
   )
 }
 
