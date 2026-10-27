@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react'
 import Link from 'next/link'
 import useSWR from 'swr'
+import { adherenceLabel, type Adherence } from '@/app/lib/adherence'
 import { SlideOutMenu, HamburgerButton } from '../components/SlideOutMenu'
 import WorkoutCalendar from '../components/WorkoutCalendar'
 
@@ -41,10 +42,9 @@ interface DashboardClientProps {
   lastProgressPhotoDate?: string | null
 }
 
-type PascalData = { score: number; max: number; stage: number; tier: 1 | 2 | 3 | 4 }
-const pascalFetcher = (url: string): Promise<PascalData> =>
+const adherenceFetcher = (url: string): Promise<{ adherence: Adherence | null }> =>
   fetch(url).then((r) => {
-    if (!r.ok) throw new Error('pascal fetch failed')
+    if (!r.ok) throw new Error('adherence fetch failed')
     return r.json()
   })
 
@@ -180,19 +180,6 @@ function CompactTilesRow({
   )
 }
 
-/** One word for where the week stands. Said plainly, not in character. */
-function adherenceLabel(tier: 1 | 2 | 3 | 4): string {
-  switch (tier) {
-    case 1:
-      return 'Behind'
-    case 2:
-      return 'Building'
-    case 3:
-      return 'On plan'
-    case 4:
-      return 'Ahead'
-  }
-}
 
 export default function DashboardClient({ firstName, workoutsByDay, programCount, completedWorkouts, scheduleByDay, scheduleByWeekAndDay, calendarCompletions, completionsByDate, programStartDate, maxWeek = 1, programWeekMeta, streak = 0, lastProgressPhotoDate = null }: DashboardClientProps) {
   const completedSet = new Set(completedWorkouts)
@@ -203,11 +190,9 @@ export default function DashboardClient({ firstName, workoutsByDay, programCount
   const [menuOpen, setMenuOpen] = useState(false)
 
   // Weekly adherence — cached for 5 minutes alongside the other client-side
-  // SWR calls, with the user's IANA tz so the rollover matches their midnight.
-  // The endpoint keeps its old name; the mascot it fed is gone, the figure it
-  // computes is the part worth keeping.
-  const tz = typeof window !== 'undefined' ? Intl.DateTimeFormat().resolvedOptions().timeZone : 'UTC'
-  const { data: pascalData } = useSWR<PascalData>(`/api/pascal?tz=${encodeURIComponent(tz)}`, pascalFetcher, {
+  // SWR calls. Computed fresh server-side on every request, so there is no
+  // watermark to pass and nothing to keep in step.
+  const { data: adherenceData } = useSWR(`/api/adherence`, adherenceFetcher, {
     revalidateOnFocus: false,
     revalidateOnReconnect: false,
     dedupingInterval: 300000,
@@ -307,31 +292,33 @@ export default function DashboardClient({ firstName, workoutsByDay, programCount
             <h1 className="text-xl font-bold text-white leading-tight">{firstName}</h1>
           </div>
 
-          {/* Weekly adherence. The same figure the mascot used to animate:
-             sessions completed in the last seven days against the programmed
-             weekly total, shown as the number it always was. */}
-          {pascalData && (
+          {/* Weekly adherence. Sessions done in the last seven days against
+             what the active program asks for. Renders nothing at all when
+             there is no program to measure against, rather than a zero. */}
+          {adherenceData?.adherence && (
             <div className="mb-3 rounded-xl border border-zinc-800 bg-zinc-900/60 px-4 py-3">
               <div className="flex items-baseline justify-between">
                 <span className="text-[11px] font-medium uppercase tracking-wider text-zinc-500">
                   This week
                 </span>
                 <span className="text-[11px] font-medium text-zinc-400">
-                  {adherenceLabel(pascalData.tier)}
+                  {adherenceLabel(adherenceData.adherence)}
                 </span>
               </div>
               <div className="mt-1.5 flex items-baseline gap-1.5">
                 <span className="text-2xl font-bold tabular-nums text-white">
-                  {pascalData.score}%
+                  {adherenceData.adherence.completed}
                 </span>
-                <span className="text-xs text-zinc-500">of your weekly target</span>
+                <span className="text-xs text-zinc-500">
+                  of {adherenceData.adherence.target} sessions
+                </span>
               </div>
-              {/* Capped at 100 so the bar stays readable; beyond that the
-                 number and the label beside it already say it. */}
+              {/* Capped at 100 so the bar stays readable; past that the label
+                 beside the heading already says they are ahead. */}
               <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-zinc-800">
                 <div
                   className="h-full rounded-full bg-yellow-400 transition-[width] duration-500"
-                  style={{ width: `${Math.min(100, Math.max(0, pascalData.score))}%` }}
+                  style={{ width: `${Math.min(100, Math.max(0, adherenceData.adherence.percent))}%` }}
                 />
               </div>
             </div>

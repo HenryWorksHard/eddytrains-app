@@ -4,7 +4,7 @@
  *
  * Before this existed the rule was scattered across ~10 call sites and they
  * disagreed: /api/programs and /workout/today enforced `end_date`, while the
- * dashboard, log, progress, streak, Pascal and the /programs/[id] access check
+ * dashboard, log, progress, streak, adherence and the /programs/[id] access check
  * only ever checked `is_active`. Same client, same day, different answers.
  *
  * THE RULE — deliberately keyed on `client_programs.source`:
