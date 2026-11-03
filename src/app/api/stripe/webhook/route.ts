@@ -87,6 +87,15 @@ export async function POST(req: Request) {
 }
 
 async function handleCheckoutComplete(session: Stripe.Checkout.Session) {
+  // A one-time program purchase from the website. Handled first and returned,
+  // because everything below this point is about trainer subscriptions and
+  // would reject it for having no organization_id.
+  const programSlug = session.metadata?.program_slug;
+  if (session.mode === 'payment' && programSlug) {
+    await handleProgramPurchase(session, programSlug);
+    return;
+  }
+
   const customerId = session.customer as string;
   const subscriptionId = session.subscription as string;
   const organizationId = session.metadata?.organization_id;
@@ -258,3 +267,61 @@ async function handlePaymentFailed(invoice: Stripe.Invoice) {
   console.log(`Organization ${org.id} payment failed - marked as past_due`);
 }
 // webhook test
+
+/**
+ * Someone bought a program on cmpdcollective.com.
+ *
+ * Stripe has their money and their email. This turns that into an account
+ * with the program on it for the right window, and a link to set a password.
+ *
+ * Throwing here makes Stripe retry, which is what we want for a transient
+ * database failure and emphatically not what we want once the program has
+ * been granted — so fulfilment is written to be safe to run twice and the
+ * email failure inside it is swallowed rather than raised.
+ */
+async function handleProgramPurchase(session: Stripe.Checkout.Session, slug: string) {
+  const email =
+    session.customer_details?.email ?? session.customer_email ?? null;
+
+  if (!email) {
+    console.error('[webhook] program purchase with no email — cannot fulfil', {
+      sessionId: session.id,
+      slug,
+    });
+    return;
+  }
+
+  // Stripe reports the paid date in seconds.
+  const purchaseDate = new Date((session.created ?? Date.now() / 1000) * 1000)
+    .toISOString()
+    .slice(0, 10);
+
+  const { fulfilProgramPurchase } = await import('@/app/lib/fulfil-purchase');
+  const result = await fulfilProgramPurchase(getSupabaseAdmin(), {
+    email,
+    fullName: session.customer_details?.name ?? null,
+    slug,
+    purchaseDate,
+  });
+
+  if (!result.ok) {
+    // Logged with everything needed to finish it by hand, then rethrown so
+    // Stripe retries rather than marking a paid order delivered.
+    console.error('[webhook] program purchase could not be fulfilled', {
+      sessionId: session.id,
+      email,
+      slug,
+      error: result.error,
+    });
+    throw new Error(`Fulfilment failed: ${result.error}`);
+  }
+
+  console.log('[webhook] program purchase fulfilled', {
+    sessionId: session.id,
+    slug,
+    clientId: result.clientId,
+    newAccount: result.created,
+    access: `${result.start_date} to ${result.end_date}`,
+    alreadyHad: result.alreadyHad ?? false,
+  });
+}

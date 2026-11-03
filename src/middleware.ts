@@ -136,7 +136,11 @@ export async function middleware(request: NextRequest) {
   // It is not unauthenticated — the route itself requires a shared secret —
   // but it must not be redirected to /login, because a redirect is a 307 that
   // a caller reads as success.
-  const publicRoutes = ['/login', '/signup', '/api/signup', '/reset-password', '/update-password', '/auth/callback', '/join', '/api/exercises', '/accept-invite', '/api/accept-invite', '/api/auth/send-password-reset', '/api/auth/sign-out-cleanup', '/api/log/client-diagnostic', '/api/intake', '/privacy', '/access-paused']
+  //
+  // /api/checkout/program is public because the buyer has no account yet —
+  // that is the entire point of it. It cannot be abused to set a price: the
+  // amount is resolved from Stripe, never from the request.
+  const publicRoutes = ['/login', '/signup', '/api/signup', '/reset-password', '/update-password', '/auth/callback', '/join', '/api/exercises', '/accept-invite', '/api/accept-invite', '/api/auth/send-password-reset', '/api/auth/sign-out-cleanup', '/api/log/client-diagnostic', '/api/intake', '/api/checkout/program', '/privacy', '/access-paused']
   const isPublicRoute = publicRoutes.some(route => pathname.startsWith(route))
 
   if (!user && !isPublicRoute) {
