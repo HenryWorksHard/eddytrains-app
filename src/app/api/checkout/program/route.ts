@@ -77,8 +77,11 @@ export async function POST(req: Request) {
       metadata: { program_slug: slug },
       payment_intent_data: { metadata: { program_slug: slug } },
       ...(body.email ? { customer_email: String(body.email).trim() } : {}),
-      success_url: `${SITE}/welcome?session_id={CHECKOUT_SESSION_ID}`,
-      cancel_url: `${SITE}/quiz`,
+      // Per-program welcome, so what they read after paying is about the
+      // thing they just bought. Cancelling returns to the sales page they
+      // came from rather than the top of the quiz.
+      success_url: `${SITE}/welcome/${slug}?session_id={CHECKOUT_SESSION_ID}`,
+      cancel_url: `${SITE}/program/${slug}`,
     })
 
     if (!session.url) {
