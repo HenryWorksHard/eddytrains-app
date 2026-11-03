@@ -75,19 +75,18 @@ export default function LogoUpload({ organizationId, currentLogoUrl }: LogoUploa
       const croppedBlob = await cropToSquare(file)
       
       // Generate unique filename
-      const fileName = `${organizationId}-logo-${Date.now()}.png`
-      const filePath = `logos/${fileName}`
+      const filePath = `${organizationId}/logo-${Date.now()}.png`
 
       // Upload to storage
       const { error: uploadError } = await supabase.storage
-        .from('organization-assets')
+        .from('logos')
         .upload(filePath, croppedBlob, { upsert: true, contentType: 'image/png' })
 
       if (uploadError) throw uploadError
 
       // Get public URL
       const { data: { publicUrl } } = supabase.storage
-        .from('organization-assets')
+        .from('logos')
         .getPublicUrl(filePath)
 
       // Update organization record
@@ -118,10 +117,10 @@ export default function LogoUpload({ organizationId, currentLogoUrl }: LogoUploa
 
     try {
       // Extract file path from URL
-      const urlParts = logoUrl.split('/organization-assets/')
+      const urlParts = logoUrl.split('/logos/')
       if (urlParts[1]) {
         await supabase.storage
-          .from('organization-assets')
+          .from('logos')
           .remove([urlParts[1]])
       }
 

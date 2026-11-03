@@ -72,11 +72,48 @@ const soloTrainerNavItems = [
   { name: 'Settings', href: '/settings', icon: Settings },
 ]
 
+/**
+ * The organisation's mark in the sidebar.
+ *
+ * Shows the uploaded logo to everyone in the org, not just whoever uploaded
+ * it — /api/me returns it for any member. The gradient initial is only a
+ * fallback for an org that has not uploaded one, and for a logo URL that
+ * fails to load, which is why onError clears it rather than leaving a
+ * broken image in the corner of every page.
+ */
+function OrgMark({ name, logoUrl, size }: { name: string; logoUrl: string | null; size: 'sm' | 'md' }) {
+  const [broken, setBroken] = useState(false)
+  const box = size === 'md' ? 'w-10 h-10 rounded-xl' : 'w-7 h-7 rounded-md shrink-0'
+
+  if (logoUrl && !broken) {
+    return (
+      <div className={`${box} overflow-hidden bg-black`}>
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img
+          src={logoUrl}
+          alt={name}
+          className="w-full h-full object-contain"
+          onError={() => setBroken(true)}
+        />
+      </div>
+    )
+  }
+  return (
+    <div className={`${box} bg-gradient-to-br from-yellow-400 to-yellow-500 flex items-center justify-center`}>
+      <span className={`text-black font-bold${size === 'sm' ? ' text-xs' : ''}`}>
+        {name.charAt(0).toUpperCase()}
+      </span>
+    </div>
+  )
+}
+
 const ROLE_CACHE_KEY = 'cmpd:sidebar-cache'
 
 type CachedSidebarState = {
   role: string
   orgName: string
+  // Optional, because a cache written before logos existed will not have it.
+  orgLogoUrl?: string | null
   isSoloTrainer: boolean
   isImpersonating: boolean
   impersonatedOrgName: string
@@ -109,6 +146,7 @@ export default function Sidebar() {
   const [userRole, setUserRole] = useState<string>(cached?.role || 'trainer')
   const [isSoloTrainer, setIsSoloTrainer] = useState(cached?.isSoloTrainer ?? false)
   const [orgName, setOrgName] = useState<string>(cached?.orgName || 'CMPD')
+  const [orgLogoUrl, setOrgLogoUrl] = useState<string | null>(cached?.orgLogoUrl ?? null)
   const [isImpersonating, setIsImpersonating] = useState(cached?.isImpersonating ?? false)
   const [impersonatedOrgName, setImpersonatedOrgName] = useState<string>(cached?.impersonatedOrgName || '')
   const [isTrialing, setIsTrialing] = useState(false)
@@ -137,12 +175,14 @@ export default function Sidebar() {
         const data = await response.json()
         const nextRole = data.role || 'trainer'
         const nextOrgName = data.orgName || 'CMPD'
+        const nextOrgLogoUrl = data.orgLogoUrl ?? null
         const nextSolo = data.role === 'trainer' ? !data.companyId : false
         const nextImpersonating = !!data.impersonating
         const nextImpersonatedOrgName = data.impersonating?.orgName || ''
 
         setUserRole(nextRole)
         setOrgName(nextOrgName)
+        setOrgLogoUrl(nextOrgLogoUrl)
         setIsSoloTrainer(nextSolo)
         setIsImpersonating(nextImpersonating)
         setImpersonatedOrgName(nextImpersonatedOrgName)
@@ -154,6 +194,7 @@ export default function Sidebar() {
             JSON.stringify({
               role: nextRole,
               orgName: nextOrgName,
+              orgLogoUrl: nextOrgLogoUrl,
               isSoloTrainer: nextSolo,
               isImpersonating: nextImpersonating,
               impersonatedOrgName: nextImpersonatedOrgName,
@@ -250,11 +291,11 @@ export default function Sidebar() {
             {userRole === 'super_admin' && !isImpersonating ? (
               <BrandMark size="md" />
             ) : (
-              <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-yellow-400 to-yellow-500 flex items-center justify-center">
-                <span className="text-black font-bold">
-                  {isImpersonating ? impersonatedOrgName.charAt(0).toUpperCase() : orgName.charAt(0).toUpperCase()}
-                </span>
-              </div>
+              <OrgMark
+                name={isImpersonating ? impersonatedOrgName : orgName}
+                logoUrl={orgLogoUrl}
+                size="md"
+              />
             )}
             <div>
               <h1 className="font-bold text-white truncate max-w-[140px]">
@@ -385,11 +426,11 @@ export default function Sidebar() {
               {userRole === 'super_admin' && !isImpersonating ? (
                 <BrandMark size="sm" />
               ) : (
-                <div className="w-7 h-7 rounded-md bg-gradient-to-br from-yellow-400 to-yellow-500 flex items-center justify-center shrink-0">
-                  <span className="text-black font-bold text-xs">
-                    {isImpersonating ? impersonatedOrgName.charAt(0).toUpperCase() : orgName.charAt(0).toUpperCase()}
-                  </span>
-                </div>
+                <OrgMark
+                  name={isImpersonating ? impersonatedOrgName : orgName}
+                  logoUrl={orgLogoUrl}
+                  size="sm"
+                />
               )}
             </Link>
           ) : (

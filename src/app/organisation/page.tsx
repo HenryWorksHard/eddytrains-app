@@ -118,18 +118,20 @@ export default function OrganisationPage() {
 
     setUploading(true)
     try {
-      const fileExt = logoFile.name.split('.').pop()
-      const fileName = `${organisation.id}-logo.${fileExt}`
-      const filePath = `logos/${fileName}`
+      // The 'logos' bucket, foldered by org id. 'organization-assets' was
+      // empty: every logo anyone has ever uploaded is in here, including the
+      // one already on Eddy's org, so this is where the code belongs too.
+      const fileExt = (logoFile.name.split('.').pop() || 'png').toLowerCase()
+      const filePath = `${organisation.id}/logo-${Date.now()}.${fileExt}`
 
       const { error: uploadError } = await supabase.storage
-        .from('organization-assets')
-        .upload(filePath, logoFile, { upsert: true })
+        .from('logos')
+        .upload(filePath, logoFile, { upsert: true, contentType: logoFile.type || undefined })
 
       if (uploadError) throw uploadError
 
       const { data: { publicUrl } } = supabase.storage
-        .from('organization-assets')
+        .from('logos')
         .getPublicUrl(filePath)
 
       return publicUrl
