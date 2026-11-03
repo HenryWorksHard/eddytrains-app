@@ -62,13 +62,17 @@ export async function GET() {
 
     // Resolve the effective org's display name
     let orgName = 'CMPD'
+    let orgLogoUrl: string | null = null
     if (effectiveOrgId) {
       const { data: org } = await adminClient
         .from('organizations')
-        .select('name')
+        .select('name, logo_url')
         .eq('id', effectiveOrgId)
         .single()
       if (org?.name) orgName = org.name
+      // Everyone in the org gets this, not just whoever uploaded it. The
+      // sidebar falls back to the first letter only when it is null.
+      orgLogoUrl = org?.logo_url ?? null
     }
 
     return NextResponse.json({
@@ -82,6 +86,7 @@ export async function GET() {
       companyId: profile.company_id,
       fullName: profile.full_name,
       orgName,
+      orgLogoUrl,
       impersonating,
     })
   } catch (error) {
