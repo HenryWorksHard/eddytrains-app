@@ -1,0 +1,23 @@
+{
+  "applinks": {
+    "details": [
+      {
+        "appIDs": ["2CBUGCKX8C.com.eddytrains.app"],
+        "components": [
+          {
+            "/": "/update-password*",
+            "comment": "Password reset flow — deep-link into the app so the recovery-session tokens land in the Capacitor WebView instead of Safari."
+          },
+          {
+            "/": "/accept-invite*",
+            "comment": "Invite acceptance flow — new clients tap the email link and land inside the app to set their password."
+          },
+          {
+            "/": "/reset-password*",
+            "comment": "Forgot-password request page — if the client bookmarked it or received it via support link."
+          }
+        ]
+      }
+    ]
+  }
+}

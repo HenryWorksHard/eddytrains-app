@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from "next";
 import "./globals.css";
 import { ThemeProvider } from "@/components/ThemeProvider";
+import DeepLinkHandler from "./components/DeepLinkHandler";
 
 export const metadata: Metadata = {
   title: "CMPD Fitness",
@@ -50,6 +51,7 @@ export default function RootLayout({
       </head>
       <body className="antialiased min-h-screen">
         <ThemeProvider>
+          <DeepLinkHandler />
           {children}
         </ThemeProvider>
       </body>
