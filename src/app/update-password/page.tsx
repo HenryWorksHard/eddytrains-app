@@ -194,7 +194,7 @@ function UpdatePasswordForm() {
       <div className="w-full max-w-md">
         {/* Header - Industrial Minimal */}
         <div className="text-center mb-8">
-          <h1 className="text-4xl font-bold text-white tracking-widest mb-2" style={{ fontFamily: 'Sora, sans-serif' }}>
+          <h1 className="text-4xl font-bold text-white tracking-widest mb-2" style={{ fontFamily: 'var(--font-sora), sans-serif' }}>
             {isRequired ? 'SET PASSWORD' : 'UPDATE PASSWORD'}
           </h1>
           <div className="w-12 h-1 bg-yellow-400 mx-auto mb-4"></div>

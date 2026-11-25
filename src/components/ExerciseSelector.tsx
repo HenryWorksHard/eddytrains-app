@@ -1,8 +1,11 @@
 'use client'
 
-import { useState, useEffect, useRef } from 'react'
-import { Search, X, Dumbbell, ChevronDown, Check, Layers, Loader2 } from 'lucide-react'
-import exercisesData from '@/data/exercises.json' // Fallback data
+import { useState, useEffect, useRef, useMemo, useCallback } from 'react'
+import { Search, X, Dumbbell, ChevronDown, Check, Layers, Loader2, AlertTriangle } from 'lucide-react'
+import {
+  MUSCLE_GROUPS, EQUIPMENT_GROUPS, matchesMuscleGroup, matchesEquipmentGroup,
+  type FilterGroup,
+} from '@/data/exercise-filters'
 
 interface Exercise {
   id: string
@@ -24,18 +27,55 @@ interface ExerciseSelectorProps {
   programType?: string // 'strength' | 'cardio' | 'hyrox' | 'hybrid'
 }
 
-const categoryColors: Record<string, string> = {
+// Keyed by muscle-group id, not by `category`. The badge used to read
+// `exercise.category` against these keys, but the library's category column
+// holds the exercise TYPE ("strength" for 1,296 of 1,463 rows), so almost
+// every badge fell through to the grey default and said "strength". The body
+// part is the useful thing to see while scanning a list, and it comes from
+// primaryMuscles.
+const groupColors: Record<string, string> = {
   chest: 'bg-red-500/20 text-red-400 border-red-500/30',
   back: 'bg-blue-500/20 text-blue-400 border-blue-500/30',
   shoulders: 'bg-purple-500/20 text-purple-400 border-purple-500/30',
   biceps: 'bg-pink-500/20 text-pink-400 border-pink-500/30',
   triceps: 'bg-orange-500/20 text-orange-400 border-orange-500/30',
   forearms: 'bg-amber-500/20 text-amber-400 border-amber-500/30',
-  legs: 'bg-green-500/20 text-green-400 border-green-500/30',
+  quads: 'bg-green-500/20 text-green-400 border-green-500/30',
+  hamstrings: 'bg-lime-500/20 text-lime-400 border-lime-500/30',
+  calves: 'bg-teal-500/20 text-teal-400 border-teal-500/30',
   glutes: 'bg-rose-500/20 text-rose-400 border-rose-500/30',
   core: 'bg-yellow-500/20 text-yellow-400 border-yellow-500/30',
+  neck: 'bg-sky-500/20 text-sky-400 border-sky-500/30',
   fullbody: 'bg-cyan-500/20 text-cyan-400 border-cyan-500/30',
   cardio: 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30',
+}
+
+// The library is the same for everybody and only changes through a migration,
+// so it is fetched once per page load rather than once per modal. Building a
+// six-day program means opening this picker a few dozen times, and each open
+// used to re-download and re-parse ~470 KB of JSON.
+let libraryCache: Exercise[] | null = null
+let libraryRequest: Promise<Exercise[]> | null = null
+
+function loadLibrary(): Promise<Exercise[]> {
+  if (libraryCache) return Promise.resolve(libraryCache)
+  // A second modal opening mid-flight joins the first request instead of
+  // starting another one.
+  libraryRequest ??= fetch('/api/exercises')
+    .then(async (res) => {
+      if (!res.ok) throw new Error(`Exercise library returned ${res.status}`)
+      const data = await res.json()
+      if (!data.exercises?.length) throw new Error('Exercise library came back empty')
+      libraryCache = data.exercises as Exercise[]
+      return libraryCache
+    })
+    .finally(() => { libraryRequest = null })
+  return libraryRequest
+}
+
+/** The muscle group an exercise belongs to, for the badge in the list. */
+function groupOf(ex: Exercise): FilterGroup | undefined {
+  return MUSCLE_GROUPS.find((g) => matchesMuscleGroup(ex.primaryMuscles, g.id))
 }
 
 // Format muscle names: "front_delts" -> "Front Delts"
@@ -48,44 +88,40 @@ function formatMuscleName(muscle: string): string {
 
 export default function ExerciseSelector({ onSelect, onSelectSuperset, onClose, allowSuperset = true, programType }: ExerciseSelectorProps) {
   const [search, setSearch] = useState('')
-  const [selectedCategory, setSelectedCategory] = useState<string | null>(null)
+  const [selectedGroup, setSelectedGroup] = useState<string | null>(null)
   const [selectedEquipment, setSelectedEquipment] = useState<string | null>(null)
   const [isSupersetMode, setIsSupersetMode] = useState(false)
   const [selectedExercises, setSelectedExercises] = useState<Exercise[]>([])
   const [showAllExercises, setShowAllExercises] = useState(false)
-  const [exercises, setExercises] = useState<Exercise[]>([])
-  const [loading, setLoading] = useState(true)
+  // Seeded from the cache so a second open paints the list on the first
+  // frame instead of flashing a spinner.
+  const [exercises, setExercises] = useState<Exercise[]>(() => libraryCache ?? [])
+  const [loading, setLoading] = useState(() => libraryCache === null)
+  const [loadError, setLoadError] = useState(false)
   const modalRef = useRef<HTMLDivElement>(null)
   const searchRef = useRef<HTMLInputElement>(null)
 
-  // Use fallback data for categories and equipment
-  const categories = exercisesData.categories
-  const equipment = exercisesData.equipment
-
-  // Fetch exercises from Supabase API
-  useEffect(() => {
-    async function fetchExercises() {
-      try {
-        const res = await fetch('/api/exercises')
-        if (res.ok) {
-          const data = await res.json()
-          if (data.exercises?.length > 0) {
-            setExercises(data.exercises)
-          } else {
-            setExercises(exercisesData.exercises as Exercise[])
-          }
-        } else {
-          setExercises(exercisesData.exercises as Exercise[])
-        }
-      } catch (err) {
-        console.error('Failed to fetch exercises, using fallback:', err)
-        setExercises(exercisesData.exercises as Exercise[])
-      } finally {
-        setLoading(false)
-      }
-    }
-    fetchExercises()
+  // There is deliberately no bundled fallback list any more.
+  //
+  // It used to fall back to a 102-exercise seed file whose ids are slugs
+  // ("barbell_bench_press") while everything in the library carries a Supabase
+  // UUID. Picking from that fallback wrote an id into the program that matches
+  // no exercise, so a silent network blip produced a quietly broken program.
+  // Failing visibly with a retry is the safer trade, and it drops 72 KB of
+  // JSON from the bundle.
+  const load = useCallback(() => {
+    setLoadError(false)
+    setLoading(true)
+    loadLibrary()
+      .then(setExercises)
+      .catch((err) => {
+        console.error('Failed to load the exercise library:', err)
+        setLoadError(true)
+      })
+      .finally(() => setLoading(false))
   }, [])
+
+  useEffect(() => { if (libraryCache === null) load() }, [load])
 
   useEffect(() => {
     searchRef.current?.focus()
@@ -97,27 +133,24 @@ export default function ExerciseSelector({ onSelect, onSelectSuperset, onClose, 
     return () => document.removeEventListener('keydown', handleEscape)
   }, [onClose])
 
-  const filteredExercises = exercises.filter((ex) => {
-    const matchesSearch = ex.name.toLowerCase().includes(search.toLowerCase()) ||
-      ex.primaryMuscles.some(m => m.toLowerCase().includes(search.toLowerCase()))
-    const matchesCategory = !selectedCategory || ex.category === selectedCategory
-    const matchesEquipment = !selectedEquipment || ex.equipment.includes(selectedEquipment)
-    
-    // Filter by program type tags if specified and not showing all
-    const matchesProgramType = !programType || showAllExercises || 
-      (ex.tags && ex.tags.includes(programType))
-    
-    return matchesSearch && matchesCategory && matchesEquipment && matchesProgramType
-  })
-  
-  // Count exercises that would show without the tag filter
-  const totalMatchingExercises = exercises.filter((ex) => {
-    const matchesSearch = ex.name.toLowerCase().includes(search.toLowerCase()) ||
-      ex.primaryMuscles.some(m => m.toLowerCase().includes(search.toLowerCase()))
-    const matchesCategory = !selectedCategory || ex.category === selectedCategory
-    const matchesEquipment = !selectedEquipment || ex.equipment.includes(selectedEquipment)
-    return matchesSearch && matchesCategory && matchesEquipment
-  }).length
+  // One pass, memoised. This used to run twice over all 1,463 exercises on
+  // every render, re-lower-casing the search term inside both loops, so each
+  // keystroke did ~6,000 string allocations before painting.
+  const { filteredExercises, totalMatchingExercises } = useMemo(() => {
+    const q = search.trim().toLowerCase()
+    const matching: Exercise[] = []   // ignores the program-type tag filter
+    const shown: Exercise[] = []      // what the list actually renders
+
+    for (const ex of exercises) {
+      if (q && !ex.name.toLowerCase().includes(q) &&
+          !ex.primaryMuscles.some((m) => m.toLowerCase().includes(q))) continue
+      if (selectedGroup && !matchesMuscleGroup(ex.primaryMuscles, selectedGroup)) continue
+      if (selectedEquipment && !matchesEquipmentGroup(ex.equipment, selectedEquipment)) continue
+      matching.push(ex)
+      if (!programType || showAllExercises || ex.tags?.includes(programType)) shown.push(ex)
+    }
+    return { filteredExercises: shown, totalMatchingExercises: matching.length }
+  }, [exercises, search, selectedGroup, selectedEquipment, programType, showAllExercises])
 
   const handleExerciseClick = (exercise: Exercise) => {
     if (isSupersetMode) {
@@ -242,13 +275,13 @@ export default function ExerciseSelector({ onSelect, onSelectSuperset, onClose, 
           <div className="flex gap-3">
             <div className="relative flex-1">
               <select
-                value={selectedCategory || ''}
-                onChange={(e) => setSelectedCategory(e.target.value || null)}
+                value={selectedGroup || ''}
+                onChange={(e) => setSelectedGroup(e.target.value || null)}
                 className="w-full appearance-none px-4 py-2.5 bg-zinc-800 border border-zinc-700 rounded-xl text-white focus:outline-none focus:ring-2 focus:ring-yellow-400 pr-10"
               >
-                <option value="">All Categories</option>
-                {categories.map((cat) => (
-                  <option key={cat.id} value={cat.id}>{cat.label}</option>
+                <option value="">All Muscles</option>
+                {MUSCLE_GROUPS.map((g) => (
+                  <option key={g.id} value={g.id}>{g.label}</option>
                 ))}
               </select>
               <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-5 h-5 text-zinc-500 pointer-events-none" />
@@ -261,8 +294,8 @@ export default function ExerciseSelector({ onSelect, onSelectSuperset, onClose, 
                 className="w-full appearance-none px-4 py-2.5 bg-zinc-800 border border-zinc-700 rounded-xl text-white focus:outline-none focus:ring-2 focus:ring-yellow-400 pr-10"
               >
                 <option value="">All Equipment</option>
-                {equipment.map((eq) => (
-                  <option key={eq.id} value={eq.id}>{eq.label}</option>
+                {EQUIPMENT_GROUPS.map((g) => (
+                  <option key={g.id} value={g.id}>{g.label}</option>
                 ))}
               </select>
               <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-5 h-5 text-zinc-500 pointer-events-none" />
@@ -328,9 +361,14 @@ export default function ExerciseSelector({ onSelect, onSelectSuperset, onClose, 
                         {exercise.name}
                       </h3>
                       <div className="flex flex-wrap gap-2 mt-1">
-                        <span className={`text-xs px-2 py-0.5 rounded-full border ${categoryColors[exercise.category] || 'bg-zinc-700 text-zinc-400'}`}>
-                          {exercise.category}
-                        </span>
+                        {(() => {
+                          const g = groupOf(exercise)
+                          return (
+                            <span className={`text-xs px-2 py-0.5 rounded-full border ${g ? groupColors[g.id] : 'bg-zinc-700 text-zinc-400'}`}>
+                              {g ? g.label : exercise.category}
+                            </span>
+                          )
+                        })()}
                         <span className="text-xs text-zinc-500">
                           {exercise.primaryMuscles.slice(0, 2).map(formatMuscleName).join(', ')}
                         </span>
@@ -345,6 +383,19 @@ export default function ExerciseSelector({ onSelect, onSelectSuperset, onClose, 
             <div className="text-center py-12">
               <Loader2 className="w-12 h-12 text-yellow-400 mx-auto mb-3 animate-spin" />
               <p className="text-zinc-500">Loading exercises...</p>
+            </div>
+          ) : loadError ? (
+            <div className="text-center py-12">
+              <AlertTriangle className="w-12 h-12 text-yellow-400 mx-auto mb-3" />
+              <p className="text-white font-medium">Could not load the exercise library</p>
+              <p className="text-zinc-500 text-sm mt-1">Check your connection and try again.</p>
+              <button
+                type="button"
+                onClick={load}
+                className="mt-4 px-4 py-2 bg-yellow-400 hover:bg-yellow-500 text-black font-medium rounded-lg transition-colors"
+              >
+                Retry
+              </button>
             </div>
           ) : (
             <div className="text-center py-12">

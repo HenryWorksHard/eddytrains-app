@@ -34,7 +34,7 @@ export default function ResetPasswordPage() {
       <div className="min-h-screen flex items-center justify-center bg-black px-6">
         <div className="w-full max-w-sm text-center">
           <div className="text-5xl mb-4">📧</div>
-          <h1 className="text-2xl font-bold text-white tracking-widest mb-2" style={{ fontFamily: 'Sora, sans-serif' }}>CHECK YOUR EMAIL</h1>
+          <h1 className="text-2xl font-bold text-white tracking-widest mb-2" style={{ fontFamily: 'var(--font-sora), sans-serif' }}>CHECK YOUR EMAIL</h1>
           <div className="w-12 h-1 bg-yellow-400 mx-auto mb-4"></div>
           <p className="text-zinc-400 mb-6">
             We sent a password reset link to <span className="text-white">{email}</span>
@@ -54,7 +54,7 @@ export default function ResetPasswordPage() {
     <div className="min-h-screen flex items-center justify-center bg-black px-6">
       <div className="w-full max-w-sm">
         <div className="text-center mb-8">
-          <h1 className="text-3xl font-bold text-white tracking-widest" style={{ fontFamily: 'Sora, sans-serif' }}>RESET PASSWORD</h1>
+          <h1 className="text-3xl font-bold text-white tracking-widest" style={{ fontFamily: 'var(--font-sora), sans-serif' }}>RESET PASSWORD</h1>
           <div className="w-12 h-1 bg-yellow-400 mx-auto mt-3 mb-4"></div>
           <p className="text-zinc-500">Enter your email to receive a reset link</p>
         </div>

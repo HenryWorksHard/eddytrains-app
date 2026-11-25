@@ -41,7 +41,7 @@ export default function AdminUsersPage() {
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-3">
             <Link href="/admin" className="text-zinc-500 hover:text-yellow-400 transition-colors">← Admin</Link>
-            <h1 className="text-xl font-bold text-white tracking-widest" style={{ fontFamily: 'Sora, sans-serif' }}>USERS</h1>
+            <h1 className="text-xl font-bold text-white tracking-widest" style={{ fontFamily: 'var(--font-sora), sans-serif' }}>USERS</h1>
             <div className="w-8 h-1 bg-yellow-400"></div>
           </div>
           {/* Link to admin portal for user management */}

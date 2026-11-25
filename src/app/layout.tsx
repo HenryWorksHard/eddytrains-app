@@ -1,6 +1,20 @@
 import type { Metadata, Viewport } from "next";
+import { Sora } from "next/font/google";
 import "./globals.css";
 import { ThemeProvider } from "@/components/ThemeProvider";
+
+// Self-hosted at build time rather than fetched from Google at runtime.
+// The <link> version cost a DNS lookup, a TLS handshake and two round trips
+// (stylesheet, then the font file) before the headings could paint, on a
+// phone that may be on gym wifi. next/font serves the file from our own
+// origin and inlines the @font-face, so there is no third-party request and
+// no swap from the fallback once it arrives.
+const sora = Sora({
+  subsets: ["latin"],
+  weight: ["400", "600", "700", "800"],
+  variable: "--font-sora",
+  display: "swap",
+});
 
 export const metadata: Metadata = {
   title: "CMPD Fitness",
@@ -40,13 +54,9 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en" suppressHydrationWarning>
+    <html lang="en" className={sora.variable} suppressHydrationWarning>
       <head>
         <script dangerouslySetInnerHTML={{ __html: themeScript }} />
-        <link rel="preconnect" href="https://fonts.googleapis.com" />
-        <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
-        {/* Only Sora is actually referenced (industrial headings on login, reset, update-password, admin). Inter and Space Grotesk were never used — dropped to trim font payload. */}
-        <link href="https://fonts.googleapis.com/css2?family=Sora:wght@400;600;700;800&display=swap" rel="stylesheet" />
       </head>
       <body className="antialiased min-h-screen">
         <ThemeProvider>

@@ -54,7 +54,6 @@ export async function GET() {
       secondaryMuscles: ex.secondary_muscles || ex.secondaryMuscles || [],
       difficulty: ex.difficulty || 'intermediate',
       tags: ex.tags || [],
-      instructions: ex.instructions || '',
       exerciseType: ex.exercise_type || 'strength', // strength, cardio, steps, timed
     }))
     
@@ -62,9 +61,15 @@ export async function GET() {
     // migrations (nothing in the app writes to it), so let Vercel's edge serve
     // it. Fresh for an hour, and a stale copy is served instantly for up to a
     // day while it refreshes in the background.
+    //
+    // `max-age` is what the BROWSER gets, and it was missing. Vercel consumes
+    // s-maxage at the edge and does not pass it on, so the response reached
+    // the browser as a bare `Cache-Control: public` and every navigation
+    // re-fetched half a megabyte. Ten minutes in the browser, with the edge
+    // still authoritative after that.
     return NextResponse.json(
       { exercises: formattedExercises, count: formattedExercises.length },
-      { headers: { 'Cache-Control': 'public, s-maxage=3600, stale-while-revalidate=86400' } }
+      { headers: { 'Cache-Control': 'public, max-age=600, s-maxage=3600, stale-while-revalidate=86400' } }
     )
     
   } catch (error) {
