@@ -40,7 +40,7 @@ export default async function AdminDashboardPage() {
           <div>
             <Link href="/dashboard" className="text-zinc-500 hover:text-yellow-400 text-sm transition-colors">← Back to App</Link>
             <div className="flex items-center gap-3 mt-2">
-              <h1 className="text-2xl font-bold text-white tracking-widest" style={{ fontFamily: 'Sora, sans-serif' }}>CMPD ADMIN</h1>
+              <h1 className="text-2xl font-bold text-white tracking-widest" style={{ fontFamily: 'var(--font-sora), sans-serif' }}>CMPD ADMIN</h1>
               <div className="w-8 h-1 bg-yellow-400"></div>
             </div>
           </div>
