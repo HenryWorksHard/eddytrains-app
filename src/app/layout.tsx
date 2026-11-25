@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from "next";
 import { Sora } from "next/font/google";
 import "./globals.css";
 import { ThemeProvider } from "@/components/ThemeProvider";
+import DeepLinkHandler from "./components/DeepLinkHandler";
 
 // Self-hosted at build time rather than fetched from Google at runtime.
 // The <link> version cost a DNS lookup, a TLS handshake and two round trips
@@ -60,6 +61,7 @@ export default function RootLayout({
       </head>
       <body className="antialiased min-h-screen">
         <ThemeProvider>
+          <DeepLinkHandler />
           {children}
         </ThemeProvider>
       </body>
