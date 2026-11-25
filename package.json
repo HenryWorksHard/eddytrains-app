@@ -6,7 +6,8 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "check:filters": "node --experimental-strip-types --no-warnings scripts/check-exercise-filters.mjs"
   },
   "dependencies": {
     "@capacitor/android": "^8.1.0",

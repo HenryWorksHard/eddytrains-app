@@ -4,7 +4,8 @@ import React, { useState, useMemo } from 'react'
 import { Plus, Minus, Trash2, GripVertical, Dumbbell, ChevronDown, ChevronUp, Copy, Settings2, Layers, RefreshCw } from 'lucide-react'
 import ExerciseSelector from './ExerciseSelector'
 import WorkoutTemplateModal from './WorkoutTemplateModal'
-import exercisesData from '@/data/exercises.json'
+import { INTENSITY_TYPES } from '@/data/exercise-meta'
+import { defaultWeightType as weightTypeFor } from '@/data/exercise-filters'
 import {
   DndContext,
   closestCenter,
@@ -128,25 +129,7 @@ const distanceUnits = [
   { value: 'cal', label: 'calories' },
 ]
 
-function getDefaultWeightType(exerciseId: string): string {
-  const exercise = exercisesData.exercises.find((e: { id: string }) => e.id === exerciseId)
-  if (!exercise) return 'freeweight'
-  
-  const equipment = exercise.equipment || []
-  
-  if (equipment.includes('barbell')) return 'plate_loaded'
-  if (equipment.includes('smith')) return 'smith_machine'
-  if (equipment.includes('dumbbell')) return 'freeweight'
-  if (equipment.includes('cable')) return 'cable'
-  if (equipment.includes('machine')) return 'machine'
-  if (equipment.includes('kettlebell')) return 'kettlebell'
-  if (equipment.includes('bands')) return 'resistance_band'
-  if (equipment.includes('trx')) return 'trx'
-  if (equipment.includes('medicineball')) return 'medicine_ball'
-  if (equipment.includes('bodyweight') || equipment.includes('pullupbar')) return 'bodyweight'
-  
-  return 'freeweight'
-}
+
 
 interface WorkoutExercise {
   id: string
@@ -213,7 +196,7 @@ const finisherCategories = [
   { value: 'hybrid', label: 'Hybrid', icon: 'HY', color: 'purple' },
 ]
 
-const intensityTypes = exercisesData.intensityTypes
+const intensityTypes = INTENSITY_TYPES
 
 function generateId() {
   return Math.random().toString(36).substring(2, 9)
@@ -319,13 +302,6 @@ function createDefaultSet(setNumber: number, weightType: string = 'freeweight', 
     weightType,
     notes: '',
   }
-}
-
-// Helper to check if exercise is cardio-based
-function isCardioExercise(exerciseId: string): boolean {
-  const exercise = exercisesData.exercises.find((e: any) => e.id === exerciseId)
-  if (!exercise) return false
-  return exercise.category === 'cardio' || (exercise.tags && exercise.tags.includes('cardio'))
 }
 
 // Sortable wrapper for workout items - MUST be outside component to prevent remount
@@ -618,11 +594,11 @@ export default function WorkoutBuilder({ workouts, onChange, programType }: Work
     onChange(workouts.filter(w => w.id !== workoutId))
   }
 
-  const addExercise = (workoutId: string, exercise: { id: string; name: string; category: string; exerciseType?: string }) => {
+  const addExercise = (workoutId: string, exercise: { id: string; name: string; category: string; exerciseType?: string; equipment?: string[] }) => {
     const workout = workouts.find(w => w.id === workoutId)
     if (!workout) return
 
-    const defaultWeightType = getDefaultWeightType(exercise.id)
+    const defaultWeightType = weightTypeFor(exercise.equipment)
     const pType = programType || 'strength'
     const exType = exercise.exerciseType // 'strength' | 'cardio' | 'steps' | 'timed'
     
@@ -680,7 +656,7 @@ export default function WorkoutBuilder({ workouts, onChange, programType }: Work
     })
   }
 
-  const addSuperset = (workoutId: string, exercises: { id: string; name: string; category: string; exerciseType?: string }[]) => {
+  const addSuperset = (workoutId: string, exercises: { id: string; name: string; category: string; exerciseType?: string; equipment?: string[] }[]) => {
     const workout = workouts.find(w => w.id === workoutId)
     if (!workout || exercises.length < 2) return
 
@@ -688,7 +664,7 @@ export default function WorkoutBuilder({ workouts, onChange, programType }: Work
     const pType = programType || 'strength'
     
     const newExercises: WorkoutExercise[] = exercises.map((exercise, index) => {
-      const defaultWeightType = getDefaultWeightType(exercise.id)
+      const defaultWeightType = weightTypeFor(exercise.equipment)
       const exType = exercise.exerciseType
       const setCount = (exType === 'steps' || exType === 'timed' || pType === 'hyrox') ? 1 : 3
       return {
@@ -891,11 +867,11 @@ export default function WorkoutBuilder({ workouts, onChange, programType }: Work
     updateWorkout(workoutId, { finisher: undefined })
   }
 
-  const addExerciseToFinisher = (workoutId: string, exercise: { id: string; name: string; category: string; exerciseType?: string }) => {
+  const addExerciseToFinisher = (workoutId: string, exercise: { id: string; name: string; category: string; exerciseType?: string; equipment?: string[] }) => {
     const workout = workouts.find(w => w.id === workoutId)
     if (!workout?.finisher) return
 
-    const defaultWeightType = getDefaultWeightType(exercise.id)
+    const defaultWeightType = weightTypeFor(exercise.equipment)
     const finisherCategory = workout.finisher.category
     const exType = exercise.exerciseType
     const setCount = (exType === 'steps' || exType === 'timed' || finisherCategory === 'hyrox') ? 1 : 3
@@ -919,7 +895,7 @@ export default function WorkoutBuilder({ workouts, onChange, programType }: Work
   }
 
   // Add superset to finisher
-  const addSupersetToFinisher = (workoutId: string, exercises: { id: string; name: string; category: string; exerciseType?: string }[]) => {
+  const addSupersetToFinisher = (workoutId: string, exercises: { id: string; name: string; category: string; exerciseType?: string; equipment?: string[] }[]) => {
     const workout = workouts.find(w => w.id === workoutId)
     if (!workout?.finisher || exercises.length < 2) return
 
@@ -927,7 +903,7 @@ export default function WorkoutBuilder({ workouts, onChange, programType }: Work
     const finisherCategory = workout.finisher.category
 
     const newExercises: WorkoutExercise[] = exercises.map((exercise, index) => {
-      const defaultWeightType = getDefaultWeightType(exercise.id)
+      const defaultWeightType = weightTypeFor(exercise.equipment)
       const exType = exercise.exerciseType
       const setCount = (exType === 'steps' || exType === 'timed' || finisherCategory === 'hyrox') ? 1 : 3
       return {
@@ -951,11 +927,11 @@ export default function WorkoutBuilder({ workouts, onChange, programType }: Work
   }
 
   // Add exercise to warmup section
-  const addWarmupExercise = (workoutId: string, exercise: { id: string; name: string; category: string }) => {
+  const addWarmupExercise = (workoutId: string, exercise: { id: string; name: string; category: string; equipment?: string[] }) => {
     const workout = workouts.find(w => w.id === workoutId)
     if (!workout) return
 
-    const defaultWeightType = getDefaultWeightType(exercise.id)
+    const defaultWeightType = weightTypeFor(exercise.equipment)
     const warmupExercises = workout.warmupExercises || []
 
     const newExercise: WorkoutExercise = {
@@ -1331,7 +1307,7 @@ export default function WorkoutBuilder({ workouts, onChange, programType }: Work
     if (!exercise || !exercise.sets) return null
     const isExpanded = expandedExercises.has(exercise.id)
     const firstSet = exercise.sets[0]
-    const isCardio = exercise.category === 'cardio' || isCardioExercise(exercise.exerciseId) || programType === 'cardio'
+    const isCardio = exercise.category === 'cardio' || programType === 'cardio'
     const isHyrox = programType === 'hyrox'
     const isHybrid = programType === 'hybrid'
     // For hybrid, check the mode of the first set (or default to strength)
