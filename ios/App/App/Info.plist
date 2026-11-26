@@ -40,6 +40,15 @@
 	<true/>
 	<key>UIViewControllerBasedStatusBarAppearance</key>
 	<true/>
+	<!-- Declares the export-compliance exemption so App Store Connect stops
+	     asking on every upload. The app ships no cryptography of its own: there
+	     are no crypto dependencies and no custom algorithms, and the only
+	     encryption in play is the HTTPS that iOS itself provides for talking to
+	     app.cmpdcollective.com and Supabase. That is exactly the exemption this
+	     key describes. If custom crypto is ever added, this must be revisited:
+	     it is a legal declaration, not a convenience setting. -->
+	<key>ITSAppUsesNonExemptEncryption</key>
+	<false/>
 	<key>NSCameraUsageDescription</key>
 	<string>CMPD Fitness may use the camera to take progress photos showing your training results.</string>
 	<key>NSPhotoLibraryUsageDescription</key>
