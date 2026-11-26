@@ -45,21 +45,21 @@
     },
     {
       "n": 4,
-      "headline": "SEE THE WORK STACK UP",
-      "subhead": "Tap through full-screen progress photos and track your goals.",
-      "app_screen": "Full-screen chronological Progress Photos viewer with story-style tap indicators at the top, paired with an active Goals tracking card.",
-      "visual_notes": "Heavy white Sora headline centered at top over pure #000000, zinc grey subhead beneath. Device framed straight-on and bled off the bottom, showing a dated full-screen check-in photo with segmented tap bars at the top and a clean Goals progress card overlapping the lower third of the frame.",
-      "accent_moment": "The #FACC15 active story segment bar above the check-in photo and the goal progress fill bar on the card below.",
-      "accent_word": "STACK"
+      "headline": "Set your target and close the gap",
+      "subhead": "Add specific lift goals and see exactly how close you are.",
+      "app_screen": "Goals",
+      "visual_notes": "Frame the Goals header, Add goal button, and both goal cards clearly so the 117.5 / 140 Squat (84%) and 160 / 180 Deadlift (89%) yellow progress bars read at a glance.",
+      "accent_moment": "The yellow word 'target' ties directly to the 84% and 89% yellow progress bars on the goal cards.",
+      "accent_word": "target"
     },
     {
       "n": 5,
-      "headline": "SHOW UP. LEVEL UP PASCAL.",
-      "subhead": "A custom 20-stage pixel character plus weekday gym reminders.",
-      "app_screen": "Pascal character progression and customisation screen with a scheduled weekday workout reminder banner.",
-      "visual_notes": "Headline at top. The dark app screen showcases Pascal in crisp pixel art with customisable slots and his 20-stage progression track, while a native device notification banner floats just above the top screen edge showing a scheduled 6:00 AM training reminder.",
-      "accent_moment": "The #FACC15 stage level-up bar beneath Pascal.",
-      "accent_word": "PASCAL"
+      "headline": "Turn up on your training days",
+      "subhead": "Set your days and time for local reminders that work offline.",
+      "app_screen": "Profile settings",
+      "visual_notes": "Crop cleanly around the Workout reminders card showing the active yellow toggle, Mon, Wed, and Fri selected in yellow, 5:30 PM, and the on-phone no-signal note below.",
+      "accent_moment": "The yellow word 'training' matches the active toggle and selected Mon, Wed, and Fri day chips.",
+      "accent_word": "training"
     },
     {
       "n": 6,

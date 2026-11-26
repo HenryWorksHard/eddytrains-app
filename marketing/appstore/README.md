@@ -5,8 +5,11 @@ every iPhone, because Apple scales down but never up.
 
 Concepts and copy generated with Gemini 4 Carbon via OpenRouter, briefed on the
 screenshot strategies of the Health & Fitness top charts, then fact checked
-against this codebase. Two slides were rewritten because the model described
-features that do not exist; see **Corrections** at the bottom.
+against this codebase. THREE slides had to be rewritten because the copy
+described features that do not exist; see **Corrections** at the bottom.
+
+All six use REAL captures from the running app, signed in as the App Store
+review demo client. No mockups, no placeholders.
 
 ## Build them
 
@@ -14,11 +17,12 @@ features that do not exist; see **Corrections** at the bottom.
 node marketing/appstore/build-slides.mjs
 ```
 
-Renders to `marketing/appstore/out/`. Each slide looks for a real capture at
-`marketing/appstore/screenshots/<n>.png`. If one is missing the slide still
-renders, with a placeholder naming the screen to capture, so the layout can be
-reviewed before the screens are reachable. Apple requires screenshots to show
-the real app, so **a slide with a placeholder in it must not be uploaded**.
+Renders to `marketing/appstore/out/`. Each slide uses the real capture at
+`marketing/appstore/screenshots/<n>.png`. All six are present, so the current
+output is upload-ready. If a capture is ever removed the slide still renders,
+with a placeholder naming the screen, and the script refuses to call the set
+upload-ready. Apple requires screenshots to show the real app, so **a slide
+with a placeholder in it must not be uploaded**.
 
 Edit the copy in `slides.json` and re-run. Nothing else needs touching.
 
@@ -95,11 +99,11 @@ Edit the copy in `slides.json` and re-run. Nothing else needs touching.
 - **Accent**: The #FACC15 completed session checkmark badge in the UI and the word 'COACH' set in yellow in the headline.
 - **Accent word in headline**: `COACH`
 
-## Capturing the real screens
+## Recapturing the screens
 
-All six screens sit behind a login, so this needs a demo client account with a
-real assigned program and logged history. The same account is the one App Store
-review needs, so it is worth creating properly once.
+Already done once. Sign in as the demo client (credentials in `.env.local` as
+`DEMO_PASSWORD`, user `appreview@cmpdcollective.com`) and redo any screen that
+changes.
 
 Capture on the **iPhone 17 Pro Max** simulator, which is exactly 1320x2868:
 
@@ -141,9 +145,17 @@ only warns you. Shipping that claim would have been a straight lie to customers 
 a stream of support mail. Replaced with the real differentiator against Strong and
 Hevy: the coach is on the other end.
 
-**Slide 4 claimed a side by side photo comparison.** There is no comparison view.
-`ProgressPicturesClient` renders a chronological story-style viewer you tap
-through. Rewritten to describe only that.
+**Slide 4 claimed a side by side photo comparison.** There is no comparison
+view. Then the capture showed the demo account has no photos at all, and
+fabricating someone's progress photos for a store listing is not on. Slide 4 is
+now purely the Goals screen, which is real and reads well.
+
+**Slide 5 was about Pascal, which no longer exists.** That one is on me: I
+briefed the model from a stale note. There is no Pascal anywhere in `src/`, and
+`supabase/migrations/pending/20261027_drop_pascal.sql` says plainly that the app
+stopped reading those columns when the character went. Slide 5 is now the
+workout reminders screen, which is real, native, and a better Guideline 4.2
+argument anyway.
 
 If the offline outbox ever gets built, slide 6 becomes true and is worth
 revisiting. Until then it stays out.

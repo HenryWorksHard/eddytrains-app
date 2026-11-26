@@ -113,20 +113,29 @@ function slideHtml(slide, shotPath) {
   /* The device bleeds off the bottom edge. Straight from the research: the
      loggers crop the phone so the set table renders large enough to read in
      the search grid, rather than shrinking a whole phone to fit. */
+  /* The frame hugs the capture rather than bleeding off the bottom edge.
+     The research favours the bleed, because it lets the UI render larger. It
+     cannot be had here: these captures are a full 1320x2868 phone screen, so
+     filling a taller frame means scaling up and cropping the sides, and the
+     sides are where the numbers are. A fully visible phone that can be read
+     beats a cropped one that cannot. */
   .device {
-    position: absolute; left: 50%; top: 600px; transform: translateX(-50%);
-    width: 900px; height: ${HEIGHT - 600 + 120}px;
-    border-radius: 86px 86px 0 0;
+    position: absolute; left: 50%; top: 690px; transform: translateX(-50%);
+    width: 900px;
+    border-radius: 86px;
     border: 14px solid #1f1f23;
-    border-bottom: none;
     background: #09090b;
     overflow: hidden;
-    box-shadow: 0 -10px 90px rgba(0,0,0,0.9), 0 0 0 3px #000;
+    box-shadow: 0 24px 90px rgba(0,0,0,0.9), 0 0 0 3px #000;
     z-index: 2;
   }
-  .shot { width: 100%; height: 100%; object-fit: cover; object-position: top center; display: block; }
+  /* Full width, cropped only at the bottom. object-fit: cover was scaling the
+     1320px capture up to fill the frame's height and shaving the sides off,
+     which cut the left edge clean through the stat numbers. The phone UI is
+     the product here, so the width is the part that must survive. */
+  .shot { width: 100%; height: auto; display: block; }
   .placeholder {
-    width: 100%; height: 100%; padding: 120px 70px;
+    width: 100%; height: 1894px; padding: 120px 70px;
     display: flex; flex-direction: column; align-items: center; justify-content: flex-start;
     text-align: center; gap: 34px;
     background: repeating-linear-gradient(45deg, #0d0d10 0 28px, #121216 28px 56px);
