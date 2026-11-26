@@ -405,3 +405,47 @@ straight to Apple. Upload is a separate, deliberate command.
   2026, and it collides with today's `layout.tsx` and `package.json` changes.
   It is not needed for 1.0: it only makes password-reset emails open the app
   instead of Safari. Leave it for 1.1 and rebase it then.
+
+---
+
+## After 1.0 ships
+
+### EU availability needs DSA trader status
+
+Deferred deliberately on 2026-11-26. The app is set to all 175 territories,
+but App Store Connect has this developer registered as a **non-trader** under
+the EU Digital Services Act, and Apple removes non-trader apps from the 27 EU
+storefronts until trader status is provided and verified. So 1.0 effectively
+ships to 148 territories.
+
+Why it was deferred rather than fixed: declaring trader status means handing
+over business and payment details and then waiting on Apple's verification,
+which developers report sitting in review for weeks. The client base is
+Australian. Nothing about it blocks submission, and it is reversible at any
+time.
+
+To turn Europe on later: App Store Connect > the app > Distribution > App
+Compliance > Digital Services Act > Get Started. Expect to supply a trading
+name, address, phone, email and a payment account, all of which Apple verifies
+and then publishes on the product page. Budget for the verification wait
+before any EU launch date, not after.
+
+Apple's own notice: https://developer.apple.com/news/?id=einwn76m
+
+### Other 1.1 items
+
+- **Sign in with Apple is wired but disabled.** The handler and button exist in
+  `src/app/login/page.tsx` behind `{false && ...}`. It is off because Apple
+  OAuth creates a new user keyed on email, which collides with the
+  trainer-invited accounts that already exist. Verified on 2026-11-26 that the
+  Supabase provider is enabled but the client id is rejected by Apple
+  (`"Invalid client id or web redirect url"`), so the button would have been a
+  dead end had it been visible. Fix the Services ID and handle identity
+  linking before re-enabling.
+- **The `com.apple.developer.applesignin` entitlement ships unused.** Harmless
+  while the button is hidden, and not worth a rebuild on its own. Drop it, or
+  make it real, whenever the next build goes up.
+- **No offline queue for set logging.** `saveProgress` posts straight to
+  Supabase and a failed save is lost. The offline banner warns rather than
+  promising a sync, which is honest, but an outbox is the real fix.
+- **PR #36 (universal links)** is stale and conflicting. Rebase it for 1.1.
