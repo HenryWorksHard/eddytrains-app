@@ -4,6 +4,7 @@ import { getVerifiedUser } from '@/app/lib/auth-claims'
 import { useState, useRef, useEffect, useCallback } from 'react'
 import { createClient } from '../lib/supabase/client'
 import { compressImage } from '../lib/imageUtils'
+import { pickImage, hapticNotify, hapticImpact, shareLink } from '@/lib/native'
 import Image from 'next/image'
 import BackButton from '../components/BackButton'
 
@@ -26,7 +27,6 @@ export default function ProgressPicturesClient({ initialImages }: Props) {
   const [storyIndex, setStoryIndex] = useState<number | null>(null)
   const [progress, setProgress] = useState(0)
   const [isPaused, setIsPaused] = useState(false)
-  const fileInputRef = useRef<HTMLInputElement>(null)
   const timerRef = useRef<NodeJS.Timeout | null>(null)
   const startTimeRef = useRef<number>(0)
   const pausedAtRef = useRef<number>(0)
@@ -125,8 +125,10 @@ export default function ProgressPicturesClient({ initialImages }: Props) {
   // Legacy selectedImage for delete (we'll use storyIndex for viewing)
   const selectedImage = storyIndex !== null ? images[storyIndex] : null
 
-  const handleUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0]
+  // Takes a Blob rather than a change event, so the native camera and the
+  // web file input feed the same upload path. pickImage() decides which one
+  // the user actually sees.
+  const handleUpload = async (file: Blob) => {
     if (!file) return
 
     setUploading(true)
@@ -162,15 +164,20 @@ export default function ProgressPicturesClient({ initialImages }: Props) {
       if (insertError) throw insertError
 
       setImages(prev => [newImage, ...prev])
+      hapticNotify('success')
     } catch (err) {
       console.error('Upload failed:', err)
+      hapticNotify('error')
       alert('Failed to upload image. Please try again.')
     } finally {
       setUploading(false)
-      if (fileInputRef.current) {
-        fileInputRef.current.value = ''
-      }
     }
+  }
+
+  // Opens the native camera / library sheet on iOS, a file picker on the web.
+  const startUpload = async () => {
+    const blob = await pickImage('ask')
+    if (blob) await handleUpload(blob)
   }
 
   const deleteImage = async (imageId: string, imageUrl: string) => {
@@ -249,15 +256,8 @@ export default function ProgressPicturesClient({ initialImages }: Props) {
         )}
 
         {/* Upload Button */}
-        <input
-          ref={fileInputRef}
-          type="file"
-          accept="image/*"
-          onChange={handleUpload}
-          className="hidden"
-        />
         <button
-          onClick={() => fileInputRef.current?.click()}
+          onClick={startUpload}
           disabled={uploading}
           className="w-full bg-yellow-400 hover:bg-yellow-500 disabled:bg-yellow-400/50 text-black font-bold py-4 rounded-xl flex items-center justify-center gap-2 transition-colors"
         >
@@ -420,7 +420,27 @@ export default function ProgressPicturesClient({ initialImages }: Props) {
 
           {/* Bottom actions */}
           <div className="absolute bottom-0 left-0 right-0 z-20 px-4 pb-8 pt-4 bg-gradient-to-t from-black/60 to-transparent">
-            <div className="flex items-center justify-center">
+            <div className="flex items-center justify-center gap-2">
+              <button
+                onClick={() => {
+                  if (!selectedImage) return
+                  hapticImpact('light')
+                  // Native share sheet on iOS, Web Share where supported,
+                  // clipboard otherwise. shareLink() picks; this does not care.
+                  void shareLink({
+                    title: 'My progress',
+                    text: 'Progress from my CMPD training.',
+                    url: selectedImage.image_url,
+                  })
+                }}
+                aria-label="Share photo"
+                className="flex items-center gap-1.5 px-4 py-2 bg-white/10 hover:bg-white/20 text-white rounded-full text-sm transition-colors"
+              >
+                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8.684 13.342A3 3 0 106.316 10.658m2.368 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.368-2.684 3 3 0 00-5.368 2.684zm0 9.316a3 3 0 105.368 2.684 3 3 0 00-5.368-2.684z" />
+                </svg>
+                Share
+              </button>
               <button
                 onClick={() => {
                   if (selectedImage) {

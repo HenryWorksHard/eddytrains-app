@@ -1,8 +1,10 @@
 'use client'
 import { getVerifiedUser } from '@/app/lib/auth-claims'
 
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect } from 'react'
 import { createClient } from '../lib/supabase/client'
+import { compressImage } from '../lib/imageUtils'
+import { pickImage, hapticNotify } from '@/lib/native'
 import Image from 'next/image'
 
 interface ProgressImage {
@@ -18,7 +20,6 @@ export default function ProgressPictures() {
   const [uploading, setUploading] = useState(false)
   const [expanded, setExpanded] = useState(false)
   const [selectedImage, setSelectedImage] = useState<ProgressImage | null>(null)
-  const fileInputRef = useRef<HTMLInputElement>(null)
   const supabase = createClient()
 
   useEffect(() => {
@@ -50,8 +51,9 @@ export default function ProgressPictures() {
     }
   }
 
-  const handleUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0]
+  // Blob, not a change event, so the native camera sheet and the web file
+  // input share this path. See pickImage() in @/lib/native.
+  const handleUpload = async (file: Blob) => {
     if (!file) return
 
     setUploading(true)
@@ -59,13 +61,18 @@ export default function ProgressPictures() {
       const user = await getVerifiedUser(supabase)
       if (!user) throw new Error('Not authenticated')
 
-      // Upload to storage
-      const fileExt = file.name.split('.').pop()
-      const fileName = `${user.id}/${Date.now()}.${fileExt}`
+      // Compress first. This used to upload the original straight from the
+      // picker, which on a recent iPhone is a 12MP, 4-5MB JPEG going up over
+      // gym wifi. The full-page uploader already compressed; this one did
+      // not, so the same photo cost very different amounts depending on
+      // which button the client happened to press. A Blob also has no
+      // `.name`, so the old extension sniff could not survive anyway.
+      const compressed = await compressImage(file, 1200, 0.8)
+      const fileName = `${user.id}/${Date.now()}.jpg`
 
       const { error: uploadError } = await supabase.storage
         .from('progress-images')
-        .upload(fileName, file)
+        .upload(fileName, compressed, { contentType: 'image/jpeg' })
 
       if (uploadError) throw uploadError
 
@@ -86,15 +93,19 @@ export default function ProgressPictures() {
 
       // Refresh images
       await fetchImages()
+      hapticNotify('success')
     } catch (err) {
       console.error('Upload failed:', err)
+      hapticNotify('error')
       alert('Failed to upload image. Please try again.')
     } finally {
       setUploading(false)
-      if (fileInputRef.current) {
-        fileInputRef.current.value = ''
-      }
     }
+  }
+
+  const startUpload = async () => {
+    const blob = await pickImage('ask')
+    if (blob) await handleUpload(blob)
   }
 
   const deleteImage = async (imageId: string, imageUrl: string) => {
@@ -177,15 +188,8 @@ export default function ProgressPictures() {
           )}
 
           {/* Upload Button */}
-          <input
-            ref={fileInputRef}
-            type="file"
-            accept="image/*"
-            onChange={handleUpload}
-            className="hidden"
-          />
           <button
-            onClick={() => fileInputRef.current?.click()}
+            onClick={startUpload}
             disabled={uploading}
             className="w-full bg-zinc-800 hover:bg-zinc-700 disabled:bg-zinc-800/50 border border-zinc-700 rounded-xl py-3 px-4 flex items-center justify-center gap-2 transition-colors mb-4"
           >

@@ -6,6 +6,7 @@ import { useRouter } from 'next/navigation'
 import { Star, X } from 'lucide-react'
 import { mutate } from 'swr'
 import { createClient } from '../../lib/supabase/client'
+import { hapticNotify } from '@/lib/native'
 
 interface CompleteWorkoutButtonProps {
   workoutId: string
@@ -305,6 +306,9 @@ export default function CompleteWorkoutButton({
           body: completionPayload,
         })
         if (!response.ok) throw new Error('Failed to complete workout')
+
+        // Finishing the session is the one moment worth a real buzz.
+        hapticNotify('success')
 
         // Drop the dashboard and the adherence figure so today's completion
         // shows the moment they land there. Both are recomputed on request,
