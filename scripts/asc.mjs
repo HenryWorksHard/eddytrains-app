@@ -28,9 +28,33 @@
 import { createSign } from 'node:crypto';
 import { readFileSync, existsSync } from 'node:fs';
 import { homedir } from 'node:os';
-import { join } from 'node:path';
+import { join, dirname } from 'node:path';
+import { fileURLToPath } from 'node:url';
 
 const API = 'https://api.appstoreconnect.apple.com';
+
+// Load .env.local if the caller has not already exported the variables, so
+// this is runnable as `node scripts/asc.mjs whoami` with no ceremony. Values
+// already in the environment always win, which keeps CI and one-off overrides
+// working. Deliberately minimal: no dependency, and it only reads the three
+// keys it needs rather than dumping a credentials file into process.env.
+function loadDotEnvLocal() {
+  const repoRoot = join(dirname(fileURLToPath(import.meta.url)), '..');
+  const envPath = join(repoRoot, '.env.local');
+  if (!existsSync(envPath)) return;
+
+  const wanted = new Set(['ASC_ISSUER_ID', 'ASC_KEY_ID', 'ASC_KEY_PATH']);
+  for (const line of readFileSync(envPath, 'utf8').split('\n')) {
+    const match = line.match(/^\s*([A-Z_][A-Z0-9_]*)\s*=\s*(.*)$/);
+    if (!match) continue;
+    const [, key, rawValue] = match;
+    if (!wanted.has(key) || process.env[key]) continue;
+    // Strip surrounding quotes and any trailing newline a pipe may have left.
+    process.env[key] = rawValue.trim().replace(/^['"]|['"]$/g, '');
+  }
+}
+
+loadDotEnvLocal();
 
 function b64url(input) {
   return Buffer.from(input)
