@@ -273,9 +273,15 @@ function LoginInner() {
           )}
         </div>
 
-        <div className="mt-6 text-center text-xs text-zinc-500">
+        {/* Both reachable without an account on purpose: someone locked out
+            needs the support page most, and App Store review opens them. */}
+        <div className="mt-6 flex items-center justify-center gap-3 text-xs text-zinc-500">
           <Link href="/privacy" className="hover:text-zinc-300">
             Privacy Policy
+          </Link>
+          <span aria-hidden="true">&middot;</span>
+          <Link href="/support" className="hover:text-zinc-300">
+            Support
           </Link>
         </div>
       </div>

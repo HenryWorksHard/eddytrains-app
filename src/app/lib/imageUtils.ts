@@ -1,5 +1,12 @@
-// Compress image before upload
-export async function compressImage(file: File, maxWidth = 1200, quality = 0.8): Promise<Blob> {
+// Compress image before upload.
+//
+// Takes a Blob rather than a File on purpose. A File IS a Blob, so every
+// existing `<input type="file">` caller still works, but the native camera
+// hands back a plain Blob built from the plugin's base64 payload and has no
+// filename to invent. Nothing in here ever read `.name` or `.lastModified`:
+// FileReader.readAsDataURL accepts any Blob, so this is a type widening with
+// no behaviour change.
+export async function compressImage(file: Blob, maxWidth = 1200, quality = 0.8): Promise<Blob> {
   return new Promise((resolve, reject) => {
     const reader = new FileReader()
     reader.readAsDataURL(file)

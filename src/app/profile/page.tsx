@@ -1,12 +1,14 @@
 'use client'
 import { getVerifiedUser } from '@/app/lib/auth-claims'
 
-import { useEffect, useState, useRef } from 'react'
+import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { mutate as swrMutate } from 'swr'
 import { createClient } from '../lib/supabase/client'
 import { signOutAndClear } from '../lib/auth-helpers'
 import { compressImage } from '../lib/imageUtils'
+import { pickImage, hapticNotify } from '@/lib/native'
+import WorkoutReminders from '@/components/WorkoutReminders'
 import { useTheme } from '../lib/ThemeContext'
 import BottomNav from '../components/BottomNav'
 import { SlideOutMenu, HamburgerButton } from '../components/SlideOutMenu'
@@ -66,7 +68,6 @@ export default function ProfilePage() {
   const [deleteConfirmText, setDeleteConfirmText] = useState('')
   const [deleting, setDeleting] = useState(false)
   const [deleteError, setDeleteError] = useState<string | null>(null)
-  const pfpInputRef = useRef<HTMLInputElement>(null)
   const router = useRouter()
   const supabase = createClient()
   const { theme, toggleTheme } = useTheme()
@@ -111,8 +112,8 @@ export default function ProfilePage() {
     loadProfile()
   }, [supabase, router])
 
-  const handlePfpUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0]
+  // Blob, so the native camera sheet and the web file input share the path.
+  const handlePfpUpload = async (file: Blob) => {
     if (!file || !profile) return
 
     setUploadingPfp(true)
@@ -145,13 +146,19 @@ export default function ProfilePage() {
       if (updateError) throw updateError
 
       setProfile(prev => prev ? { ...prev, profile_picture_url: urlWithCacheBuster } : null)
+      hapticNotify('success')
     } catch (err) {
       console.error('PFP upload failed:', err)
+      hapticNotify('error')
       alert('Failed to upload. Please try again.')
     } finally {
       setUploadingPfp(false)
-      if (pfpInputRef.current) pfpInputRef.current.value = ''
     }
+  }
+
+  const startPfpUpload = async () => {
+    const blob = await pickImage('ask')
+    if (blob) await handlePfpUpload(blob)
   }
 
   const load1RMs = async (userId: string) => {
@@ -307,15 +314,8 @@ export default function ProfilePage() {
         </div>
         
         <div className="px-6 py-6 text-center">
-          <input
-            ref={pfpInputRef}
-            type="file"
-            accept="image/*"
-            onChange={handlePfpUpload}
-            className="hidden"
-          />
           <button
-            onClick={() => pfpInputRef.current?.click()}
+            onClick={startPfpUpload}
             disabled={uploadingPfp}
             className="relative w-24 h-24 mx-auto mb-4 group"
           >
@@ -546,6 +546,8 @@ export default function ProfilePage() {
         <section>
           <h2 className="text-sm font-medium text-zinc-500 uppercase tracking-wider mb-3">Settings</h2>
           <div className="bg-zinc-900 border border-zinc-800 rounded-2xl overflow-hidden">
+            {/* Native-only: renders nothing in a browser */}
+            <WorkoutReminders />
             {/* Theme Toggle */}
             <div className="flex items-center justify-between px-4 py-4 border-b border-zinc-800">
               <div className="flex items-center gap-3">

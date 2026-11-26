@@ -8,6 +8,7 @@ import { createClient } from '../../lib/supabase/client'
 import WheelPicker from '../../components/WheelPicker'
 import PRCelebration from '../../components/PRCelebration'
 import { estimateOneRm } from '../../lib/tonnage'
+import { hapticImpact, hapticNotify } from '@/lib/native'
 
 interface ExerciseSet {
   set_number: number
@@ -612,14 +613,24 @@ function ExerciseCardInner({
     //   setPRCelebration({ show: true, weight, reps })
     //   setSessionBest({ weight, reps })
     // } else
+    // Confirm the set in the hand, not just on the screen. Logging happens
+    // mid-lift with the phone on a bench, often without looking, so a tap is
+    // the fastest honest signal that the number went in. A session best gets
+    // the heavier success pattern instead, so a PR feels different from a
+    // routine set without needing the celebration modal that was disabled
+    // above for being glitchy.
+    let isSessionBest = false
     if (weight && reps) {
       // Update session best if better
       const estimated1RM = estimateOneRm(weight, reps)
       if (!sessionBest || estimated1RM > estimateOneRm(sessionBest.weight, sessionBest.reps)) {
         setSessionBest({ weight, reps })
+        isSessionBest = !!sessionBest // not the very first set of the session
       }
     }
-    
+    if (isSessionBest) hapticNotify('success')
+    else hapticImpact('light')
+
     setWheelPicker({ open: false, setNumber: 0, targetReps: '', mode: 'weight-reps' })
   }
 

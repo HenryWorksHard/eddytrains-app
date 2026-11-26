@@ -140,7 +140,7 @@ export async function middleware(request: NextRequest) {
   // /api/checkout/program is public because the buyer has no account yet —
   // that is the entire point of it. It cannot be abused to set a price: the
   // amount is resolved from Stripe, never from the request.
-  const publicRoutes = ['/login', '/signup', '/api/signup', '/reset-password', '/update-password', '/auth/callback', '/join', '/api/exercises', '/accept-invite', '/api/accept-invite', '/api/auth/send-password-reset', '/api/auth/sign-out-cleanup', '/api/log/client-diagnostic', '/api/intake', '/api/checkout/program', '/privacy', '/access-paused']
+  const publicRoutes = ['/login', '/signup', '/api/signup', '/reset-password', '/update-password', '/auth/callback', '/join', '/api/exercises', '/accept-invite', '/api/accept-invite', '/api/auth/send-password-reset', '/api/auth/sign-out-cleanup', '/api/log/client-diagnostic', '/api/intake', '/api/checkout/program', '/privacy', '/support', '/access-paused']
   const isPublicRoute = publicRoutes.some(route => pathname.startsWith(route))
 
   if (!user && !isPublicRoute) {
