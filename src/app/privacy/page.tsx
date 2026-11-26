@@ -43,6 +43,11 @@ export default function PrivacyPage() {
               <li>Email address and full name</li>
               <li>Workout logs including exercises, sets, reps, and weights</li>
               <li>Body metrics such as estimated 1RMs and optional body weight</li>
+              <li>
+                Health information you or your trainer enter on your profile: a
+                presenting condition and medical history. These are optional,
+                and you can clear them at any time.
+              </li>
               <li>Progress photos you upload</li>
               <li>Goal data and training schedule</li>
               <li>Your timezone, used to render your schedule correctly</li>
@@ -70,8 +75,8 @@ export default function PrivacyPage() {
           <section>
             <h2 className="text-xl font-semibold text-white mb-3">Sharing</h2>
             <p className="mb-3">
-              We never sell your data. Your workout data is visible only to your trainer, not to
-              other clients. We use Stripe to bill trainers for their subscription to the platform.
+              We never sell your data. Your workout data, and any health information on
+              your profile, is visible only to your trainer, not to other clients. We use Stripe to bill trainers for their subscription to the platform.
               Clients do not transact through us.
             </p>
           </section>
