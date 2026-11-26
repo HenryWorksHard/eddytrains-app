@@ -1,0 +1,76 @@
+{
+  "research": {
+    "patterns": [
+      "Leading fitness apps keep headlines between three and six words in heavy sans-serif type so shoppers can read every caption directly from the search results grid without tapping.",
+      "Captions sit in the top 20 to 25 percent of the canvas above the device bezel because users scan horizontally across the top third of the gallery first.",
+      "Pure workout loggers like Strong, Hevy, and Fitbod bleed the bottom quarter of the iPhone off the lower edge so small set tables and weight inputs scale up to readable sizes.",
+      "Serious training tools like Whoop, Fitbod, and Ladder rely on near-black backgrounds to signal intensity and make bright data lines pop at thumbnail scale.",
+      "Apps like Caliber, MyFitnessPal, and Hevy pull one crucial UI row or metric out of the device as a zoomed floating callout card to prove utility without visual clutter.",
+      "High-converting sets pair a restrained dark UI with a single high-contrast accent color reserved strictly for active buttons, personal record tags, and upward chart lines.",
+      "Coach-led platforms like Ladder, Peloton, Centr, and Nike Training Club establish trainer structure on slide one, whereas self-serve loggers open straight on the live set sheet.",
+      "Habit-driven apps like Freeletics and Whoop favor self-contained compositions over split cross-slide panoramas so the first three thumbnails read cleanly side by side in search.",
+      "Top trackers populate every screen with realistic working weights, familiar compound lifts, and multi-week trend curves instead of empty states or placeholder zeros.",
+      "Slide one always sells the daily workout workflow, while slides four through six handle retention mechanics like lift history, body photos, streaks, and reminders."
+    ],
+    "first_three_rule": "Most App Store visitors decide whether to download from the three portrait thumbnails visible in search results or on initial page load without ever swiping right. Slides one through three must therefore close the deal alone by showing coach-built structure on slide one, inline set logging on slide two, and hard strength progress on slide three.",
+    "caption_voice": "Top-performing fitness captions use blunt imperative verbs and concrete gym nouns that state what the lifter actually does rather than pitching vague lifestyle promises. Every line reads like a direct cue on the gym floor, cutting filler words so the message lands in under two seconds."
+  },
+  "slides": [
+    {
+      "n": 1,
+      "headline": "YOUR COACH'S PLAN, READY TO LIFT",
+      "subhead": "Every exercise and target laid out in your coach's exact order.",
+      "app_screen": "Today's Workout screen showing a coach-assigned session with ordered exercises, set counts, and target reps.",
+      "visual_notes": "Heavy white Sora headline stacked in the top 22 percent over a pure #000000 canvas, zinc grey subhead beneath. iPhone framed straight-on and cropped off the bottom edge below the fourth exercise card so UI typography reads clearly from search thumbnails.",
+      "accent_moment": "The #FACC15 signal yellow 'Start Workout' button at the top of the session list and the word 'COACH'S' set in yellow in the headline.",
+      "accent_word": "COACH'S"
+    },
+    {
+      "n": 2,
+      "headline": "BEAT YOUR LAST SESSION",
+      "subhead": "Last session's numbers sit inline. Feel a haptic on every PB.",
+      "app_screen": "Active Set Logging screen on Barbell Bench Press with previous weights and reps shown inline beside current set inputs.",
+      "visual_notes": "Headline aligned top center. Device pushed down and bled off the bottom edge, with an enlarged floating UI row callout overlapping the middle of the screen at 125 percent scale to spotlight the inline zinc grey 'Last' numbers next to today's heavier logged set.",
+      "accent_moment": "A crisp #FACC15 'PB' badge illuminated on the completed top set inside the zoomed callout row.",
+      "accent_word": "BEAT"
+    },
+    {
+      "n": 3,
+      "headline": "WATCH YOUR NUMBERS CLIMB",
+      "subhead": "Lift charts and estimated 1RMs you and your coach both see.",
+      "app_screen": "Lift Progress detail screen showing an Estimated 1RM line chart for Squat above chronological exercise history.",
+      "visual_notes": "Clean top-down hierarchy on #000000. Straight-on iPhone frame cropped near the bottom bezel so the 1RM graph fills the upper half of the screen and full past session entries remain legible underneath.",
+      "accent_moment": "The upward #FACC15 trend line and glowing peak 1RM data point cutting across the dark zinc chart grid.",
+      "accent_word": "CLIMB"
+    },
+    {
+      "n": 4,
+      "headline": "SEE THE WORK STACK UP",
+      "subhead": "Tap through full-screen progress photos and track your goals.",
+      "app_screen": "Full-screen chronological Progress Photos viewer with story-style tap indicators at the top, paired with an active Goals tracking card.",
+      "visual_notes": "Heavy white Sora headline centered at top over pure #000000, zinc grey subhead beneath. Device framed straight-on and bled off the bottom, showing a dated full-screen check-in photo with segmented tap bars at the top and a clean Goals progress card overlapping the lower third of the frame.",
+      "accent_moment": "The #FACC15 active story segment bar above the check-in photo and the goal progress fill bar on the card below.",
+      "accent_word": "STACK"
+    },
+    {
+      "n": 5,
+      "headline": "SHOW UP. LEVEL UP PASCAL.",
+      "subhead": "A custom 20-stage pixel character plus weekday gym reminders.",
+      "app_screen": "Pascal character progression and customisation screen with a scheduled weekday workout reminder banner.",
+      "visual_notes": "Headline at top. The dark app screen showcases Pascal in crisp pixel art with customisable slots and his 20-stage progression track, while a native device notification banner floats just above the top screen edge showing a scheduled 6:00 AM training reminder.",
+      "accent_moment": "The #FACC15 stage level-up bar beneath Pascal.",
+      "accent_word": "PASCAL"
+    },
+    {
+      "n": 6,
+      "headline": "YOUR COACH SEES EVERY SET",
+      "subhead": "Your coach reviews your logged history and adjusts your program.",
+      "app_screen": "Completed Workout summary and Session History view showing logged working sets alongside an updated coach-assigned training block.",
+      "visual_notes": "High-trust closing slide. Heavy white Sora headline stacked at top over a pure #000000 canvas with a zinc grey subhead. Straight-on iPhone cropped below the lower third showing completed sets recorded in history above the next adjusted workout block from the coach.",
+      "accent_moment": "The #FACC15 completed session checkmark badge in the UI and the word 'COACH' set in yellow in the headline.",
+      "accent_word": "COACH"
+    }
+  ],
+  "app_store_subtitle": "Coach-Led Gym & Workout Log",
+  "promotional_text": "Your coach builds the program. You log every set. Track PBs, 1RM charts, photos, and full lift history. Invite based for clients, with self serve for trainers."
+}

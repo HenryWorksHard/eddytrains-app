@@ -1,0 +1,3 @@
+# Rendered output is reproducible from slides.json plus the screenshots.
+# Six 1320x2868 PNGs per run would otherwise churn the history of a public repo.
+out/
