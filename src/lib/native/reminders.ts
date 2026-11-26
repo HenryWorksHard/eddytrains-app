@@ -78,10 +78,34 @@ export function saveReminderPrefs(prefs: ReminderPrefs): void {
   }
 }
 
-/** 'granted' | 'denied' | 'unsupported'. Asks the OS only when undecided. */
-export async function requestReminderPermission(): Promise<
-  'granted' | 'denied' | 'unsupported'
-> {
+type PermissionState = 'granted' | 'denied' | 'unsupported';
+
+/**
+ * Reads the current permission WITHOUT ever showing the OS dialog.
+ *
+ * Separate from requesting on purpose. iOS gives an app exactly one chance to
+ * ask: once the dialog is dismissed the answer is final and the only way back
+ * is the Settings app. So the prompt must only ever appear as the direct
+ * result of the user reaching for the feature, never as a side effect of
+ * something running on launch.
+ */
+async function checkReminderPermission(): Promise<PermissionState> {
+  if (!isNative()) return 'unsupported';
+  try {
+    const { LocalNotifications } = await import('@capacitor/local-notifications');
+    const current = await LocalNotifications.checkPermissions();
+    return current.display === 'granted' ? 'granted' : 'denied';
+  } catch {
+    return 'unsupported';
+  }
+}
+
+/**
+ * Asks the OS if it has not been decided, otherwise reports what was decided.
+ *
+ * Only call this from a user gesture, such as the reminders toggle.
+ */
+export async function requestReminderPermission(): Promise<PermissionState> {
   if (!isNative()) return 'unsupported';
   try {
     const { LocalNotifications } = await import('@capacitor/local-notifications');
@@ -159,12 +183,17 @@ export async function clearReminders(): Promise<void> {
  * no-op. It matters after an app update or a permission change, where the
  * pending queue can be dropped while our localStorage preference survives
  * and would otherwise silently stop firing.
+ *
+ * CHECKS permission, never requests it. This runs on every launch from
+ * NativeShell, and asking here would put a notifications dialog in front of
+ * someone who just opened the app to log a set. If permission was revoked the
+ * reminders simply stay unscheduled until the user visits the toggle again.
  */
 export async function rehydrateReminders(): Promise<void> {
   if (!isNative()) return;
   const prefs = loadReminderPrefs();
   if (!prefs.enabled) return;
-  const permission = await requestReminderPermission();
+  const permission = await checkReminderPermission();
   if (permission !== 'granted') return;
   await applyReminders(prefs);
 }
