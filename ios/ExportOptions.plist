@@ -1,0 +1,48 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!--
+  Export options for an App Store build.
+
+  Used as:
+    xcodebuild -exportArchive \
+      -archivePath CMPD.xcarchive \
+      -exportOptionsPlist ios/ExportOptions.plist \
+      -exportPath build/ \
+      -allowProvisioningUpdates \
+      -authenticationKeyPath  ~/.appstoreconnect/private_keys/AuthKey_<KEY_ID>.p8 \
+      -authenticationKeyID    <KEY_ID> \
+      -authenticationKeyIssuerID <ISSUER_ID>
+
+  The three authentication flags let Xcode create the distribution certificate
+  and provisioning profile through the App Store Connect API instead of a
+  signed-in Xcode GUI session, which is why they are passed rather than baked
+  in here: this file is in a PUBLIC repo and carries no credentials.
+
+  uploadSymbols is on so crash reports symbolicate. There is no bitcode key
+  because Apple removed bitcode entirely; leaving it in now causes a warning.
+-->
+<plist version="1.0">
+<dict>
+	<key>method</key>
+	<string>app-store-connect</string>
+
+	<key>teamID</key>
+	<string>2CBUGCKX8C</string>
+
+	<key>signingStyle</key>
+	<string>automatic</string>
+
+	<key>uploadSymbols</key>
+	<true/>
+
+	<!-- Keep the upload a deliberate, separate step. Exporting and shipping to
+	     App Store Connect in one command makes a dry run impossible. -->
+	<key>destination</key>
+	<string>export</string>
+
+	<!-- The app is iPhone-only and ships no app thinning variants, so a single
+	     universal IPA is correct and simplest to verify before upload. -->
+	<key>thinning</key>
+	<string>&lt;none&gt;</string>
+</dict>
+</plist>

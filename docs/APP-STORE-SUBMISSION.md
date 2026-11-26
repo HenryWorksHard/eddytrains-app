@@ -203,3 +203,171 @@ name that looks wrong; the simulator's default is clean.
 
 Every upload after the first needs `CURRENT_PROJECT_VERSION` bumped. 1.0
 build 1 is correct for this one.
+
+---
+
+## Listing copy
+
+Written to Apple's character limits. Paste as is, or change it, but keep
+inside the counts or App Store Connect silently truncates.
+
+**App name** (30 max, currently 12)
+
+```
+CMPD Fitness
+```
+
+**Subtitle** (30 max, currently 27)
+
+```
+Your program, your progress
+```
+
+**Promotional text** (170 max, currently 139). This is the one field you can
+change without shipping a new build, so use it for whatever is current.
+
+```
+Every set, every session, tracked against the program your coach built for you. Log it at the rack and watch the numbers move week on week.
+```
+
+**Keywords** (100 max, currently 89). Comma separated, no spaces after the
+commas, and never repeat a word already in the name or subtitle because Apple
+indexes those separately.
+
+```
+gym,workout,training,personal trainer,coach,strength,lifting,program,progress,fitness log
+```
+
+**Description** (4000 max)
+
+```
+CMPD Fitness is where your training actually gets done.
+
+Your coach builds your program. You open the app at the gym, log every set
+against it, and you both see exactly what is happening week to week. No
+spreadsheets, no screenshots of notes, no guessing what you lifted last time.
+
+WHAT YOU GET
+
+Your program, laid out
+See today's session the moment you open the app. Every exercise, every
+target, in the order your coach intended.
+
+Logging that keeps up with you
+Enter weight and reps between sets. Last session's numbers sit right there,
+so you always know what you are chasing. Your previous best is marked, and
+the app tells you the moment you beat it.
+
+Progress you can actually see
+Charts for every lift you train. Estimated one-rep maxes that update as you
+get stronger. A full history for any exercise, going back as far as you have
+been training.
+
+Progress photos
+Take them in the app and keep them in one place, side by side, so months of
+work are easy to see.
+
+Goals that stay in front of you
+Set what you are working toward and track how close you are.
+
+Reminders that fit your week
+Pick the days and the time you train, and your phone will nudge you. Set on
+the device, so they work whether or not you have signal.
+
+BUILT FOR THE GYM FLOOR
+
+Big targets you can hit with chalky hands. Haptic confirmation so you know a
+set landed without staring at the screen. And if the gym wifi drops out, the
+app tells you straight away rather than quietly losing your work.
+
+FOR CLIENTS OF A CMPD COACH
+
+If you train with a coach on CMPD, your account is set up for you and your
+invite arrives by email. Your training data is visible to your coach and to
+nobody else.
+
+Questions: contact@cmpdcollective.com
+```
+
+**What's New** (4000 max). For 1.0 Apple accepts anything sensible.
+
+```
+First release.
+```
+
+### Fields that are not copy
+
+- **Category**: Health & Fitness (primary). Leave secondary empty.
+- **Age rating**: answer every question No. The app has no objectionable
+  content, no web browsing, no user-generated content shared between users.
+  That yields 4+.
+- **Support URL**: `https://app.cmpdcollective.com/support`
+- **Marketing URL**: `https://cmpdcollective.com`
+- **Privacy Policy URL**: `https://app.cmpdcollective.com/privacy`
+- **Copyright**: `2026 CMPD Collective`
+
+One rule worth not breaking: do not mention pricing, subscriptions, other
+platforms, or anything that reads as "also available on the web" in the
+description. Apple rejects for it, and the billing flow is already hidden in
+the iOS build.
+
+---
+
+## When the .p8 arrives
+
+The API key's Issuer ID and Key ID are already in `.env.local` (gitignored).
+The only missing piece is the private key, which App Store Connect lets you
+download exactly once at creation. Drop it at the path `ASC_KEY_PATH` names in `.env.local`:
+
+```
+~/.appstoreconnect/private_keys/AuthKey_<ASC_KEY_ID>.p8
+```
+
+(The real key id is in `.env.local` and in the global CLAUDE.md. It is not
+written here, because this repo is public: the id alone cannot authenticate,
+but publishing it points an attacker at exactly which key to go after.)
+
+That directory already exists, and it is the path `xcrun altool` and
+`notarytool` search by key id, so putting it there makes every Apple tool work
+without further flags.
+
+Check it works:
+
+```
+node scripts/asc.mjs whoami
+```
+
+That mints an ES256 JWT and lists the team's apps. An empty `data` array is the
+correct answer right now, because the app record does not exist yet. An
+`AUTHENTICATION_FAILED` means the key, the key id and the issuer id do not
+belong together.
+
+`scripts/asc.mjs` is a thin generic client, so everything else is one call:
+
+```
+node scripts/asc.mjs GET "/v1/bundleIds?filter[identifier]=com.eddytrains.app"
+node scripts/asc.mjs POST /v1/bundleIds '{"data":{"type":"bundleIds","attributes":{"identifier":"com.eddytrains.app","name":"CMPD Fitness","platform":"IOS"}}}'
+```
+
+If the key is ever lost, it cannot be re-downloaded. Revoke it and make a new
+one; nothing in this repo has to change, because the repo is public and holds
+no credentials.
+
+### Archive and upload, once the certificate exists
+
+```
+xcodebuild -exportArchive \
+  -archivePath CMPD.xcarchive \
+  -exportOptionsPlist ios/ExportOptions.plist \
+  -exportPath build/ \
+  -allowProvisioningUpdates \
+  -authenticationKeyPath "$ASC_KEY_PATH" \
+  -authenticationKeyID "$ASC_KEY_ID" \
+  -authenticationKeyIssuerID "$ASC_ISSUER_ID"
+```
+
+The three authentication flags are what let Xcode mint the distribution
+certificate and provisioning profile through the API rather than through a
+signed-in GUI session. `ios/ExportOptions.plist` deliberately sets
+`destination: export` so this produces an IPA to inspect rather than shipping
+straight to Apple. Upload is a separate, deliberate command.
