@@ -79,12 +79,14 @@ export default function PrivacyPage() {
           <section>
             <h2 className="text-xl font-semibold text-white mb-3">Retention</h2>
             <p>
-              We keep your data while your account is active. You can request deletion at any time
-              by emailing{' '}
+              We keep your data while your account is active. You can delete your account yourself
+              at any time from the Profile screen, under Delete account. That removes your account,
+              workout history, goals and photos immediately, and it cannot be undone. You can also
+              email{' '}
               <a href="mailto:contact@cmpdcollective.com" className="text-yellow-400 hover:text-yellow-300">
                 contact@cmpdcollective.com
-              </a>
-              . We&apos;ll wipe your data within 30 days of the request.
+              </a>{' '}
+              and we&apos;ll wipe your data within 30 days of the request.
             </p>
           </section>
 

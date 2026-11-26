@@ -1,35 +1,42 @@
 'use client';
 
+// Native detection for UI that must differ inside the app store build,
+// chiefly the payment and upgrade UI that App Store rules forbid us from
+// showing (Guideline 3.1.1).
+//
+// The detection itself lives in `@/lib/native` and is not duplicated here.
+// Two copies of "are we native" that drift apart is the kind of bug that
+// ships a Stripe button to an App Store reviewer, so there is one function
+// and this file only adapts it to React's rendering rules.
+
 import { useState, useEffect } from 'react';
+import { isNative } from '@/lib/native';
 
 /**
- * Detect if running inside Capacitor native app (iOS/Android)
- * Used to hide payment UI that would violate App Store rules
+ * Hook form. Returns false on the first render even inside the app, then
+ * flips true after mount.
+ *
+ * WHY THE FALSE FIRST RENDER IS DELIBERATE. These pages are server rendered,
+ * and the server cannot know the platform. Reading it during render would
+ * produce server HTML that disagrees with the client and React would discard
+ * the tree. The safe direction to be wrong in is false: a native user may see
+ * a payment control for one frame at worst, whereas defaulting to true would
+ * hide billing from every web visitor until hydration.
  */
 export function useIsNativeApp(): boolean {
-  const [isNative, setIsNative] = useState(false);
+  const [native, setNative] = useState(false);
 
   useEffect(() => {
-    // Check for Capacitor
-    const hasCapacitor = typeof window !== 'undefined' && 
-      (window as Window & { Capacitor?: { isNativePlatform?: () => boolean } }).Capacitor !== undefined;
-    
-    // Double-check with isNativePlatform if available
-    if (hasCapacitor) {
-      const Capacitor = (window as Window & { Capacitor?: { isNativePlatform?: () => boolean } }).Capacitor;
-      setIsNative(Capacitor?.isNativePlatform?.() ?? true);
-    }
+    setNative(isNative());
   }, []);
 
-  return isNative;
+  return native;
 }
 
 /**
- * Sync version for conditional rendering in server components
- * Note: Always returns false on server, true detection only on client
+ * Sync form, for event handlers and other code that runs after mount.
+ * Always false during server rendering; do not branch rendered output on it.
  */
 export function isNativeApp(): boolean {
-  if (typeof window === 'undefined') return false;
-  const Capacitor = (window as Window & { Capacitor?: { isNativePlatform?: () => boolean } }).Capacitor;
-  return Capacitor?.isNativePlatform?.() ?? (Capacitor !== undefined);
+  return isNative();
 }
