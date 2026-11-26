@@ -185,11 +185,26 @@ name that looks wrong; the simulator's default is clean.
 
 ## Order of operations
 
+0. **ACCEPT THE APPLE AGREEMENT. Nothing works until you do.**
+   Verified 2026-11-26 with a real API call: the App Store Connect key
+   authenticates fine, but *every* endpoint returns
+   `403 FORBIDDEN.REQUIRED_AGREEMENTS_MISSING_OR_EXPIRED` — `/v1/apps`,
+   `/v1/bundleIds`, `/v1/certificates`, `/v1/profiles`, `/v1/users`, all of
+   them. This is not an auth problem and no amount of re-keying fixes it.
+   Sign in and accept at **https://appstoreconnect.apple.com/business**
+   (Agreements, Tax and Banking). Check this before debugging anything else.
+
 1. **Deploy the web app first.** The binary loads
    `app.cmpdcollective.com`, so until this branch is merged and deployed, the
    camera, reminder and haptic code does not exist for the app and a reviewer
    would be looking at the old site.
-2. Register the bundle ID at developer.apple.com under Identifiers.
+2. Register the bundle ID at developer.apple.com under Identifiers, and
+   **tick Sign In with Apple** while doing it. `App.entitlements` declares
+   `com.apple.developer.applesignin`, so if the App ID does not carry that
+   capability, provisioning fails and the archive will not sign. The button is
+   switched off in the UI for 1.0, but the entitlement still ships, so the
+   capability has to exist. (The alternative is deleting the entitlement; the
+   capability costs nothing and keeps the door open for 1.1.)
 3. Create the app record in App Store Connect.
 4. Sign Xcode into the Apple ID. Signing is already Automatic with the team
    set, so certificates and profiles generate on their own.
@@ -371,3 +386,22 @@ certificate and provisioning profile through the API rather than through a
 signed-in GUI session. `ios/ExportOptions.plist` deliberately sets
 `destination: export` so this produces an IPA to inspect rather than shipping
 straight to Apple. Upload is a separate, deliberate command.
+
+---
+
+## Traps found and already defused
+
+- **`/support` was behind the auth wall.** The middleware allowlist had
+  `/privacy` but not `/support`, so the support URL App Store Connect requires
+  redirected to `/login`. Fixed and verified on production, signed out, inside
+  the app.
+- **`/.well-known/` was behind the auth wall too.**
+  `/.well-known/apple-app-site-association` returned `307 -> /login`. Apple
+  requires that file to be served with **no redirects**, so universal links
+  would have failed silently the moment PR #36 landed. `/.well-known` is now
+  public as a class, which is also the right answer for Android app links,
+  `security.txt` and ACME challenges.
+- **PR #36 (iOS universal links) is stale and conflicting**, last touched July
+  2026, and it collides with today's `layout.tsx` and `package.json` changes.
+  It is not needed for 1.0: it only makes password-reset emails open the app
+  instead of Safari. Leave it for 1.1 and rebase it then.
